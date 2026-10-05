@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pressmark Studio · Sub-Millisecond Vector Document Engine</title>
+  <link rel="stylesheet" href="/css/studio.css">
+  <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
+</head>
+<body>
+
+  <!-- TOP NAVBAR -->
+  <header class="navbar">
+    <div class="nav-brand">
+      <img src="/assets/logo.jpg" alt="Pressmark Logo" class="nav-logo">
+      <div class="brand-text-group">
+        <span class="brand-text">PRESSMARK</span>
+        <span class="brand-pill">Precision Vector Engine</span>
+      </div>
+    </div>
+
+    <!-- CENTER CONTROLS: VIEW SWITCHER & HISTORY -->
+    <div class="nav-center">
+      <div class="segmented-control" id="viewModeSelector">
+        <button class="segmented-btn active" data-view="split" id="viewBtnSplit" title="Split Screen (Editor & Preview)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+          <span>Split</span>
+        </button>
+        <button class="segmented-btn" data-view="editor" id="viewBtnEditor" title="Editor Only">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <span>Editor</span>
+        </button>
+        <button class="segmented-btn" data-view="preview" id="viewBtnPreview" title="Preview Canvas Only">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span>Preview</span>
+        </button>
+      </div>
+
+      <div class="nav-divider"></div>
+
+      <!-- DATA PERSISTENCE MODE: MY DATA (PROTECTED) VS SAMPLE DATA -->
+      <div class="data-mode-control" id="dataModeControl">
+        <button type="button" class="data-mode-btn active" id="btnModeMyData" title="Your typed business info, clients, and inputs remain protected and are never overwritten when switching archetypes">
+          <span class="mode-icon">🛡️</span>
+          <span>My Data</span>
+        </button>
+        <button type="button" class="data-mode-btn" id="btnModeSampleData" title="Explore archetypes using curated industry sample data">
+          <span class="mode-icon">🎲</span>
+          <span>Sample Data</span>
+        </button>
+      </div>
+
+      <div class="nav-divider"></div>
+
+      <div class="history-controls">
+        <button class="btn btn-secondary btn-sm" id="btnUndo" disabled title="Undo (⌘Z / Ctrl+Z)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+          <span>Undo</span>
+        </button>
+        <button class="btn btn-secondary btn-sm" id="btnRedo" disabled title="Redo (⌘⇧Z / Ctrl+Y)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
+          <span>Redo</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- RIGHT ACTION MENUS -->
+    <div class="nav-actions">
+      <!-- Tools Dropdown -->
+      <div class="dropdown" id="dropdownTools">
+        <button class="btn btn-secondary btn-sm btn-dropdown-trigger" type="button" id="btnToolsMenu">
+          <span>✨ Tools</span>
+          <span class="dropdown-chevron">▾</span>
+        </button>
+        <div class="dropdown-menu">
+          <button class="dropdown-item" id="btnRandomize">
+            <span class="dropdown-icon">🎲</span>
+            <div class="dropdown-item-info">
+              <span class="dropdown-item-title">Surprise Me</span>
+              <span class="dropdown-item-desc">Randomize theme, industry & layout</span>
+            </div>
+          </button>
+          <button class="dropdown-item" id="btnOpenScan">
+            <span class="dropdown-icon">📷</span>
+            <div class="dropdown-item-info">
+              <span class="dropdown-item-title">Scan Receipt / Photo</span>
+              <span class="dropdown-item-desc">Extract data with Neural OCR</span>
+            </div>
+          </button>
+          <button class="dropdown-item" id="btnClone">
+            <span class="dropdown-icon">📋</span>
+            <div class="dropdown-item-info">
+              <span class="dropdown-item-title">Clone Document</span>
+              <span class="dropdown-item-desc">Duplicate as a new revision</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- More Dropdown -->
+      <div class="dropdown" id="dropdownMore">
+        <button class="btn btn-secondary btn-sm btn-dropdown-trigger" type="button" id="btnMoreMenu">
+          <span>⋯ More</span>
+          <span class="dropdown-chevron">▾</span>
+        </button>
+        <div class="dropdown-menu">
+          <button class="dropdown-item" id="btnCopyJson">
+            <span class="dropdown-icon">{ }</span>
+            <div class="dropdown-item-info">
+              <span class="dropdown-item-title">Document JSON</span>
+              <span class="dropdown-item-desc">Export or paste raw schema</span>
+            </div>
+          </button>
+          <button class="dropdown-item" id="btnOpenGpt">
+            <span class="dropdown-icon">🔌</span>
+            <div class="dropdown-item-info">
+              <span class="dropdown-item-title">ChatGPT Action API</span>
+              <span class="dropdown-item-desc">Connect Custom GPT / Action</span>
+            </div>
+          </button>
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item" id="btnOpenPricing">
+            <span class="dropdown-icon">💳</span>
+            <div class="dropdown-item-info">
+              <span class="dropdown-item-title">Pricing & Unlock Plans</span>
+              <span class="dropdown-item-desc">From $2.99 single pass to Pro</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- ChatGPT Auth / Subscription Badge -->
+      <div class="chatgpt-auth-container" id="chatgptAuthContainer">
+        <!-- Logged Out State -->
+        <a href="/api/v1/auth/chatgpt/login" class="btn btn-chatgpt-auth btn-sm" id="btnChatGptLogin" title="Sign in with ChatGPT to power generation via your Plus/Pro plan">
+          <svg class="chatgpt-mark-svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.5045 4.5045 0 0 1-4.4945 4.4947zm-9.66-4.509a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1401-2.0298zm-1.0456-10.96a4.4755 4.4755 0 0 1 2.3419-1.9729v.1657l-.0047 5.5164a.7854.7854 0 0 0 .3927.6813l5.838 3.3685-2.02 1.1683a.0757.0757 0 0 1-.071 0l-4.8303-2.7913a4.4944 4.4944 0 0 1-1.6466-6.136zm14.2868 4.4996l-5.8428-3.3685 2.02-1.1683a.0757.0757 0 0 1 .071 0l4.8304 2.7913a4.4944 4.4944 0 0 1-.6861 8.1189v-5.6908a.7901.7901 0 0 0-.3925-.6826zm3.3857-3.4116a4.4708 4.4708 0 0 1 .5346 3.0137l-.142-.0852-4.783-2.7582a.7712.7712 0 0 0-.7806 0l-5.8428 3.3685v-2.3324a.0804.0804 0 0 1 .0332-.0615l4.8804-2.8155a4.4992 4.4992 0 0 1 6.1401 2.0298zM8.3077 12.8718l-2.02-1.1683a.0804.0804 0 0 1-.038-.052V6.0689a4.5045 4.5045 0 0 1 7.371-3.4539l-.142.0804-4.7783 2.7582a.7948.7948 0 0 0-.3927.6813v6.7369zm1.7458-1.5039l2.951-1.7037 2.951 1.7037v3.4074l-2.951 1.7037-2.951-1.7037z"/>
+          </svg>
+          <span>Sign in with ChatGPT</span>
+        </a>
+
+        <!-- Logged In State (Hidden by default until session checked) -->
+        <div class="dropdown chatgpt-user-dropdown" id="chatgptUserDropdown" style="display: none;">
+          <button class="btn btn-chatgpt-connected btn-sm btn-dropdown-trigger" type="button" id="btnChatGptUser">
+            <span class="chatgpt-status-dot"></span>
+            <span class="chatgpt-plan-badge" id="chatgptPlanLabel">ChatGPT Plus</span>
+            <span class="chatgpt-user-email" id="chatgptUserEmail">user@example.com</span>
+            <span class="dropdown-chevron">▾</span>
+          </button>
+          <div class="dropdown-menu dropdown-menu-right">
+            <div class="dropdown-header">
+              <div class="dropdown-user-name" id="dropdownUserName">Daniel Hallman</div>
+              <div class="dropdown-user-subtext" id="dropdownUserSubtext">⚡ Subscription Compute Sharing Active</div>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-status-row">
+              <span class="status-key">Active Plan:</span>
+              <span class="status-val status-val-emerald" id="dropdownPlanStatus">ChatGPT Plus</span>
+            </div>
+            <div class="dropdown-status-row">
+              <span class="status-key">Copilot & OCR:</span>
+              <span class="status-val status-val-emerald">Powered by Subscription</span>
+            </div>
+            <div class="dropdown-status-row">
+              <span class="status-key">PDF Watermark:</span>
+              <span class="status-val status-val-emerald">None (Unlocked)</span>
+            </div>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-item-danger" id="btnChatGptLogout">
+              <span class="dropdown-icon">🚪</span>
+              <div class="dropdown-item-info">
+                <span class="dropdown-item-title">Disconnect ChatGPT</span>
+                <span class="dropdown-item-desc">Sign out and end compute sharing</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export Dropdown -->
+      <div class="dropdown" id="dropdownExport">
+        <button class="btn btn-primary btn-sm btn-dropdown-trigger" type="button" id="btnExportMenu">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Export</span>
+          <span class="dropdown-chevron">▾</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-right">
+          <button class="dropdown-item dropdown-item-featured" id="btnDownloadPdf">
+            <span class="dropdown-icon">📄</span>
+            <div class="dropdown-item-info">
+              <span class="dropdown-item-title">Vector PDF</span>
+              <span class="dropdown-item-desc">Crisp, print-ready CMYK/RGB PDF</span>
+            </div>
+          </button>
+          <button class="dropdown-item" id="btnExportPng">
+            <span class="dropdown-icon">🖼️</span>
+            <div class="dropdown-item-info">
+              <span class="dropdown-item-title">High-Res PNG</span>
+              <span class="dropdown-item-desc">300 PPI transparent or solid render</span>
+            </div>
+          </button>
+          <button class="dropdown-item" id="btnPrintDoc">
+            <span class="dropdown-icon">🖨️</span>
+            <div class="dropdown-item-info">
+              <span class="dropdown-item-title">Print Document</span>
+              <span class="dropdown-item-desc">Send directly to system printer</span>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN TWO-COLUMN STUDIO LAYOUT -->
+  <main class="main-container">
+
+    <!-- LEFT CONTROLS PANEL -->
+    <aside class="controls-pane" id="controlsPane">
+
+      <!-- ========================================================
+           STEP 1: PRIMARY DOCUMENT ARCHETYPE & CATEGORY SELECTOR
+           ======================================================== -->
+      <div class="archetype-primary-header" id="archetypePrimaryHeader">
+        <div class="archetype-hero-card">
+          <div class="archetype-hero-meta">
+            <span class="archetype-icon-badge" id="currentArchetypeIcon">📄</span>
+            <div class="archetype-text-stack">
+              <span class="archetype-category-eyebrow" id="currentCategoryEyebrow">COMMERCIAL INVOICING</span>
+              <span class="archetype-title-heading" id="currentArchetypeHeading">Tax Invoice</span>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm btn-select-archetype" id="btnOpenArchetypeModal" title="Select Document Archetype & Domain">
+            <span>📂 Switch Archetype (38)</span>
+          </button>
+        </div>
+
+        <!-- Quick Category Chips for Instant Prescriptive Filtering -->
+        <div class="archetype-category-chips" id="archetypeCategoryChips">
+          <button type="button" class="cat-chip active" data-category="all">All (38)</button>
+          <button type="button" class="cat-chip" data-category="invoices">Invoices (7)</button>
+          <button type="button" class="cat-chip" data-category="estimates">Quotes & PO (6)</button>
+          <button type="button" class="cat-chip" data-category="agreements">Agreements (6)</button>
+          <button type="button" class="cat-chip" data-category="real_estate">Real Estate & CRE (11)</button>
+          <button type="button" class="cat-chip" data-category="operations">Ops & Legal (8)</button>
+        </div>
+      </div>
+
+      <!-- ========================================================
+           LIFECYCLE STEPPER & 1-CLICK CONVERTER BAR
+           ======================================================== -->
+      <div class="lifecycle-stepper-bar" id="lifecycleStepperBar" role="region" aria-label="Document Lifecycle Stages">
+        <div class="lifecycle-header-row">
+          <span class="lifecycle-title">LIFECYCLE ACCELERATOR</span>
+          <span class="lifecycle-badge" id="lifecycleStatusBadge">Tax Invoice</span>
+        </div>
+        <div class="lifecycle-track" role="tablist" aria-label="Lifecycle progression steps">
+          <button type="button" class="lifecycle-step-btn" id="stepBtnEstimate" data-target-state="estimate" title="Switch to Estimate / Quote state" role="tab" aria-selected="false" tabindex="0">
+            <span class="step-num">1</span>
+            <span class="step-label">Estimate</span>
+          </button>
+          <span class="lifecycle-arrow" aria-hidden="true">➔</span>
+          <button type="button" class="lifecycle-step-btn active" id="stepBtnInvoice" data-target-state="invoice" title="Switch to Tax Invoice state" role="tab" aria-selected="true" tabindex="0">
+            <span class="step-num">2</span>
+            <span class="step-label">Invoice</span>
+          </button>
+          <span class="lifecycle-arrow" aria-hidden="true">➔</span>
+          <button type="button" class="lifecycle-step-btn" id="stepBtnReceipt" data-target-state="receipt" title="Switch to Paid Receipt state" role="tab" aria-selected="false" tabindex="0">
+            <span class="step-num">3</span>
+            <span class="step-label">Receipt</span>
+          </button>
+          <span class="lifecycle-arrow" aria-hidden="true">➔</span>
+          <button type="button" class="lifecycle-step-btn" id="stepBtnCredit" data-target-state="credit_note" title="Issue Credit Note / Refund" role="tab" aria-selected="false" tabindex="0">
+            <span class="step-num">4</span>
+            <span class="step-label">Credit</span>
+          </button>
+        </div>
+        <button type="button" class="btn btn-lifecycle-action" id="btnLifecycleConvertAction" title="1-Click Lifecycle Transition">
+          <span id="lifecycleActionIcon">⚡</span>
+          <span id="lifecycleActionLabel">Mark as Paid & Generate Receipt</span>
+        </button>
+      </div>
+
+      <!-- SIDEBAR WORKFLOW TAB STRIP -->
+      <div class="sidebar-tab-strip">
+        <button class="sidebar-tab-btn active" data-tab="content" id="tabBtnContent">
+          <span class="tab-icon">📝</span>
+          <span class="tab-label">Content</span>
+        </button>
+        <button class="sidebar-tab-btn" data-tab="design" id="tabBtnDesign">
+          <span class="tab-icon">🎨</span>
+          <span class="tab-label">Design</span>
+        </button>
+        <button class="sidebar-tab-btn" data-tab="legal" id="tabBtnLegal">
+          <span class="tab-icon">⚖️</span>
+          <span class="tab-label">Legal</span>
+        </button>
+        <button class="sidebar-tab-btn" data-tab="ai" id="tabBtnAi">
+          <span class="tab-icon">✨</span>
+          <span class="tab-label">AI Copilot</span>
+        </button>
+      </div>
+
+      <!-- TAB UTILITY & GLOBAL ACCORDION CONTROLS -->
+      <div class="tab-utility-bar">
+        <div class="active-tab-indicator">
+          <span id="activeTabName">Document Content</span>
+        </div>
+        <div class="accordion-global-toggles">
+          <button class="accordion-toggle-btn" id="btnExpandAll" title="Expand all cards in this tab">Expand All</button>
+          <span class="toggle-sep">·</span>
+          <button class="accordion-toggle-btn" id="btnCollapseAll" title="Collapse all cards in this tab">Collapse All</button>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           TAB 1: DOCUMENT CONTENT
+           ========================================== -->
+      <div class="sidebar-tab-content active" id="tabContent-content">
+
+        <!-- CARD: METADATA & DATES -->
+        <section class="control-card">
+          <div class="card-header-toggle">
+            <div class="card-title">🔢 Metadata & Document Numbers</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Document Title</label>
+                <input type="text" id="docTitle" class="form-input" value="TAX INVOICE">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Document #</label>
+                <input type="text" id="docNumber" class="form-input" value="INV-2026-0042">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Header Subtitle (Optional)</label>
+              <input type="text" id="headerSubtitle" class="form-input" placeholder="e.g. Master Services Agreement · Project Deliverable">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Issue Date</label>
+                <input type="date" id="issueDate" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Due Date</label>
+                <input type="date" id="dueDate" class="form-input">
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; margin-bottom: 6px;">
+              <span style="font-size: 11px; font-weight: 700; color: #818cf8;">CUSTOM METADATA FIELDS</span>
+              <button class="btn btn-secondary btn-sm" id="btnAddField">+ Add Field</button>
+            </div>
+            <div id="customFieldsContainer">
+              <!-- Dynamically populated by studio.js -->
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: ENTITIES & PARTIES -->
+        <section class="control-card">
+          <div class="card-header-toggle">
+            <div class="card-title">🏢 Parties, Entities & Contact</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <!-- ISSUER / ORIGINATOR SUB-CARD -->
+            <div class="party-subcard party-from-subcard">
+              <div class="party-subcard-header">
+                <div class="party-title-group">
+                  <span class="party-badge badge-issuer" id="fromPartyBadge">● ISSUER / ORIGINATOR</span>
+                  <span class="party-role-hint" id="fromPartyRoleHint">Primary Authority</span>
+                </div>
+                <div class="party-actions-group">
+                  <button type="button" class="btn btn-xs btn-secondary" id="btnSaveIssuerProfile" title="Save this business profile to browser storage so it is remembered on every document">💾 Save Profile</button>
+                  <button type="button" class="btn btn-xs btn-secondary" id="btnResetIssuerProfile" title="Reset to default company">🔄 Reset</button>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <input type="text" id="fromName" class="form-input" placeholder="Issuer Contact Name">
+                </div>
+                <div class="form-group">
+                  <input type="text" id="fromCompany" class="form-input" placeholder="Company / Entity Name">
+                </div>
+              </div>
+              <div class="form-group">
+                <textarea id="fromAddress" class="form-textarea" rows="2" placeholder="Street Address, Suite, City, State, ZIP, Country"></textarea>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <input type="email" id="fromEmail" class="form-input" placeholder="billing@issuer.com">
+                </div>
+                <div class="form-group">
+                  <input type="tel" id="fromPhone" class="form-input" placeholder="Phone: +1 (423) 822-2232">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <input type="text" id="fromTaxId" class="form-input" placeholder="Tax ID / EIN / VAT: US-94-3829104">
+                </div>
+                <div class="form-group">
+                  <input type="text" id="fromWebsite" class="form-input" placeholder="Website: https://company.io">
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <input type="text" id="fromRegNumber" class="form-input" placeholder="Registration / License #: REG-84920">
+              </div>
+            </div>
+
+            <!-- COUNTERPARTY / RECIPIENT SUB-CARD -->
+            <div class="party-subcard party-to-subcard" style="margin-top: 12px;">
+              <div class="party-subcard-header">
+                <div class="party-title-group">
+                  <span class="party-badge badge-recipient" id="toPartyBadge">○ BILLED TO / RECIPIENT</span>
+                  <span class="party-role-hint" id="toPartyRoleHint">Counterparty</span>
+                </div>
+                <div class="party-actions-group">
+                  <select id="counterpartyQuickSelect" class="form-select-xs" title="Select from saved client directory">
+                    <option value="">👤 Contacts (0)</option>
+                  </select>
+                  <button type="button" class="btn btn-xs btn-secondary" id="btnSaveCounterparty" title="Save this client to your directory">⭐ Save</button>
+                  <button type="button" class="btn btn-xs btn-secondary" id="btnClearCounterparty" title="Clear counterparty fields">🧹 Clear</button>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <input type="text" id="toName" class="form-input" placeholder="Client Contact Name">
+                </div>
+                <div class="form-group">
+                  <input type="text" id="toCompany" class="form-input" placeholder="Client Enterprise / Entity">
+                </div>
+              </div>
+              <div class="form-group">
+                <textarea id="toAddress" class="form-textarea" rows="2" placeholder="Client Street Address, City, State, ZIP"></textarea>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <input type="email" id="toEmail" class="form-input" placeholder="ap@client.com">
+                </div>
+                <div class="form-group">
+                  <input type="tel" id="toPhone" class="form-input" placeholder="Phone: +1 (555) 729-1029">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <input type="text" id="toTaxId" class="form-input" placeholder="Recipient VAT / Tax ID: GB-982-1204">
+                </div>
+                <div class="form-group">
+                  <input type="text" id="toWebsite" class="form-input" placeholder="Client Web: https://clientcorp.com">
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <input type="text" id="toRegNumber" class="form-input" placeholder="Client Entity / Reg #: CRN-09281">
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: LINE ITEMS & FINANCIALS -->
+        <section class="control-card" id="cardLineItems">
+          <div class="card-header-toggle">
+            <div class="card-title" id="lineItemsCardTitle">💰 Line Items & Financial Rates</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+              <button class="btn btn-secondary btn-sm" id="btnAddItem">+ Add Item Row</button>
+            </div>
+
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th style="width: 22px;"></th>
+                  <th>Description</th>
+                  <th style="width: 55px;">Qty</th>
+                  <th style="width: 70px;">Rate</th>
+                  <th style="text-align: right; width: 65px;">Total</th>
+                  <th style="width: 25px;"></th>
+                </tr>
+              </thead>
+              <tbody id="itemsTbody">
+                <!-- Rendered dynamically by studio.js -->
+              </tbody>
+            </table>
+
+            <div class="form-row" style="margin-top: 10px;">
+              <div class="form-group">
+                <label class="form-label">Tax Rate (%)</label>
+                <input type="number" step="0.25" id="taxRateInput" class="form-input" value="8.25">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Discount ($)</label>
+                <input type="number" step="10" id="discountInput" class="form-input" value="250">
+              </div>
+            </div>
+
+            <div class="totals-box">
+              <div class="totals-row">
+                <span>Subtotal</span>
+                <span id="subtotalDisplay">$0.00</span>
+              </div>
+              <div class="totals-row">
+                <span>Tax</span>
+                <span id="taxDisplay">$0.00</span>
+              </div>
+              <div class="totals-row">
+                <span>Discount</span>
+                <span id="discountDisplay">-$0.00</span>
+              </div>
+              <div class="totals-row grand-total">
+                <span id="grandTotalLabel">Grand Total</span>
+                <span id="totalDisplay">$0.00</span>
+              </div>
+              <div class="totals-row totals-row-paid" id="amountPaidRow" style="display: none; color: #10b981; font-weight: 600;">
+                <span>Amount Paid</span>
+                <span id="amountPaidDisplay">$0.00</span>
+              </div>
+              <div class="totals-row grand-total totals-row-balance" id="balanceDueRow" style="display: none; border-top: 1px dashed rgba(255,255,255,0.15); margin-top: 4px; padding-top: 6px;">
+                <span id="balanceDueLabel">Balance Due</span>
+                <span id="balanceDueDisplay" style="color: #ef4444;">$0.00</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: PAYMENT, STRIPE CHECKOUT & VECTOR QR CODE -->
+        <section class="control-card" id="cardPaymentCheckout">
+          <div class="card-header-toggle">
+            <div class="card-title">💳 Payment, Stripe Link & Vector QR</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label class="form-label" style="margin-bottom: 0;">Payment Link / Stripe Checkout URL</label>
+                <button type="button" class="btn-copy-input" id="btnCopyPaymentLink" title="Copy payment link to clipboard">
+                  <span>📋 Copy Link</span>
+                </button>
+              </div>
+              <input type="url" id="paymentLinkInput" class="form-input" placeholder="https://buy.stripe.com/4gM3cu8jk4Psd095197wA04" value="https://buy.stripe.com/4gM3cu8jk4Psd095197wA04">
+              <span class="form-hint" style="font-size: 10px; color: #94a3b8; margin-top: 3px; display: block;">Instant 1-tap checkout link embedded directly into the document remittance stub and vector QR block.</span>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Payment Status</label>
+                <select id="paymentStatusSelect" class="form-input">
+                  <option value="unpaid" selected>Unpaid / Balance Due</option>
+                  <option value="pending">Pending Processing</option>
+                  <option value="partial">Partially Paid</option>
+                  <option value="paid">Paid in Full (Issues Receipt Stamp)</option>
+                </select>
+              </div>
+              <div class="form-group" id="amountPaidGroup" style="display: none;">
+                <label class="form-label">Amount Paid ($)</label>
+                <input type="number" step="0.01" id="amountPaidInput" class="form-input" placeholder="0.00">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Preferred Method</label>
+                <input type="text" id="paymentMethodInput" class="form-input" value="Stripe / Card / Apple Pay" placeholder="e.g. Stripe, ACH, Apple Pay">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Transaction Reference (When Paid)</label>
+              <input type="text" id="transactionRefInput" class="form-input" placeholder="e.g. ch_3Mwj4x2eZvKYlo2C1g9J / STRIPE-REC-9021">
+            </div>
+
+            <div class="feature-toggles-grid" style="margin-top: 10px;">
+              <label class="toggle-control">
+                <input type="checkbox" id="togglePaymentQr" checked>
+                <span class="toggle-label">Embed Scan-to-Pay Vector QR Code (SVG)</span>
+              </label>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnTestStripeCheckout" style="flex: 1;">
+                <span>🔗 Test Checkout</span>
+              </button>
+              <button type="button" class="btn btn-primary btn-sm btn-emerald-action" id="btnQuickRecordPayment" style="flex: 1.2;">
+                <span>✓ Record Payment</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- ==========================================
+           TAB 2: DESIGN, ARCHETYPES & FORMATTERS
+           ========================================== -->
+      <div class="sidebar-tab-content" id="tabContent-design" style="display: none;">
+
+        <!-- CARD: TEMPLATE ARCHETYPE & CATEGORIES -->
+        <section class="control-card">
+          <div class="card-header-toggle">
+            <div class="card-title">📂 Document Archetype & Category</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <!-- Archetype Quick Search -->
+            <div class="archetype-search-box">
+              <input type="text" id="archetypeSearchInput" class="form-input" placeholder="🔍 Search 38 archetypes..." autocomplete="off">
+            </div>
+
+            <div class="category-tabs">
+              <div class="category-tab active" data-category="all">All (38)</div>
+              <div class="category-tab" data-category="invoices">Invoices (7)</div>
+              <div class="category-tab" data-category="estimates">Quotes & PO (6)</div>
+              <div class="category-tab" data-category="agreements">Agreements (6)</div>
+              <div class="category-tab" data-category="real_estate">Real Estate & CRE (11)</div>
+              <div class="category-tab" data-category="operations">Ops & Legal (8)</div>
+            </div>
+            <div class="template-grid">
+              <button class="template-pill active" data-type="invoice" data-category="invoices">📄 Tax Invoice</button>
+              <button class="template-pill" data-type="invoice_freelance" data-category="invoices">💻 Freelance & Consult</button>
+              <button class="template-pill" data-type="invoice_construction" data-category="invoices">🏗️ Construction Billing</button>
+              <button class="template-pill" data-type="invoice_medical" data-category="invoices">🩺 Clinical Superbill</button>
+              <button class="template-pill" data-type="invoice_saas" data-category="invoices">☁️ SaaS Subscription</button>
+              <button class="template-pill" data-type="invoice_minimal" data-category="invoices">📑 Minimal Commercial</button>
+              <button class="template-pill" data-type="proforma_invoice" data-category="invoices">📑 Proforma Invoice</button>
+              <button class="template-pill" data-type="estimate" data-category="estimates">📊 Formal Quote / Estimate</button>
+              <button class="template-pill" data-type="receipt" data-category="estimates">🧾 Payment Receipt</button>
+              <button class="template-pill" data-type="purchase_order" data-category="estimates">📦 Purchase Order</button>
+              <button class="template-pill" data-type="credit_note" data-category="estimates">💳 Credit Memorandum</button>
+              <button class="template-pill" data-type="quotation_tender" data-category="estimates">📑 Tender & Bid Quote</button>
+              <button class="template-pill" data-type="work_order" data-category="estimates">🛠️ Work Order / Job Ticket</button>
+              <button class="template-pill" data-type="agreement" data-category="agreements">⚖️ Master Services (MSA)</button>
+              <button class="template-pill" data-type="agreement_sow" data-category="agreements">📝 Statement of Work</button>
+              <button class="template-pill" data-type="contractor_agreement" data-category="agreements">🤝 Contractor Agreement</button>
+              <button class="template-pill" data-type="retainer_agreement" data-category="agreements">💎 Strategic Retainer</button>
+              <button class="template-pill" data-type="nda" data-category="agreements">🔒 Mutual NDA</button>
+              <button class="template-pill" data-type="commercial_lease" data-category="agreements">🏢 Commercial Lease</button>
+              <button class="template-pill" data-type="residential_lease" data-category="real_estate">🏠 Residential Lease</button>
+              <button class="template-pill" data-type="commercial_nnn_lease" data-category="real_estate">🏢 Triple Net (NNN) Lease</button>
+              <button class="template-pill" data-type="property_management_statement" data-category="real_estate">📊 Property Mgmt Statement</button>
+              <button class="template-pill" data-type="rent_roll" data-category="real_estate">📑 Multi-Unit Rent Roll</button>
+              <button class="template-pill" data-type="closing_settlement_statement" data-category="real_estate">📜 Escrow Closing Statement</button>
+              <button class="template-pill" data-type="notice_to_vacate" data-category="real_estate">⚠️ Notice to Vacate / Pay</button>
+              <button class="template-pill" data-type="security_deposit_disposition" data-category="real_estate">🛡️ Security Deposit Itemization</button>
+              <button class="template-pill" data-type="real_estate_commission" data-category="real_estate">💼 Commission Disbursement</button>
+              <button class="template-pill" data-type="property_inspection_checklist" data-category="real_estate">📋 Move-In/Out Checklist</button>
+              <button class="template-pill" data-type="letter_of_intent_cre" data-category="real_estate">🤝 CRE Letter of Intent (LOI)</button>
+              <button class="template-pill" data-type="tenant_estoppel" data-category="real_estate">🏛️ Tenant Estoppel Cert</button>
+              <button class="template-pill" data-type="packing_slip" data-category="operations">🚚 Packing Slip / BOL</button>
+              <button class="template-pill" data-type="bill_of_sale" data-category="operations">📜 Bill of Sale</button>
+              <button class="template-pill" data-type="certificate" data-category="operations">🏆 Certificate</button>
+              <button class="template-pill" data-type="certificate_completion" data-category="operations">🎖️ Completion Certificate</button>
+              <button class="template-pill" data-type="certificate_insurance" data-category="operations">🛡️ Insurance (COI)</button>
+              <button class="template-pill" data-type="expense_report" data-category="operations">💵 Expense Report</button>
+              <button class="template-pill" data-type="delivery_receipt" data-category="operations">📦 Delivery Receipt</button>
+              <button class="template-pill" data-type="inspection_report" data-category="operations">📋 Inspection Report</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: BRAND, LAYOUT & TYPOGRAPHY -->
+        <section class="control-card">
+          <div class="card-header-toggle">
+            <div class="card-title">🎨 Brand, Layout & Typography</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <label class="form-label">Theme Palette & Multi-Color System</label>
+            <div class="theme-preset-dropdown-wrap" style="margin-bottom: 8px;">
+              <select id="themePresetSelect" class="form-select">
+                <optgroup label="Corporate & Executive">
+                  <option value="modern_slate" selected>Modern Slate (Electric Indigo, Slate Blue, Violet, Light Frost)</option>
+                  <option value="executive_navy">Executive Navy (Deep Navy, Champagne Gold, Amber Accent, Ivory Surface)</option>
+                  <option value="monaco_gold">Monaco Sovereign (Sovereign Gold, Onyx Black, Warm Champagne, Pearl Surface)</option>
+                </optgroup>
+                <optgroup label="Editorial, Legal & Real Estate">
+                  <option value="crimson_legal">Crimson Legal (Crimson Red, Burnished Bronze, Seal Red, Legal Parchment)</option>
+                  <option value="bordeaux">Bordeaux Luxury (Bordeaux Wine, Rose Gold, Ruby Accent, Rose Silk Surface)</option>
+                  <option value="warm_sand">Warm Amber (Warm Amber, Dark Sienna, Goldenrod, Sand Surface)</option>
+                  <option value="desert_sand">Mojave Desert (Mojave Bronze, Dark Amber, Copper Accent, Calico Sand)</option>
+                </optgroup>
+                <optgroup label="Growth, Tech & Bio">
+                  <option value="cyber_neon">Cyber Cyan (Electric Cyan, Violet, Pink Neon, Silicon Mist Surface)</option>
+                  <option value="emerald">Emerald Growth (Emerald Green, Mint Sage, Seafoam, Frosted Mint Surface)</option>
+                  <option value="nordic_teal">Nordic Teal (Ocean Teal, Frosted Teal, Arctic Cyan, Glacial Ice Surface)</option>
+                  <option value="forest_pine">Alpine Forest (Pine Green, Moss Olive, Forest Green, Pale Lime Surface)</option>
+                  <option value="royal_violet">Royal Violet (Amethyst Violet, Lavender, Fuchsia Glow, Lavender Mist)</option>
+                  <option value="sunset_coral">Sunset Coral (Rose Coral, Warm Ochre, Tangerine, Warm Peach Surface)</option>
+                  <option value="electric_indigo">Electric Indigo (Indigo Deep, Soft Violet, Periwinkle, Indigo Tint Surface)</option>
+                </optgroup>
+                <optgroup label="Avant-Garde & High Contrast">
+                  <option value="neobrutalist">Neobrutalist (High-Contrast Black, Canary Yellow, Cobalt, Stark White)</option>
+                  <option value="bauhaus_primary">Bauhaus Triadic (Cobalt Blue, Bauhaus Red, Cadmium Yellow, Vellum Surface)</option>
+                  <option value="obsidian">Dark Obsidian (Charcoal Obsidian, Zinc Slate, Titanium, Clean Studio)</option>
+                  <option value="swiss_minimal">Swiss Minimal (Slate Charcoal, Signal Red, Pure Zinc, Milk White)</option>
+                </optgroup>
+                <optgroup label="Custom Palette Studio">
+                  <option value="custom">🎨 Custom Multi-Color Palette (Tune All Elements)</option>
+                </optgroup>
+              </select>
+            </div>
+
+            <!-- LIVE MULTI-COLOR PALETTE TOKEN PREVIEW -->
+            <div class="theme-palette-preview-bar" id="themePalettePreviewBar" title="Active Theme Palette Tokens">
+              <div class="palette-swatch-slot">
+                <div class="palette-swatch-color" id="swatchPrimary" style="background: #4f46e5;"></div>
+                <span class="palette-swatch-label">Primary</span>
+                <span class="palette-swatch-hex" id="swatchHexPrimary">#4f46e5</span>
+              </div>
+              <div class="palette-swatch-slot">
+                <div class="palette-swatch-color" id="swatchSecondary" style="background: #475569;"></div>
+                <span class="palette-swatch-label">Secondary</span>
+                <span class="palette-swatch-hex" id="swatchHexSecondary">#475569</span>
+              </div>
+              <div class="palette-swatch-slot">
+                <div class="palette-swatch-color" id="swatchAccent" style="background: #06b6d4;"></div>
+                <span class="palette-swatch-label">Accent</span>
+                <span class="palette-swatch-hex" id="swatchHexAccent">#06b6d4</span>
+              </div>
+              <div class="palette-swatch-slot">
+                <div class="palette-swatch-color" id="swatchSurface" style="background: #f8fafc; border: 1px solid #cbd5e1;"></div>
+                <span class="palette-swatch-label">Surface</span>
+                <span class="palette-swatch-hex" id="swatchHexSurface">#f8fafc</span>
+              </div>
+            </div>
+
+            <!-- THEME CHIPS WITH MULTI-COLOR 4-STOP GRADIENTS -->
+            <div class="theme-selector" id="themeChipSelector">
+              <div class="theme-chip active" data-theme="modern_slate" data-primary="#4f46e5" data-secondary="#475569" data-accent="#06b6d4" data-surface="#f8fafc" style="background: linear-gradient(135deg, #4f46e5 25%, #475569 25% 50%, #06b6d4 50% 75%, #f8fafc 75%);" title="Modern Slate (Electric Indigo, Slate Blue, Cyan Accent, Frost Surface)"></div>
+              <div class="theme-chip" data-theme="executive_navy" data-primary="#1e3a8a" data-secondary="#d4af37" data-accent="#c59b27" data-surface="#fdfbf7" style="background: linear-gradient(135deg, #1e3a8a 25%, #d4af37 25% 50%, #c59b27 50% 75%, #fdfbf7 75%);" title="Executive Navy (Navy, Champagne Gold, Amber Accent, Ivory Surface)"></div>
+              <div class="theme-chip" data-theme="emerald" data-primary="#059669" data-secondary="#10b981" data-accent="#34d399" data-surface="#f0fdf4" style="background: linear-gradient(135deg, #059669 25%, #10b981 25% 50%, #34d399 50% 75%, #f0fdf4 75%);" title="Emerald Growth (Emerald Green, Mint Sage, Seafoam, Frosted Mint)"></div>
+              <div class="theme-chip" data-theme="crimson_legal" data-primary="#b91c1c" data-secondary="#b45309" data-accent="#dc2626" data-surface="#fffbeb" style="background: linear-gradient(135deg, #b91c1c 25%, #b45309 25% 50%, #dc2626 50% 75%, #fffbeb 75%);" title="Crimson Legal (Crimson, Bronze, Seal Red, Parchment)"></div>
+              <div class="theme-chip" data-theme="warm_sand" data-primary="#b45309" data-secondary="#78350f" data-accent="#f59e0b" data-surface="#fefce8" style="background: linear-gradient(135deg, #b45309 25%, #78350f 25% 50%, #f59e0b 50% 75%, #fefce8 75%);" title="Warm Amber (Warm Amber, Dark Sienna, Goldenrod, Sand Surface)"></div>
+              <div class="theme-chip" data-theme="obsidian" data-primary="#18181b" data-secondary="#3f3f46" data-accent="#71717a" data-surface="#fafafa" style="background: linear-gradient(135deg, #18181b 25%, #3f3f46 25% 50%, #71717a 50% 75%, #fafafa 75%);" title="Dark Obsidian (Charcoal Obsidian, Zinc Slate, Titanium, Clean Studio)"></div>
+              <div class="theme-chip" data-theme="bordeaux" data-primary="#831843" data-secondary="#be185d" data-accent="#db2777" data-surface="#fdf2f8" style="background: linear-gradient(135deg, #831843 25%, #be185d 25% 50%, #db2777 50% 75%, #fdf2f8 75%);" title="Bordeaux Luxury (Bordeaux Wine, Rose Gold, Ruby Accent, Rose Silk)"></div>
+              <div class="theme-chip" data-theme="neobrutalist" data-primary="#000000" data-secondary="#facc15" data-accent="#2563eb" data-surface="#ffffff" style="background: linear-gradient(135deg, #000000 25%, #facc15 25% 50%, #2563eb 50% 75%, #ffffff 75%);" title="Neobrutalist (High-Contrast Black, Canary Yellow, Cobalt, Stark White)"></div>
+              <div class="theme-chip" data-theme="royal_violet" data-primary="#7c3aed" data-secondary="#a855f7" data-accent="#ec4899" data-surface="#faf5ff" style="background: linear-gradient(135deg, #7c3aed 25%, #a855f7 25% 50%, #ec4899 50% 75%, #faf5ff 75%);" title="Royal Violet (Amethyst Violet, Lavender, Fuchsia Glow, Lavender Mist)"></div>
+              <div class="theme-chip" data-theme="nordic_teal" data-primary="#0d9488" data-secondary="#14b8a6" data-accent="#2dd4bf" data-surface="#f0fdfa" style="background: linear-gradient(135deg, #0d9488 25%, #14b8a6 25% 50%, #2dd4bf 50% 75%, #f0fdfa 75%);" title="Nordic Teal (Ocean Teal, Frosted Teal, Arctic Cyan, Glacial Ice)"></div>
+              <div class="theme-chip" data-theme="sunset_coral" data-primary="#e11d48" data-secondary="#d97706" data-accent="#e11d48" data-surface="#fff7ed" style="background: linear-gradient(135deg, #e11d48 25%, #d97706 25% 50%, #e11d48 50% 75%, #fff7ed 75%);" title="Sunset Coral (Rose Coral, Warm Ochre, Tangerine, Warm Peach)"></div>
+              <div class="theme-chip" data-theme="cyber_neon" data-primary="#06b6d4" data-secondary="#7c3aed" data-accent="#ec4899" data-surface="#f8fafc" style="background: linear-gradient(135deg, #06b6d4 25%, #7c3aed 25% 50%, #ec4899 50% 75%, #f8fafc 75%);" title="Cyber Cyan (Electric Cyan, Violet, Pink Neon, Silicon Mist)"></div>
+              <div class="theme-chip" data-theme="forest_pine" data-primary="#166534" data-secondary="#4d7c0f" data-accent="#15803d" data-surface="#f7fee7" style="background: linear-gradient(135deg, #166534 25%, #4d7c0f 25% 50%, #15803d 50% 75%, #f7fee7 75%);" title="Alpine Forest (Pine Green, Moss Olive, Forest Green, Pale Lime)"></div>
+              <div class="theme-chip" data-theme="desert_sand" data-primary="#d97706" data-secondary="#78350f" data-accent="#f59e0b" data-surface="#fefce8" style="background: linear-gradient(135deg, #d97706 25%, #78350f 25% 50%, #f59e0b 50% 75%, #fefce8 75%);" title="Mojave Desert (Mojave Bronze, Dark Amber, Copper Accent, Calico Sand)"></div>
+              <div class="theme-chip" data-theme="monaco_gold" data-primary="#ca8a04" data-secondary="#18181b" data-accent="#eab308" data-surface="#fffdf5" style="background: linear-gradient(135deg, #ca8a04 25%, #18181b 25% 50%, #eab308 50% 75%, #fffdf5 75%);" title="Monaco Sovereign (Sovereign Gold, Onyx Black, Warm Champagne, Pearl Surface)"></div>
+              <div class="theme-chip" data-theme="bauhaus_primary" data-primary="#2563eb" data-secondary="#b91c1c" data-accent="#eab308" data-surface="#f8fafc" style="background: linear-gradient(135deg, #2563eb 25%, #b91c1c 25% 50%, #eab308 50% 75%, #f8fafc 75%);" title="Bauhaus Triadic (Cobalt Blue, Bauhaus Red, Cadmium Yellow, Vellum Surface)"></div>
+              <div class="theme-chip" data-theme="electric_indigo" data-primary="#4338ca" data-secondary="#6366f1" data-accent="#818cf8" data-surface="#eef2ff" style="background: linear-gradient(135deg, #4338ca 25%, #6366f1 25% 50%, #818cf8 50% 75%, #eef2ff 75%);" title="Electric Indigo (Indigo Deep, Soft Violet, Periwinkle, Indigo Tint)"></div>
+              <div class="theme-chip" data-theme="swiss_minimal" data-primary="#334155" data-secondary="#dc2626" data-accent="#71717a" data-surface="#fafafa" style="background: linear-gradient(135deg, #334155 25%, #dc2626 25% 50%, #71717a 50% 75%, #fafafa 75%);" title="Swiss Minimal (Slate Charcoal, Signal Red, Pure Zinc, Milk White)"></div>
+              <div class="theme-chip theme-chip-custom" data-theme="custom" title="Custom Multi-Color Palette">
+                <span class="custom-chip-icon">🎨</span>
+              </div>
+            </div>
+
+            <!-- CUSTOM MULTI-COLOR PALETTE STUDIO PANEL -->
+            <div id="customPalettePanel" class="custom-palette-panel" style="display: none;">
+              <div class="custom-palette-header">
+                <span class="custom-palette-title">🎨 Custom Multi-Color Palette Studio</span>
+                <span class="custom-palette-subtitle">Tune independent color tokens for all document elements</span>
+              </div>
+              <div class="custom-palette-grid">
+                <div class="color-picker-group">
+                  <label class="color-picker-label" for="customPrimaryColor">Primary Accent (Header, Brand, Totals)</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="customPrimaryColor" class="color-picker-swatch" value="#4f46e5">
+                    <input type="text" id="primaryColorInput" class="form-input color-hex-text" value="#4f46e5" placeholder="#4f46e5">
+                  </div>
+                </div>
+                <div class="color-picker-group">
+                  <label class="color-picker-label" for="customSecondaryColor">Secondary (Tables, Recipient, Headers)</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="customSecondaryColor" class="color-picker-swatch" value="#475569">
+                    <input type="text" id="secondaryColorInput" class="form-input color-hex-text" value="#475569" placeholder="#475569">
+                  </div>
+                </div>
+                <div class="color-picker-group">
+                  <label class="color-picker-label" for="customAccentColor">Accent (Verification Seals, Badges)</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="customAccentColor" class="color-picker-swatch" value="#06b6d4">
+                    <input type="text" id="accentColorInput" class="form-input color-hex-text" value="#06b6d4" placeholder="#06b6d4">
+                  </div>
+                </div>
+                <div class="color-picker-group">
+                  <label class="color-picker-label" for="customSurfaceColor">Surface (Row Striping, Card Fills)</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="customSurfaceColor" class="color-picker-swatch" value="#f8fafc">
+                    <input type="text" id="surfaceColorInput" class="form-input color-hex-text" value="#f8fafc" placeholder="#f8fafc">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <label class="form-label">Background & Paper Finish</label>
+            <div class="bg-selector" id="bgSelector">
+              <div class="bg-chip active" data-bg="white">⚪ Clean White</div>
+              <div class="bg-chip" data-bg="parchment">📜 Parchment</div>
+              <div class="bg-chip" data-bg="slate_tint">🌫️ Slate Tint</div>
+              <div class="bg-chip" data-bg="blueprint">📐 Technical Blueprint</div>
+              <div class="bg-chip" data-bg="security_frame">🛡️ Security Border</div>
+              <div class="bg-chip" data-bg="linen_subtle">🧵 Subtle Linen</div>
+              <div class="bg-chip" data-bg="dot_matrix">⚬ Dot Matrix Grid</div>
+              <div class="bg-chip" data-bg="marble_vellum">🏛️ Marble Vellum</div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label class="form-label">Visual Layout Style</label>
+              <select id="layoutStyleSelect" class="form-select">
+                <option value="standard" selected>Standard Clean Header</option>
+                <option value="modern_banner">Modern Accent Banner</option>
+                <option value="classic_letterhead">Classic Corporate Letterhead</option>
+                <option value="swiss_grid">Swiss International Grid</option>
+                <option value="split_sidebar">Split Two-Column / Sidebar</option>
+                <option value="compact_ledger">High-Density Financial Ledger</option>
+                <option value="editorial_centered">Prestige Editorial Centered</option>
+                <option value="framed">Executive Border Frame</option>
+                <option value="minimal">Minimalist Direct</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Paper Geometry</label>
+                <select id="paperSizeSelect" class="form-select">
+                  <option value="us-letter" selected>US Letter (8.5 × 11 in)</option>
+                  <option value="a4">A4 (210 × 297 mm)</option>
+                  <option value="us-legal">US Legal (8.5 × 14 in)</option>
+                  <option value="us-executive">US Executive (7.25 × 10.5 in)</option>
+                  <option value="tabloid">Tabloid / Ledger (11 × 17 in)</option>
+                  <option value="a3">A3 Large Format (297 × 420 mm)</option>
+                  <option value="a5">A5 Pocket / Mini (148 × 210 mm)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Font Family</label>
+                <select id="fontFamilySelect" class="form-select">
+                  <option value="sans" selected>Inter / Modern Geometric Sans</option>
+                  <option value="serif">Georgia / Editorial Serif</option>
+                  <option value="mono">Menlo / Technical Monospace</option>
+                  <option value="display">Playfair Display / Luxury Serif</option>
+                  <option value="grotesk">Space Grotesk / Swiss Neo-Grotesk</option>
+                  <option value="editorial">Palatino & Garamond / Prestige Book</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Spacing & Margin Density</label>
+                <select id="spacingDensitySelect" class="form-select">
+                  <option value="compact">Tight / High-Density (0.35in / 25pt)</option>
+                  <option value="standard" selected>Standard Balanced (0.55in / 40pt)</option>
+                  <option value="generous">Generous Breathing Room (0.75in / 54pt)</option>
+                  <option value="executive">Executive Presentation (1.0in / 72pt)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Font Scale</label>
+                <select id="fontScaleSelect" class="form-select">
+                  <option value="compact">Compact (8.5pt)</option>
+                  <option value="standard" selected>Standard (9.5pt)</option>
+                  <option value="large">Large (10.5pt)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Company Logo (PNG / JPG)</label>
+              <input type="file" id="logoFileInput" class="form-input" accept="image/*">
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: DATA FORMATTERS & LOCALIZATION -->
+        <section class="control-card">
+          <div class="card-header-toggle">
+            <div class="card-title">🌐 Data Formatters & Localization</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Currency & Denomination</label>
+                <select id="currencySelect" class="form-select">
+                  <option value="USD">USD ($) — US Dollar</option>
+                  <option value="EUR">EUR (€) — Euro</option>
+                  <option value="GBP">GBP (£) — British Pound</option>
+                  <option value="CAD">CAD (CA$) — Canadian Dollar</option>
+                  <option value="AUD">AUD (A$) — Australian Dollar</option>
+                  <option value="JPY">JPY (¥) — Japanese Yen</option>
+                  <option value="CHF">CHF (Fr.) — Swiss Franc</option>
+                  <option value="INR">INR (₹) — Indian Rupee</option>
+                  <option value="BRL">BRL (R$) — Brazilian Real</option>
+                  <option value="SEK">SEK (kr) — Swedish Krona</option>
+                  <option value="AED">AED (AED) — UAE Dirham</option>
+                  <option value="CNY">CNY (¥) — Chinese Yuan</option>
+                  <option value="NZD">NZD (NZ$) — New Zealand Dollar</option>
+                  <option value="SGD">SGD (S$) — Singapore Dollar</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Symbol Display Mode</label>
+                <select id="currencySymbolModeSelect" class="form-select">
+                  <option value="symbol">Standard Symbol ($ / € / £)</option>
+                  <option value="code">ISO 4217 Currency Code (USD / EUR)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Currency Placement</label>
+                <select id="currencyPlacementSelect" class="form-select">
+                  <option value="prefix">Prefix (e.g. $1,250.00)</option>
+                  <option value="suffix">Suffix (e.g. 1 250,00 €)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Number & Separators</label>
+                <select id="separatorsSelect" class="form-select">
+                  <option value="standard">Standard: 1,250.00 (Comma / Dot)</option>
+                  <option value="euro">European: 1.250,00 (Dot / Comma)</option>
+                  <option value="space">ISO Space: 1 250,00 (Space / Comma)</option>
+                  <option value="plain">Plain: 1250.00 (No grouping)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Date Formatting Style</label>
+                <select id="dateFormatSelect" class="form-select">
+                  <option value="iso">ISO 8601 (2026-10-01)</option>
+                  <option value="us_slash">US Standard (10/01/2026)</option>
+                  <option value="euro">European (01/10/2026)</option>
+                  <option value="formal_prose">Formal Prose (October 1, 2026)</option>
+                  <option value="short_abbrev">Military / Legal (01-Oct-2026)</option>
+                  <option value="short_dot">German / Swiss (01.10.2026)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Default Quantity Unit</label>
+                <select id="unitMeasureSelect" class="form-select">
+                  <option value="units">units (Standard Items)</option>
+                  <option value="hrs">hrs (Hourly Billing)</option>
+                  <option value="days">days (Daily Consulting)</option>
+                  <option value="mo">mo (Monthly Retainers)</option>
+                  <option value="items">items (Discrete Objects)</option>
+                  <option value="lbs">lbs (Imperial Weight)</option>
+                  <option value="kg">kg (Metric Weight)</option>
+                  <option value="sqft">sq ft (Surface / Flooring)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Decimal Precision</label>
+                <select id="numberDecimalsSelect" class="form-select">
+                  <option value="2">2 Decimals (.00 — Standard Currency)</option>
+                  <option value="0">0 Decimals (Whole integers, e.g. JPY)</option>
+                  <option value="3">3 Decimals (.000 — Precision Fuel/Bids)</option>
+                  <option value="4">4 Decimals (.0000 — FX & Crypto)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Jurisdictional Tax Preset</label>
+                <select id="taxPresetSelect" class="form-select">
+                  <option value="custom">Custom Tax Rate...</option>
+                  <option value="8.25">US Average Sales Tax (8.25%)</option>
+                  <option value="7.25">California Base (7.25%)</option>
+                  <option value="8.875">New York City (8.875%)</option>
+                  <option value="20.0">UK Standard VAT (20.0%)</option>
+                  <option value="19.0">Germany Standard MwSt (19.0%)</option>
+                  <option value="20.0_fr">France Standard TVA (20.0%)</option>
+                  <option value="21.0">Netherlands / Spain IVA (21.0%)</option>
+                  <option value="13.0">Canada Ontario HST (13.0%)</option>
+                  <option value="5.0">Canada GST Only (5.0%)</option>
+                  <option value="10.0">Australia GST (10.0%)</option>
+                  <option value="10.0_jp">Japan Consumption Tax (10.0%)</option>
+                  <option value="0.0">Zero-Rated / Tax-Exempt (0.0%)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- ==========================================
+           TAB 3: LEGAL, CLAUSES & SEALS
+           ========================================== -->
+      <div class="sidebar-tab-content" id="tabContent-legal" style="display: none;">
+
+        <!-- CARD: CUSTOM DOCUMENT SECTIONS -->
+        <section class="control-card">
+          <div class="card-header-toggle">
+            <div class="card-title">📑 Custom Document Sections</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 11px; color: var(--text-secondary);">Add bespoke contractual clauses or deliverable sections:</span>
+              <button class="btn btn-secondary btn-sm" id="btnAddSection">+ Add Section</button>
+            </div>
+            <div id="sectionsContainer">
+              <!-- Dynamically populated by studio.js -->
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: MULTI-SIGNATORY EXECUTION -->
+        <section class="control-card">
+          <div class="card-header-toggle">
+            <div class="card-title">✍️ Multi-Signatory Execution</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 11px; color: var(--text-secondary);">Dynamic signatories & individual canvas pads:</span>
+              <button class="btn btn-secondary btn-sm" id="btnAddSignature">+ Add Signatory</button>
+            </div>
+            <div id="signaturesContainer">
+              <!-- Dynamically populated by studio.js -->
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: NOTES & LEGAL TERMS -->
+        <section class="control-card">
+          <div class="card-header-toggle">
+            <div class="card-title">📜 Notes & Legal Terms</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Payment Instructions / Notes</label>
+              <textarea id="notesInput" class="form-textarea" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Terms & Conditions</label>
+              <textarea id="termsInput" class="form-textarea" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Footer Attestation / Legal Microcopy</label>
+              <input type="text" id="footerTextInput" class="form-input" placeholder="e.g. Certified Vector Output · Pressmark Precision Engine">
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: COMPLIANCE & ENTERPRISE VERIFICATION -->
+        <section class="control-card">
+          <div class="card-header-toggle">
+            <div class="card-title">🛡️ Enterprise Compliance & Seals</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Statutory Compliance Regime</label>
+              <select id="complianceSelect" class="form-select">
+                <option value="none" selected>Standard Commercial (None)</option>
+                <option value="eu_vat">EU VAT Reverse Charge (Art. 196 Directive 2006/112/EC)</option>
+                <option value="irs_w9">IRS W-9 Certification & Taxpayer TIN Attestation</option>
+                <option value="pci_dss">PCI-DSS Tokenized Settlement Attestation</option>
+                <option value="soc2">SOC-2 Type II Confidentiality & Trust Seal</option>
+                <option value="statutory_sworn">Statutory Sworn Legal Affidavit & Jurisdiction</option>
+              </select>
+            </div>
+
+            <div class="toggle-item">
+              <div class="toggle-label">
+                <span>Cryptographic QR Verification Seal</span>
+                <span class="toggle-hint">Embeds tamper-evident SHA-256 audit stamp</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="toggleQrSeal" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="toggle-item">
+              <div class="toggle-label">
+                <span>Tear-Off Remittance Stub</span>
+                <span class="toggle-hint">Perforated bottom coupon for check/ACH enclosure</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="toggleRemittance">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="toggle-item">
+              <div class="toggle-label">
+                <span>Sequential Line Numbers</span>
+                <span class="toggle-hint">Display #1, #2, #3 column on line items table</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="toggleLineNumbers">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="toggle-item">
+              <div class="toggle-label">
+                <span>Digital Signature Block</span>
+                <span class="toggle-hint">Render handwritten or authorized signer execution</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="toggleSignature" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="toggle-item">
+              <div class="toggle-label">
+                <span>Mark as Settled / Paid</span>
+                <span class="toggle-hint">Stamps green PAID verification badge</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="isPaidCheck">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="toggle-item">
+              <div class="toggle-label">
+                <span>Sequential Page Numbers</span>
+                <span class="toggle-hint">Display page 1 of 1 pagination stamp in footer</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="togglePageNumbers" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="toggle-item">
+              <div class="toggle-label">
+                <span>Footer Hairline Divider</span>
+                <span class="toggle-hint">Draw crisp horizontal divider rule above footer</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="toggleFooterDivider" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: WATERMARK OVERLAY TEST -->
+        <section class="control-card collapsed">
+          <div class="card-header-toggle">
+            <div class="card-title">🏷️ Watermark Overlay Test</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <input type="text" id="watermarkInput" class="form-input" placeholder="e.g. SAMPLE / UNVERIFIED (Leave empty for unwatermarked)">
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- ==========================================
+           TAB 4: AI COPILOT & VISION SCANNER
+           ========================================== -->
+      <div class="sidebar-tab-content" id="tabContent-ai" style="display: none;">
+
+        <!-- CARD: CHATGPT SUBSCRIPTION COMPUTE PASS-THROUGH -->
+        <section class="control-card chatgpt-compute-banner" id="chatgptComputeBanner">
+          <div class="chatgpt-banner-content">
+            <div class="chatgpt-banner-header">
+              <div class="chatgpt-banner-brand">
+                <svg class="chatgpt-mark-svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.5045 4.5045 0 0 1-4.4945 4.4947zm-9.66-4.509a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1401-2.0298zm-1.0456-10.96a4.4755 4.4755 0 0 1 2.3419-1.9729v.1657l-.0047 5.5164a.7854.7854 0 0 0 .3927.6813l5.838 3.3685-2.02 1.1683a.0757.0757 0 0 1-.071 0l-4.8303-2.7913a4.4944 4.4944 0 0 1-1.6466-6.136zm14.2868 4.4996l-5.8428-3.3685 2.02-1.1683a.0757.0757 0 0 1 .071 0l4.8304 2.7913a4.4944 4.4944 0 0 1-.6861 8.1189v-5.6908a.7901.7901 0 0 0-.3925-.6826zm3.3857-3.4116a4.4708 4.4708 0 0 1 .5346 3.0137l-.142-.0852-4.783-2.7582a.7712.7712 0 0 0-.7806 0l-5.8428 3.3685v-2.3324a.0804.0804 0 0 1 .0332-.0615l4.8804-2.8155a4.4992 4.4992 0 0 1 6.1401 2.0298zM8.3077 12.8718l-2.02-1.1683a.0804.0804 0 0 1-.038-.052V6.0689a4.5045 4.5045 0 0 1 7.371-3.4539l-.142.0804-4.7783 2.7582a.7948.7948 0 0 0-.3927.6813v6.7369zm1.7458-1.5039l2.951-1.7037 2.951 1.7037v3.4074l-2.951 1.7037-2.951-1.7037z"/>
+                </svg>
+                <span class="chatgpt-banner-title" id="bannerComputeTitle">ChatGPT Subscription Pass-Through</span>
+              </div>
+              <span class="badge-subscriber" id="bannerSubscriberBadge">Ready to Connect</span>
+            </div>
+            <p class="chatgpt-banner-desc" id="bannerComputeDesc">
+              Sign in with ChatGPT to power AI Copilot and OCR extraction via your personal ChatGPT Plus or Pro plan quota with zero developer API costs.
+            </p>
+            <div class="chatgpt-banner-action" id="bannerActionContainer">
+              <a href="/api/v1/auth/chatgpt/login" class="btn btn-chatgpt-auth btn-sm" id="btnBannerConnect">
+                <span>Sign in with ChatGPT</span>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: NATURAL LANGUAGE STUDIO COPILOT -->
+        <section class="control-card">
+          <div class="card-header-toggle">
+            <div class="card-title">✨ Natural Language Studio Copilot</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <p style="font-size: 11.5px; color: var(--text-secondary); margin-bottom: 10px;">
+              Prompt the Pressmark AI to draft items, restructure terms, configure tax rates, or re-brand your document:
+            </p>
+            <div class="copilot-sidebar-box">
+              <textarea id="copilotInput" class="form-textarea copilot-sidebar-textarea" rows="3" placeholder="e.g. 'Draft a $4,500 retainer invoice for Acme Corp with EU VAT' or 'Generate 24 hours at $185/hr with W-9 attestation'"></textarea>
+              <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+                <button class="btn btn-primary btn-sm" id="btnCopilotSubmit">✨ Generate via AI</button>
+              </div>
+            </div>
+
+            <div style="margin-top: 14px;">
+              <span style="font-size: 10.5px; font-weight: 700; color: #818cf8; display: block; margin-bottom: 6px;">QUICK PROMPT PRESETS</span>
+              <div class="copilot-presets-grid">
+                <button type="button" class="copilot-preset-chip" data-prompt="Draft a $4,500 strategic retainer invoice for Acme Corp with EU VAT reverse charge notice">💎 $4,500 Retainer</button>
+                <button type="button" class="copilot-preset-chip" data-prompt="Add 3 milestone line items for Backend Architecture ($4,800), API Gateway ($2,400), and CI/CD Pipeline ($1,600)">🎯 3 Milestones</button>
+                <button type="button" class="copilot-preset-chip" data-prompt="Apply UK 20% VAT rate, change currency to GBP (£), and format dates in Military style">🇬🇧 UK 20% VAT (£)</button>
+                <button type="button" class="copilot-preset-chip" data-prompt="Convert document into Independent Contractor Agreement with dispute arbitration clause">⚖️ Contractor Agreement</button>
+                <button type="button" class="copilot-preset-chip" data-prompt="Add IRS W-9 certification with taxpayer identification number attestation">🛡️ IRS W-9 Attestation</button>
+                <button type="button" class="copilot-preset-chip" data-prompt="Apply 15% promotional discount with 14-day payment settlement terms">🏷️ 15% Discount + Net 14</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: NEURAL RECEIPT & PHOTO SCANNER -->
+        <section class="control-card">
+          <div class="card-header-toggle">
+            <div class="card-title">📷 Neural Receipt & Photo Scanner</div>
+            <span class="card-chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <p style="font-size: 11.5px; color: var(--text-secondary); margin-bottom: 10px;">
+              Extract invoice lines, counterparty details, and totals from camera photos or receipt scans:
+            </p>
+            <div class="dropzone" id="sidebarPhotoDropzone">
+              <div style="font-size: 24px; margin-bottom: 6px;">📷</div>
+              <div style="font-size: 12px; font-weight: 600;">Drop receipt image or click to browse</div>
+              <div style="font-size: 10.5px; color: var(--text-muted); margin-top: 3px;">PNG, JPG, HEIC, WebP</div>
+              <input type="file" id="sidebarPhotoInput" accept="image/*" style="display: none;">
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+    </aside>
+
+    <!-- RIGHT LIVE PREVIEW PANE -->
+    <section class="preview-pane">
+      <div class="preview-toolbar">
+        <div class="telemetry-badge" id="compileTelemetry">
+          ⚡ 18ms compile · Pressmark Vector Engine
+        </div>
+        <div class="preview-center-bar">
+          <button class="btn btn-secondary btn-sm active" id="btnToggleInteractive" title="Toggle interactive preview overlay for tapping, selecting, dragging and deleting instances">
+            🎯 Interactive: ON
+          </button>
+          <div class="page-nav-controls" id="pageNavControls">
+            <button class="btn btn-secondary btn-sm" id="btnPrevPage" title="Previous Page" disabled>◀</button>
+            <span id="pageDisplay" class="page-counter-badge">Page 1 of 1</span>
+            <button class="btn btn-secondary btn-sm" id="btnNextPage" title="Next Page" disabled>▶</button>
+            <div class="view-mode-toggle-group">
+              <button class="btn btn-secondary btn-sm active" id="btnViewStack" title="Continuous Multi-Page Stack View">📄 Stack</button>
+              <button class="btn btn-secondary btn-sm" id="btnViewSingle" title="Single Page Focused View">📑 Single</button>
+            </div>
+          </div>
+        </div>
+        <div class="zoom-controls">
+          <button class="btn btn-secondary btn-sm" id="btnZoomOut" title="Zoom Out">−</button>
+          <span id="zoomDisplay" style="font-size: 11px; font-weight: 700; min-width: 42px; text-align: center;">100%</span>
+          <button class="btn btn-secondary btn-sm" id="btnZoomIn" title="Zoom In">+</button>
+          <button class="btn btn-secondary btn-sm" id="btnZoomReset" title="Reset to 100%">100%</button>
+          <button class="btn btn-secondary btn-sm" id="btnZoomFit" title="Fit to Screen Width">Fit</button>
+        </div>
+      </div>
+
+      <div class="preview-viewport" id="previewViewport">
+        <!-- Continuous Multi-Page Container -->
+        <div class="preview-pages-container" id="previewPagesContainer">
+          <div class="preview-doc-wrapper" id="previewDocWrapper">
+            <div class="page-number-tag" id="pageNumberTag0">Page 1</div>
+            <img id="previewImg" class="preview-doc-image" src="" alt="Live Document Preview">
+            <div id="previewInteractiveOverlay" class="preview-interactive-overlay"></div>
+          </div>
+        </div>
+
+        <!-- Floating Glassmorphic Selection Dock -->
+        <div id="selectionActionBar" class="selection-floating-dock" style="display: none;">
+          <div class="dock-badge">SELECTED</div>
+          <span id="selectionLabel" class="dock-title">Document Element</span>
+          <div class="dock-divider"></div>
+          <div class="dock-variant-wrap" id="dockVariantWrap" style="display: none;">
+            <select id="dockVariantSelect" class="dock-select" title="Switch Component Layout Variant"></select>
+            <div class="dock-divider"></div>
+          </div>
+          <button class="dock-btn" id="dockBtnEdit" title="Jump to editor field">✏️ Edit</button>
+          <button class="dock-btn" id="dockBtnDuplicate" title="Duplicate element">📋 Duplicate</button>
+          <button class="dock-btn dock-btn-danger" id="btnDeleteSelected" title="Delete selected element (Del / Backspace)">🗑️ Delete</button>
+          <button class="dock-close" id="dockBtnDeselect" title="Deselect (Esc)">×</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- PRICING & COMMERCIAL MODAL -->
+  <div class="modal-overlay" id="pricingModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">Commercial Pricing & Instant Unlock Tiers</div>
+        <button class="modal-close" id="btnClosePricing">×</button>
+      </div>
+      <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
+        High-performance sub-millisecond document synthesis. 99%+ gross margin architecture powered by Pressmark Vector Engine.
+      </p>
+
+      <div class="pricing-grid">
+        <!-- FREE TIER -->
+        <div class="pricing-card">
+          <div class="plan-name">Free Community</div>
+          <div class="plan-price">$0 <span>/ month</span></div>
+          <p style="font-size: 11px; color: var(--text-muted);">3 documents/mo with subtle brand watermark.</p>
+          <ul class="plan-features">
+            <li>All 18 Document Archetypes</li>
+            <li>Pressmark Vector Preview</li>
+            <li>Printable US Letter & A4</li>
+            <li>Watermarked output</li>
+          </ul>
+          <button class="btn btn-secondary btn-sm" style="margin-top: auto;">Current Plan</button>
+        </div>
+
+        <!-- SINGLE PASS -->
+        <div class="pricing-card">
+          <div class="plan-name">Single Unlock Pass</div>
+          <div class="plan-price">$2.99 <span>one-time</span></div>
+          <p style="font-size: 11px; color: var(--text-muted);">1-tap instant unlock for a single unwatermarked PDF.</p>
+          <ul class="plan-features">
+            <li>Instant Watermark Removal</li>
+            <li>1-Tap Apple/Google Pay</li>
+            <li>Crisp Vector PDF Export</li>
+            <li>Zero Subscription Obligation</li>
+          </ul>
+          <a href="https://buy.stripe.com/28E28qbvw6XA2lvfFN7wA03" target="_blank" class="btn btn-primary btn-sm" style="margin-top: auto; text-decoration: none;">1-Tap $2.99 Pass</a>
+        </div>
+
+        <!-- SOLO PRO -->
+        <div class="pricing-card popular">
+          <div class="popular-badge">Most Popular</div>
+          <div class="plan-name">Solo Pro</div>
+          <div class="plan-price">$15 <span>/ month</span></div>
+          <p style="font-size: 11px; color: var(--text-muted);">For freelancers, solo operators, and contractors.</p>
+          <ul class="plan-features">
+            <li>50 Documents / month</li>
+            <li>Zero Watermark</li>
+            <li>Custom Branding & Logos</li>
+            <li>Canvas Signature Capture</li>
+            <li>ChatGPT Action & Plugin</li>
+          </ul>
+          <a href="https://buy.stripe.com/4gM3cu8jk4Psd095197wA04" target="_blank" class="btn btn-primary btn-sm" style="margin-top: auto; text-decoration: none;">Upgrade to Pro</a>
+        </div>
+
+        <!-- BUSINESS -->
+        <div class="pricing-card">
+          <div class="plan-name">Business Studio</div>
+          <div class="plan-price">$49 <span>/ month</span></div>
+          <p style="font-size: 11px; color: var(--text-muted);">For growing studios, service teams, and agencies.</p>
+          <ul class="plan-features">
+            <li>250 Documents / month</li>
+            <li>Custom Vector Stylesheets</li>
+            <li>High-Res 300 PPI PNGs</li>
+            <li>Direct REST API Key</li>
+            <li>Priority Queue SLA</li>
+          </ul>
+          <a href="https://buy.stripe.com/4gM7sK6bcgya7FPdxF7wA00" target="_blank" class="btn btn-secondary btn-sm" style="margin-top: auto; text-decoration: none;">Choose Business</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHATGPT ACTION MODAL -->
+  <div class="modal-overlay" id="gptModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">Connect Pressmark to ChatGPT</div>
+        <button class="modal-close" id="btnCloseGpt">×</button>
+      </div>
+      <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+        Pressmark is ready to connect directly to ChatGPT as a Custom GPT Action or Plugin via OpenAPI 3.1:
+      </p>
+
+      <div class="form-group">
+        <label class="form-label">OpenAPI 3.1 Endpoint</label>
+        <input type="text" class="form-input" readonly value="/api/v1/openapi.json">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Plugin Manifest Endpoint</label>
+        <input type="text" class="form-input" readonly value="/.well-known/ai-plugin.json">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Example Prompt to test in ChatGPT</label>
+        <textarea class="form-textarea" rows="3" readonly id="gptPromptText">Create a professional invoice for client "Vance Dynamics" from "Pressmark Studio" for 32 hours of Rust backend engineering at $185/hr, plus 8.25% tax. Apply the Modern Slate theme and include a signature block.</textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+        <button class="btn btn-primary" id="btnCopyPrompt">Copy Prompt</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCAN PHOTO / RECEIPT MODAL -->
+  <div class="modal-overlay" id="scanModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">📷 Scan & Extract from Receipt or Photo</div>
+        <button class="modal-close" id="btnCloseScan">×</button>
+      </div>
+      <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+        Upload or drop an image of an invoice, receipt, or quote. The intelligent neural extractor automatically maps line items, entities, and totals into your studio document.
+      </p>
+      <div class="dropzone" id="photoDropzone">
+        <div style="font-size: 28px; margin-bottom: 8px;">📷</div>
+        <div style="font-size: 13px; font-weight: 600;">Drop any receipt, invoice photo, or document image here</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Supports PNG, JPG, HEIC, WebP (or click to browse)</div>
+        <input type="file" id="photoInput" accept="image/*" style="display: none;">
+      </div>
+    </div>
+  </div>
+
+  <!-- JSON IMPORT / EXPORT MODAL -->
+  <div class="modal-overlay" id="jsonModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">📋 Document JSON State (Import / Export)</div>
+        <button class="modal-close" id="btnCloseJson">×</button>
+      </div>
+      <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+        Copy the full vector document schema or paste a JSON configuration to instantly load state into the studio.
+      </p>
+      <div class="form-group">
+        <textarea id="jsonTextarea" class="form-textarea" rows="12" style="font-family: monospace; font-size: 11px;"></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+        <button class="btn btn-primary" id="btnApplyJson">Apply JSON to Document</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scanner Animation UI -->
+  <div class="scanner-overlay" id="scannerOverlay">
+    <div class="scanner-box">
+      <div class="scanner-laser"></div>
+      <div style="position:absolute; bottom:20px; left:0; right:0; text-align:center; color:#fff; font-family:monospace; font-size:12px;">
+        Vision AI Extracting...
+      </div>
+    </div>
+  </div>
+
+  <div class="ai-message-toast" id="aiToast"></div>
+  <div class="undo-toast" id="undoToast"></div>
+
+  <script src="/js/studio.js"></script>
+</body>
+</html>

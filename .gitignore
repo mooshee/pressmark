@@ -1,0 +1,10 @@
+/target
+.DS_Store
+*.swp
+*.bak
+.local/
+*.db
+*.db-wal
+*.db-shm
+*.env
+

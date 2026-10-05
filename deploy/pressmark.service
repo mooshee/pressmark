@@ -1,0 +1,59 @@
+# Pressmark Vector Document Engine - Systemd Production Service Unit
+# Author: Daniel Hallman
+# License: Proprietary
+
+[Unit]
+Description=Pressmark Vector Document Engine & ChatGPT Copilot Server
+Documentation=https://pressmark.io/docs
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pressmark
+Group=pressmark
+WorkingDirectory=/var/lib/pressmark
+
+# Environment and Binary Execution
+EnvironmentFile=-/etc/pressmark/pressmark.env
+ExecStart=/usr/local/bin/pressmark
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Process Lifecycle & Fault Tolerance
+Restart=always
+RestartSec=5s
+TimeoutStartSec=15s
+TimeoutStopSec=20s
+KillMode=control-group
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Hardened Security & Isolation Sandbox
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+# Allowed Filesystem State
+ReadWritePaths=/var/lib/pressmark /var/log/pressmark /var/cache/pressmark
+
+# Standard I/O Logging to Journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pressmark
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,46 @@
+# Pressmark Vector Document Engine - Caddyfile Reverse Proxy
+# Author: Daniel Hallman
+
+pressmark.dev, www.pressmark.dev, pressmark.io, www.pressmark.io {
+    # Automatic HTTPS with Let's Encrypt / ZeroSSL
+    tls daniel@mooshworks.com
+
+    # Security Headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+        -Server
+    }
+
+    # Request Body Size Limit (matches PRESSMARK_BODY_LIMIT_MB)
+    request_body {
+        max_size 25MB
+    }
+
+    # Compression for text, JSON, SVG, CSS, JS
+    encode zstd gzip
+
+    # Unbuffered streaming for MCP JSON-RPC & Server-Sent Events
+    @mcp path /mcp*
+    reverse_proxy @mcp 127.0.0.1:3842 {
+        flush_interval -1
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote_host}
+    }
+
+    # Main Reverse proxy to Pressmark Axum daemon
+    reverse_proxy 127.0.0.1:3842 {
+        # Transparent client IP propagation
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote_host}
+        
+        # Enable HTTP Keepalive
+        transport http {
+            keepalive 60s
+            keepalive_idle_conns 100
+        }
+    }
+}
