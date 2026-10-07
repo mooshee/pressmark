@@ -93,8 +93,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             .unwrap_or(5) * 1024 * 1024;
 
         Router::new()
-        // Interactive Dashboard
+        // Interactive Dashboard & Legal
         .route("/", get(handle_index))
+        .route("/privacy", get(handle_privacy))
+        .route("/terms", get(handle_terms))
         .route("/health", get(handle_health))
         .route("/healthz", get(handle_health))
         // API v1
@@ -145,6 +147,26 @@ async fn handle_index() -> impl IntoResponse {
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Html(format!("<h1>Error loading index.html: {}</h1>", e)),
+        ),
+    }
+}
+
+async fn handle_privacy() -> impl IntoResponse {
+    match tokio::fs::read_to_string("static/privacy.html").await {
+        Ok(html) => (StatusCode::OK, Html(html)),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(format!("<h1>Error loading privacy.html: {}</h1>", e)),
+        ),
+    }
+}
+
+async fn handle_terms() -> impl IntoResponse {
+    match tokio::fs::read_to_string("static/terms.html").await {
+        Ok(html) => (StatusCode::OK, Html(html)),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(format!("<h1>Error loading terms.html: {}</h1>", e)),
         ),
     }
 }

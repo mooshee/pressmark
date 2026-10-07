@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy · Pressmark Vector Document Engine</title>
+  <link rel="stylesheet" href="/css/studio.css">
+  <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
+  <style>
+    body {
+      background: #09090b;
+      color: #e4e4e7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+    }
+    .legal-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+    .legal-header {
+      border-bottom: 1px solid #27272a;
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+    .legal-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .legal-brand img {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+    }
+    .legal-brand span {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #fafafa;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 800;
+      color: #fafafa;
+      margin: 0 0 8px;
+    }
+    .legal-meta {
+      font-size: 14px;
+      color: #a1a1aa;
+    }
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #f4f4f5;
+      margin-top: 36px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #18181b;
+      padding-bottom: 8px;
+    }
+    p, ul, ol {
+      color: #d4d4d8;
+      font-size: 15px;
+      margin-bottom: 16px;
+    }
+    ul, ol {
+      padding-left: 24px;
+    }
+    li {
+      margin-bottom: 6px;
+    }
+    strong {
+      color: #fafafa;
+    }
+    a {
+      color: #6366f1;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .legal-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #818cf8;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    .footer-nav {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid #27272a;
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #71717a;
+    }
+  </style>
+</head>
+<body>
+  <div class="legal-container">
+    <header class="legal-header">
+      <a href="/" class="legal-brand">
+        <img src="/assets/logo.jpg" alt="Pressmark Logo">
+        <span>PRESSMARK</span>
+      </a>
+      <h1>Privacy Policy</h1>
+      <div class="legal-meta">
+        Last Updated: October 3, 2026 · Effective Date: October 3, 2026
+      </div>
+      <div class="legal-badge">Stateless Vector Generation & Zero AI Model Training</div>
+    </header>
+
+    <section>
+      <h2>1. Overview & Commitment to Privacy</h2>
+      <p>Pressmark ("we", "our", or "the Service") provides a high-performance, sub-millisecond vector document synthesis engine that compiles invoices, estimates, receipts, contracts, NDAs, and commercial agreements. This Privacy Policy governs your use of the Pressmark web application at <strong>pressmark.dev</strong>, the Pressmark REST API, ChatGPT Actions, and Model Context Protocol (MCP) endpoints.</p>
+      <p>We believe your financial, commercial, and customer billing data belongs strictly to you. <strong>Pressmark operates on a stateless, in-memory compilation architecture: we do not store, retain, analyze, or sell your generated documents or line item contents.</strong></p>
+    </section>
+
+    <section>
+      <h2>2. Information We Process</h2>
+      <p>When you interact with Pressmark directly or via ChatGPT Actions, we process the minimum information necessary to synthesize your requested documents:</p>
+      <ul>
+        <li><strong>Document Generation Inputs:</strong> Party names, corporate addresses, line item descriptions, rates, quantities, currency symbols, invoice identifiers, notes, and payment terms provided in generation requests.</li>
+        <li><strong>Digital Signatures & Logos:</strong> Base64-encoded image assets submitted for inclusion in headers or signature blocks.</li>
+        <li><strong>Authentication Tokens (Optional):</strong> If you authenticate via <em>Sign in with ChatGPT</em> or pass a subscriber token, we verify your OAuth token with OpenAI to confirm subscription tier entitlements (e.g. Plus, Pro, Team, Enterprise).</li>
+        <li><strong>Payment & Checkout Information:</strong> Billing data for optional commercial unlocks or subscriptions is collected and processed exclusively by our PCI-DSS Level 1 certified payment processor, <strong>Stripe, Inc.</strong> Pressmark never receives or stores your full credit card number or bank credentials.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Ephemeral Processing & Zero Data Retention</h2>
+      <p>Pressmark is architected around ephemeral runtime execution:</p>
+      <ul>
+        <li><strong>In-Memory Compilation:</strong> Document data is transformed into vector graphics entirely in memory. Once rendered to PDF or PNG bytes and returned to your client or ChatGPT session, the source payload is immediately dropped from execution memory.</li>
+        <li><strong>Automatic Cache Pruning:</strong> Any temporary raster rendering artifacts or temporary cached assets stored during multi-page rendering are purged automatically by background TTL tasks within 60 minutes.</li>
+        <li><strong>Zero Model Training:</strong> We explicitly warrant that <strong>no user data, invoice details, client identities, or document contents processed through Pressmark or ChatGPT Actions are ever used to train, fine-tune, or improve artificial intelligence models</strong>.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. Third-Party Integrations</h2>
+      <p>Pressmark integrates strictly with the following trusted infrastructure partners:</p>
+      <ul>
+        <li><strong>OpenAI:</strong> When using Pressmark as a Custom GPT or ChatGPT Action, prompt interpretation and user authentication are facilitated through OpenAI OAuth. OpenAI’s privacy practices are governed by the OpenAI Privacy Policy.</li>
+        <li><strong>Stripe:</strong> Payment processing for subscriptions and single-pass watermark removal. Governed by the Stripe Privacy Policy.</li>
+        <li><strong>Cloudflare:</strong> Edge network acceleration, DDoS defense, and TLS 1.3 encryption in transit.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. Security Measures</h2>
+      <p>All data exchanged with Pressmark is protected using enterprise-grade security protocols:</p>
+      <ul>
+        <li>Mandatory TLS 1.3 encryption for all HTTP endpoints.</li>
+        <li>Hardened Linux user namespace isolation and systemd sandboxing.</li>
+        <li>Sliding-window DoS rate limiting and payload validation guards.</li>
+        <li>Strict LFI (Local File Inclusion) path traversal barriers in asset ingestion.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. Your Rights & Contact Information</h2>
+      <p>Under GDPR, CCPA, and applicable global privacy regulations, you have the right to request access, correction, or immediate deletion of any account records or active subscriber sessions.</p>
+      <p>For questions, privacy requests, or data inquiries, contact Daniel Hallman at:</p>
+      <p>
+        <strong>Email:</strong> <a href="mailto:daniel@mooshworks.com">daniel@mooshworks.com</a><br>
+        <strong>Service:</strong> Pressmark Vector Document Engine<br>
+        <strong>Website:</strong> <a href="https://pressmark.dev">https://pressmark.dev</a>
+      </p>
+    </section>
+
+    <footer class="footer-nav">
+      <div>© 2026 Pressmark. All rights reserved.</div>
+      <div>
+        <a href="/terms">Terms of Service</a> · <a href="/">Studio</a>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

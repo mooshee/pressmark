@@ -6,6 +6,12 @@ use serde_json::{json, Value};
 
 /// ChatGPT Plugin Manifest (`/.well-known/ai-plugin.json`)
 pub fn get_ai_plugin_manifest(server_url: &str) -> Value {
+    let base = if server_url.starts_with("https://") {
+        server_url
+    } else {
+        "https://pressmark.dev"
+    };
+
     json!({
         "schema_version": "v1",
         "name_for_human": "Pressmark Document & Invoice Generator",
@@ -24,11 +30,11 @@ pub fn get_ai_plugin_manifest(server_url: &str) -> Value {
         },
         "api": {
             "type": "openapi",
-            "url": format!("{}/api/v1/openapi.json", server_url)
+            "url": format!("{}/api/v1/openapi.json", base)
         },
-        "logo_url": format!("{}/assets/logo.jpg", server_url),
+        "logo_url": format!("{}/assets/logo.jpg", base),
         "contact_email": "daniel@mooshworks.com",
-        "legal_info_url": format!("{}/privacy", server_url)
+        "legal_info_url": format!("{}/privacy", base)
     })
 }
 
@@ -43,8 +49,12 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
         },
         "servers": [
             {
-                "url": server_url,
-                "description": "Active Pressmark Server"
+                "url": if server_url.starts_with("https://") {
+                    server_url
+                } else {
+                    "https://pressmark.dev"
+                },
+                "description": "Production Pressmark Server"
             }
         ],
         "paths": {
@@ -53,6 +63,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                     "operationId": "generateDocument",
                     "summary": "Generate a PDF document",
                     "description": "Compiles a complete vector PDF document from structured JSON data in under 25ms. Returns Base64 PDF data and direct download link.",
+                    "security": [],
                     "requestBody": {
                         "required": true,
                         "content": {
@@ -82,6 +93,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                     "operationId": "previewDocument",
                     "summary": "Preview a document as PNG image",
                     "description": "Generates a high-resolution PNG preview image of the document for immediate in-chat rendering.",
+                    "security": [],
                     "requestBody": {
                         "required": true,
                         "content": {
@@ -111,9 +123,56 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                     "operationId": "getPricing",
                     "summary": "Get subscription tiers and single pass prices",
                     "description": "Retrieves the current product catalog, feature comparison, and Stripe checkout links.",
+                    "security": [],
                     "responses": {
                         "200": {
                             "description": "Pricing catalog and SKUs"
+                        }
+                    }
+                }
+            },
+            "/api/v1/lifecycle/convert": {
+                "post": {
+                    "operationId": "convertDocument",
+                    "summary": "Convert document lifecycle state",
+                    "description": "Transforms an estimate or quote into an invoice, receipt, or credit note, updating document numbering, issue/due dates, and payment states.",
+                    "security": [],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LifecycleConvertRequest"
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Converted document object"
+                        }
+                    }
+                }
+            },
+            "/api/v1/lifecycle/pay": {
+                "post": {
+                    "operationId": "recordPayment",
+                    "summary": "Record document payment",
+                    "description": "Records full or partial payment against an invoice, recalculating remaining balance due, updating payment status, and issuing an official payment receipt.",
+                    "security": [],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LifecyclePayRequest"
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Updated document with calculated balance_due"
                         }
                     }
                 }
@@ -211,10 +270,43 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                         "discount_amount": { "type": "number" },
                         "notes": { "type": "string" },
                         "terms": { "type": "string" },
+                        "payment_link": { "type": "string", "description": "Stripe checkout URL or custom payment link" },
+                        "payment_qr_code": { "type": "boolean", "description": "Render embedded vector QR code for mobile payments" },
+                        "payment_status": { "type": "string", "enum": ["unpaid", "pending", "partial", "paid", "refunded"] },
+                        "payment_method": { "type": "string" },
+                        "amount_paid": { "type": "number" },
                         "is_paid": { "type": "boolean" },
                         "watermark": { "type": "string" }
                     },
                     "required": ["doc_type", "from", "to"]
+                },
+                "LifecycleConvertRequest": {
+                    "type": "object",
+                    "required": ["document", "target_type"],
+                    "properties": {
+                        "target_type": {
+                            "type": "string",
+                            "enum": ["invoice", "receipt", "estimate", "credit_note"],
+                            "description": "Target lifecycle document type"
+                        },
+                        "due_days": { "type": "integer", "description": "Number of days until payment is due (for invoice conversion)" },
+                        "valid_days": { "type": "integer", "description": "Number of days proposal is valid (for estimate conversion)" },
+                        "payment_link": { "type": "string", "description": "Stripe checkout URL for online payments" },
+                        "payment_qr_code": { "type": "boolean", "description": "Whether to render vector QR code for 1-scan mobile checkout" },
+                        "credit_reason": { "type": "string", "description": "Reason for issuing credit note or refund" },
+                        "document": { "$ref": "#/components/schemas/DocumentRequest" }
+                    }
+                },
+                "LifecyclePayRequest": {
+                    "type": "object",
+                    "required": ["document"],
+                    "properties": {
+                        "document": { "$ref": "#/components/schemas/DocumentRequest" },
+                        "payment_method": { "type": "string", "description": "Payment method (e.g. Stripe, Apple Pay, Bank Wire)" },
+                        "transaction_reference": { "type": "string", "description": "Transaction reference or checkout ID" },
+                        "paid_date": { "type": "string", "description": "Payment date (YYYY-MM-DD)" },
+                        "amount_paid": { "type": "number", "description": "Amount received (if less than total, records partial payment)" }
+                    }
                 },
                 "GenerateResponse": {
                     "type": "object",
@@ -263,7 +355,8 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
         },
         "security": [
             { "chatgpt_oauth": ["openid", "profile", "email", "model.request"] },
-            { "bearerAuth": [] }
+            { "bearerAuth": [] },
+            {}
         ]
     })
 }
