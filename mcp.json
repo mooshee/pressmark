@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "pressmark": {
+      "type": "streamable-http",
+      "url": "https://pressmark.dev/mcp"
+    },
+    "pressmark-local": {
+      "type": "stdio",
+      "command": "pressmark",
+      "args": ["--stdio"],
+      "env": {
+        "PRESSMARK_ENGINE": "typst"
+      }
+    }
+  }
+}

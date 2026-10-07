@@ -1,0 +1,39 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "pressmark",
+  "version": "1.0.0",
+  "description": "Publication-grade vector PDF invoices, estimates, receipts, contracts, and proposals with instant previews, custom branding, and 1-scan QR code mobile payments.",
+  "author": {
+    "name": "Daniel Hallman",
+    "email": "daniel@mooshworks.com",
+    "url": "https://pressmark.dev"
+  },
+  "homepage": "https://pressmark.dev",
+  "repository": "https://github.com/mooshee/pressmark",
+  "license": "Proprietary",
+  "keywords": [
+    "invoice",
+    "invoicing",
+    "estimate",
+    "quote",
+    "receipt",
+    "contract",
+    "pdf",
+    "vector",
+    "stripe",
+    "billing",
+    "peppol"
+  ],
+  "extensions": {
+    "com.openai": {
+      "displayName": "Pressmark Document & Invoice Studio",
+      "categories": [
+        "Productivity",
+        "Business",
+        "Finance"
+      ],
+      "privacyPolicy": "https://pressmark.dev/privacy",
+      "termsOfService": "https://pressmark.dev/terms"
+    }
+  }
+}

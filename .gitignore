@@ -7,4 +7,5 @@
 *.db-wal
 *.db-shm
 *.env
+dist/
 

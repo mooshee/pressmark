@@ -31,6 +31,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
+    if args.iter().any(|a| a == "--stdio" || a == "mcp" || a == "--mcp") {
+        use std::io::{BufRead, Write};
+        let stdin = std::io::stdin();
+        let stdout = std::io::stdout();
+        let mut out = stdout.lock();
+        for line in stdin.lock().lines() {
+            if let Ok(line_str) = line {
+                if line_str.trim().is_empty() {
+                    continue;
+                }
+                if let Ok(req) = serde_json::from_str::<pressmark::mcp::JsonRpcRequest>(&line_str) {
+                    let resp = pressmark::mcp::McpHandler::handle_request(req);
+                    let _ = serde_json::to_writer(&mut out, &resp);
+                    let _ = out.write_all(b"\n");
+                    let _ = out.flush();
+                }
+            }
+        }
+        return Ok(());
+    }
+
     // Load local environment files if present
     let _ = dotenvy::from_filename(".local/operator.env");
     let _ = dotenvy::dotenv();
