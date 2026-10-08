@@ -331,11 +331,12 @@ pub fn compile_png_bytes(typst_markup: &str, ppi: u32) -> Result<Vec<u8>, String
         .ok_or_else(|| "Failed to extract page 1 from compiled vector pages.".to_string())
 }
 
-/// Escape special characters in text so Typst doesn't interpret @ as labels, $ as math, or [ ] # as markup.
+/// Escape special characters in text so Typst doesn't interpret @ as labels, $ as math, or [ ] # \ as markup.
 pub fn escape_typst_text(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 16);
     for c in text.chars() {
         match c {
+            '\\' => out.push_str("\\\\"),
             '@' => out.push_str("\\@"),
             '$' => out.push_str("\\$"),
             '[' => out.push_str("\\["),
@@ -346,6 +347,22 @@ pub fn escape_typst_text(text: &str) -> String {
     }
     out
 }
+
+/// Escape string literals inside Typst function arguments `"..."`
+pub fn escape_typst_string_literal(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 16);
+    for c in text.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => {},
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
 
 fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &str, accent_hex: &str, surface_hex: &str, total_label: &str) {
     let subtotal = req.subtotal();
@@ -409,7 +426,9 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
         let tx_ref = req.transaction_reference.as_deref().unwrap_or("STRIPE-PAID-001");
         markup.push_str(&format!(
             "#align(center)[#v(2pt)#paid-watermark-stamp(tx-ref: \"{}\", paid-date: \"{}\", method: \"{}\")#v(2pt)]\n\n",
-            tx_ref, paid_date, method
+            escape_typst_string_literal(tx_ref),
+            escape_typst_string_literal(paid_date),
+            escape_typst_string_literal(method)
         ));
     }
 
@@ -427,21 +446,28 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
         let payment_status = req.effective_payment_status();
         let payment_method = req.payment_method.as_deref().unwrap_or("Stripe / Card / Apple Pay");
         let due_date_arg = match req.due_date.as_deref() {
-            Some(d) => format!("\"{}\"", d),
+            Some(d) => format!("\"{}\"", escape_typst_string_literal(d)),
             None => "none".to_string(),
         };
         let effective_amount_due = req.format_amount(req.balance_due());
 
         markup.push_str(&format!(
             "#payment-qr-block(\n  qr-path: {},\n  payment-url: \"{}\",\n  payment-status: \"{}\",\n  amount-due: \"{}\",\n  due-date: {},\n  payment-method: \"{}\",\n  primary-color: rgb(\"{}\"),\n  accent-color: rgb(\"{}\"),\n  surface-color: rgb(\"{}\")\n)\n\n",
-            qr_arg, payment_url, payment_status, effective_amount_due, due_date_arg, payment_method, primary_hex, accent_hex, surface_hex
+            qr_arg,
+            escape_typst_string_literal(payment_url),
+            escape_typst_string_literal(payment_status),
+            escape_typst_string_literal(&effective_amount_due),
+            due_date_arg,
+            escape_typst_string_literal(payment_method),
+            primary_hex, accent_hex, surface_hex
         ));
     }
 
     if req.show_qr_seal.unwrap_or(false) {
         markup.push_str(&format!(
             "#v(4pt)\n#verification-seal(\"{}\", primary-color: rgb(\"{}\"), accent-color: rgb(\"{}\"), surface-color: rgb(\"{}\"))\n#v(4pt)\n",
-            req.effective_doc_number(), primary_hex, accent_hex, surface_hex
+            escape_typst_string_literal(&req.effective_doc_number()),
+            primary_hex, accent_hex, surface_hex
         ));
     }
 }
@@ -538,7 +564,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
     // 3. Watermark if present
     if let Some(ref wm) = req.watermark {
         if !wm.is_empty() {
-            markup.push_str(&format!("#render-watermark(\"{}\")\n\n", wm));
+            markup.push_str(&format!("#render-watermark(\"{}\")\n\n", escape_typst_string_literal(wm)));
         }
     }
 
@@ -552,7 +578,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         _ => "none".to_string(),
     };
     let subtitle_typst_arg = match req.header_subtitle {
-        Some(ref s) if !s.is_empty() => format!("\"{}\"", escape_typst_text(s)),
+        Some(ref s) if !s.is_empty() => format!("\"{}\"", escape_typst_string_literal(s)),
         _ => "none".to_string(),
     };
     let company_name = req
@@ -581,17 +607,17 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
 
     markup.push_str(&format!(
         "#document-header(\n  title: \"{}\",\n  subtitle: {},\n  doc-number: \"{}\",\n  date: \"{}\",\n  due-date: {},\n  logo-path: {},\n  company-name: \"{}\",\n  primary-color: rgb(\"{}\"),\n  is-paid: {},\n  status: \"{}\",\n  layout-style: \"{}\"\n)\n\n",
-        req.effective_title(),
+        escape_typst_string_literal(&req.effective_title()),
         subtitle_typst_arg,
-        req.effective_doc_number(),
-        req.format_date(req.issue_date.as_deref().unwrap_or("2026-10-01")),
+        escape_typst_string_literal(&req.effective_doc_number()),
+        escape_typst_string_literal(&req.format_date(req.issue_date.as_deref().unwrap_or("2026-10-01"))),
         due_date_typst_arg,
         logo_typst_arg,
-        escape_typst_text(company_name),
+        escape_typst_string_literal(company_name),
         primary_hex,
         is_paid,
-        status_label,
-        layout_style
+        escape_typst_string_literal(status_label),
+        escape_typst_string_literal(layout_style)
     ));
 
     // Compliance Notice Banner
@@ -599,7 +625,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         if comp != "none" && !comp.is_empty() {
             markup.push_str(&format!(
                 "#compliance-banner(\"{}\", primary-color: rgb(\"{}\"))\n#v(6pt)\n\n",
-                comp, primary_hex
+                escape_typst_string_literal(comp), primary_hex
             ));
         }
     }
@@ -641,12 +667,12 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
 
     markup.push_str(&format!(
         "#parties-grid(\n  from-name: \"{}\",\n  from-details: [{}],\n  to-name: \"{}\",\n  to-details: [{}],\n  from-title: \"{}\",\n  to-title: \"{}\",\n  primary-color: rgb(\"{}\"),\n  secondary-color: rgb(\"{}\"),\n  surface-color: rgb(\"{}\")\n)\n\n",
-        escape_typst_text(&req.from.name),
+        escape_typst_string_literal(&req.from.name),
         from_details_escaped,
-        escape_typst_text(&req.to.name),
+        escape_typst_string_literal(&req.to.name),
         to_details_escaped,
-        from_title,
-        to_title,
+        escape_typst_string_literal(from_title),
+        escape_typst_string_literal(to_title),
         primary_hex,
         secondary_hex,
         surface_hex
@@ -1024,9 +1050,9 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
     let issue_date = req.issue_date.as_deref().unwrap_or("2026-10-01");
     markup.push_str(&format!(
         "\n#v(4pt)\n#audit-slug(parcel-id: \"{}\", hash: \"{}\", engine-version: \"Pressmark Vector Engine v1.0.0\", timestamp: \"{}T00:00:00Z\")\n",
-        escape_typst_text(&req.effective_doc_number()),
-        audit_hash,
-        issue_date
+        escape_typst_string_literal(&req.effective_doc_number()),
+        escape_typst_string_literal(&audit_hash),
+        escape_typst_string_literal(issue_date)
     ));
 
     markup

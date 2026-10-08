@@ -2861,34 +2861,17 @@ button:not(:disabled):active,
 
 /* 5. Document Page Turn / Layout Morph Transition */
 .layout-morph-exit {
-  animation: pageMorphExit 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  will-change: opacity, transform, filter;
+  opacity: 0.75;
+  transform: scale(0.992) translateY(2px);
+  transition: opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1), transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform;
 }
 
 .layout-morph-enter {
-  animation: pageMorphEnter 0.35s var(--spring-smooth) forwards;
-  will-change: opacity, transform, filter;
-}
-
-@keyframes pageMorphExit {
-  100% {
-    opacity: 0.18;
-    transform: scale(0.985) translateY(5px);
-    filter: blur(1.5px);
-  }
-}
-
-@keyframes pageMorphEnter {
-  0% {
-    opacity: 0.18;
-    transform: scale(1.015) translateY(-5px);
-    filter: blur(1.5px);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-    filter: blur(0);
-  }
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1), transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
 }
 
 /* 6. Card Drag Ghost & Fluid Displacement */

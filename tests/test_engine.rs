@@ -114,17 +114,26 @@ fn test_all_document_types_compile() {
         DocumentType::InvoiceMedical,
         DocumentType::InvoiceSaas,
         DocumentType::InvoiceMinimal,
+        DocumentType::ProformaInvoice,
         DocumentType::Estimate,
         DocumentType::Receipt,
         DocumentType::PurchaseOrder,
         DocumentType::PackingSlip,
         DocumentType::CreditNote,
+        DocumentType::WorkOrder,
+        DocumentType::ExpenseReport,
+        DocumentType::DeliveryReceipt,
+        DocumentType::CommercialLease,
+        DocumentType::QuotationTender,
         DocumentType::Agreement,
         DocumentType::AgreementSow,
         DocumentType::ContractorAgreement,
+        DocumentType::RetainerAgreement,
         DocumentType::Nda,
         DocumentType::BillOfSale,
         DocumentType::Certificate,
+        DocumentType::CertificateInsurance,
+        DocumentType::CertificateCompletion,
         DocumentType::InspectionReport,
         DocumentType::ResidentialLease,
         DocumentType::CommercialNnnLease,
@@ -139,16 +148,29 @@ fn test_all_document_types_compile() {
         DocumentType::TenantEstoppel,
     ];
 
-    for dt in doc_types {
+    for dt in &doc_types {
         let mut req = create_sample_invoice();
         req.doc_type = dt.clone();
         req.title = Some(dt.display_title().to_string());
 
         let result = generate_pdf(&req);
-        assert!(result.is_ok(), "Failed compiling doc type {:?}: {:?}", dt, result.err());
+        assert!(result.is_ok(), "Failed compiling PDF for doc type {:?}: {:?}", dt, result.err());
         let (bytes, ms) = result.unwrap();
         assert!(bytes.len() > 1000);
-        println!("Compiled {:?} in {}ms", dt, ms);
+
+        let png_result = pressmark::engine::generate_all_preview_pngs(&req, 144);
+        assert!(png_result.is_ok(), "Failed generating PNG preview for doc type {:?}: {:?}", dt, png_result.err());
+        let (pages, png_ms) = png_result.unwrap();
+        assert!(!pages.is_empty(), "Preview pages must not be empty for {:?}", dt);
+        println!("Compiled PDF in {}ms and PNG ({} pages) in {}ms for {:?}", ms, pages.len(), png_ms, dt);
+
+        // Also test with empty items
+        let mut req_empty = req.clone();
+        req_empty.items = vec![];
+        let empty_result = generate_pdf(&req_empty);
+        assert!(empty_result.is_ok(), "Failed compiling empty-items PDF for doc type {:?}: {:?}", dt, empty_result.err());
+        let empty_png_result = pressmark::engine::generate_all_preview_pngs(&req_empty, 144);
+        assert!(empty_png_result.is_ok(), "Failed generating empty-items PNG for doc type {:?}: {:?}", dt, empty_png_result.err());
     }
 }
 

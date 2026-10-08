@@ -2406,12 +2406,18 @@
         renderCustomFieldsList();
         updateCalculations();
         renderInteractiveOverlay();
-        previewDocWrapper.classList.remove('layout-morph-enter');
-        previewDocWrapper.classList.add('layout-morph-exit');
+        document.querySelectorAll('.preview-page-frame').forEach(f => {
+          f.classList.remove('layout-morph-enter');
+          f.classList.add('layout-morph-exit');
+        });
         setTimeout(() => {
-          previewDocWrapper.classList.remove('layout-morph-exit');
-          previewDocWrapper.classList.add('layout-morph-enter');
-          setTimeout(() => previewDocWrapper.classList.remove('layout-morph-enter'), 380);
+          document.querySelectorAll('.preview-page-frame').forEach(f => {
+            f.classList.remove('layout-morph-exit');
+            f.classList.add('layout-morph-enter');
+          });
+          setTimeout(() => {
+            document.querySelectorAll('.preview-page-frame').forEach(f => f.classList.remove('layout-morph-enter'));
+          }, 380);
         }, 120);
         schedulePreview();
         showUndoToast(`Switched archetype to ${pill.innerText.trim()} · [↩ Undo]`);
@@ -2428,17 +2434,26 @@
       invoice_medical: { title: 'CLINICAL SERVICES SUPERBILL', prefix: 'MED-' },
       invoice_saas: { title: 'SUBSCRIPTION & CLOUD BILLING', prefix: 'SUB-' },
       invoice_minimal: { title: 'COMMERCIAL INVOICE', prefix: 'DOC-' },
+      proforma_invoice: { title: 'PROFORMA INVOICE', prefix: 'PRO-' },
       estimate: { title: 'FORMAL ESTIMATE & QUOTE', prefix: 'EST-' },
       receipt: { title: 'OFFICIAL PAYMENT RECEIPT', prefix: 'RCT-', is_paid: true },
       purchase_order: { title: 'ENTERPRISE PURCHASE ORDER', prefix: 'PO-' },
       packing_slip: { title: 'PACKING SLIP & BILL OF LADING', prefix: 'PKG-' },
       credit_note: { title: 'CREDIT NOTE', prefix: 'CRD-' },
+      quotation_tender: { title: 'TENDER & BID QUOTATION', prefix: 'BID-' },
+      work_order: { title: 'WORK ORDER & JOB TICKET', prefix: 'WO-' },
       agreement: { title: 'MASTER SERVICES AGREEMENT', prefix: 'MSA-' },
       agreement_sow: { title: 'STATEMENT OF WORK', prefix: 'SOW-' },
       contractor_agreement: { title: 'INDEPENDENT CONTRACTOR AGREEMENT', prefix: 'ICA-' },
+      retainer_agreement: { title: 'STRATEGIC RETAINER AGREEMENT', prefix: 'RET-' },
       nda: { title: 'MUTUAL NON-DISCLOSURE AGREEMENT', prefix: 'NDA-' },
+      commercial_lease: { title: 'COMMERCIAL LEASE AGREEMENT', prefix: 'COM-' },
       bill_of_sale: { title: 'STATUTORY BILL OF SALE', prefix: 'BOS-' },
       certificate: { title: 'CERTIFICATE OF ACHIEVEMENT', prefix: 'CERT-' },
+      certificate_completion: { title: 'CERTIFICATE OF COMPLETION', prefix: 'CRT-' },
+      certificate_insurance: { title: 'CERTIFICATE OF INSURANCE (COI)', prefix: 'COI-' },
+      expense_report: { title: 'EXPENSE REIMBURSEMENT REPORT', prefix: 'EXP-' },
+      delivery_receipt: { title: 'PROOF OF DELIVERY RECEIPT', prefix: 'POD-' },
       inspection_report: { title: 'CONDITION & INSPECTION REPORT', prefix: 'INSP-' },
       // Real Estate & Property Management Suite
       residential_lease: { title: 'RESIDENTIAL LEASE AGREEMENT', prefix: 'RLA-' },
@@ -3172,6 +3187,242 @@
         { signer_name: 'Robert Vance', signer_title: 'Chief Executive Officer, Vance Biosystems', date: '2026-10-01' },
         { signer_name: 'Dr. Evelyn Reed', signer_title: 'Chief Scientific Officer, Apex Therapeutics', date: '2026-10-01' }
       ];
+    } else if (type === 'commercial_lease') {
+      state.header_subtitle = 'Commercial Property Lease & Facility Agreement';
+      state.from = {
+        name: 'Arthur Sterling',
+        company: 'Apex Commercial Properties REIT',
+        address: '555 California St, Suite 4200, San Francisco, CA 94104',
+        email: 'leasing@apexcommercial.com',
+        phone: '+1 (415) 980-2200',
+        tax_id: 'US-94-1182903'
+      };
+      state.to = {
+        name: 'Dr. Sarah Lin',
+        company: 'NeuralCloud Systems Inc.',
+        address: '500 Howard Street, Suite 800, San Francisco, CA 94105',
+        email: 'legal@neuralcloud.ai',
+        phone: '+1 (415) 555-8821'
+      };
+      state.custom_fields = [
+        { label: 'Premises Address', value: '500 Howard Street, Suite 800, San Francisco, CA 94105' },
+        { label: 'Rentable Square Feet', value: '14,500 RSF' },
+        { label: 'Lease Term', value: '36 Months (Nov 1, 2026 – Oct 31, 2029)' },
+        { label: 'Security Deposit', value: '$65,000.00 (Letter of Credit)' }
+      ];
+      state.items = [
+        { description: 'Monthly Base Rent ($55.00 / RSF / Year)', quantity: 1.0, unit_price: 66458.33 },
+        { description: 'Common Area Operating Expense Contribution', quantity: 1.0, unit_price: 12500.00 },
+        { description: 'Reserved Executive Garage Parking (6 stalls)', quantity: 6.0, unit_price: 350.00 }
+      ];
+      state.sections = [
+        { title: '1. Commercial Rent & Operating Costs', content: 'Base rent is payable in advance on the first day of each calendar month. Tenant agrees to pay its proportionate share of building operating expenses.' },
+        { title: '2. Permitted Use', content: 'The premises shall be used strictly for executive software development, AI research, and general corporate administrative offices.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Arthur Sterling', signer_title: 'Senior Managing Director, Apex Capital', date: '2026-10-01' },
+        { signer_name: 'Dr. Sarah Lin', signer_title: 'Chief Executive Officer, NeuralCloud Systems', date: '2026-10-01' }
+      ];
+    } else if (type === 'proforma_invoice') {
+      state.header_subtitle = 'Commercial Valuation & International Customs Proforma';
+      state.from = {
+        name: 'Hans Becker',
+        company: 'Precision Optics Engineering GmbH',
+        address: 'Industriestrasse 42, 70565 Stuttgart, Germany',
+        email: 'export@precisionoptics.de',
+        phone: '+49 711 490281',
+        tax_id: 'DE-814902819'
+      };
+      state.to = {
+        name: 'Elena Rostova',
+        company: 'Advanced Robotics Technologies LLC',
+        address: '100 Technology Parkway, Suite 300, Boston, MA 02142',
+        email: 'procurement@advancedrobotics.com',
+        phone: '+1 (617) 555-0144'
+      };
+      state.custom_fields = [
+        { label: 'Incoterms 2020', value: 'DAP - Delivered at Place (Boston Harbor)' },
+        { label: 'Country of Origin', value: 'Germany (Federal Republic)' },
+        { label: 'Harmonized Tariff (HS)', value: '9001.90.0000 (Optical Elements)' },
+        { label: 'Port of Loading', value: 'Frankfurt Air Cargo Terminal (FRA)' }
+      ];
+      state.items = [
+        { description: 'Precision Laser Collimator Assemblies (Grade A)', quantity: 12.0, unit_price: 1850.00 },
+        { description: 'Interferometric Beam Splitter Prisms', quantity: 24.0, unit_price: 620.00 },
+        { description: 'Export Crated Packaging & Shock Absorption', quantity: 1.0, unit_price: 950.00 }
+      ];
+      state.sections = [
+        { title: 'Customs & Valuation Attestation', content: 'We certify that this proforma invoice indicates the true value of the goods contained, and that all particulars are true and correct for customs clearance purposes.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Hans Becker', signer_title: 'Export Control Director', date: '2026-10-01' }
+      ];
+    } else if (type === 'quotation_tender') {
+      state.header_subtitle = 'Institutional Tender Response & Bid Proposal';
+      state.from = {
+        name: 'Jonathan Reynolds',
+        company: 'Apex Infrastructure Group Inc.',
+        address: '1200 Pennsylvania Ave NW, Washington, DC 20004',
+        email: 'tenders@apexinfrastructure.com',
+        phone: '+1 (202) 555-0188',
+        tax_id: 'US-52-9918204'
+      };
+      state.to = {
+        name: 'Procurement Review Board',
+        company: 'Department of Public Works & Transportation',
+        address: '400 7th Street SW, Washington, DC 20024',
+        email: 'bids@dpw.gov'
+      };
+      state.custom_fields = [
+        { label: 'Solicitation RFP #', value: 'RFP-DOT-2026-0441' },
+        { label: 'Tender Validity', value: '90 Days from Submission' },
+        { label: 'Bonding Capacity', value: '$10,000,000.00 (Surety Travelers)' },
+        { label: 'Contractor License', value: 'General Engineering Class A #884920' }
+      ];
+      state.items = [
+        { description: 'Bridge Structural Sensor Telemetry & Installation', quantity: 1.0, unit_price: 145000.00 },
+        { description: 'Autonomous IoT Gateway Hardened Hubs (Qty 18)', quantity: 18.0, unit_price: 4200.00 },
+        { description: 'Real-Time Stress Analysis Cloud Dashboard & Warranty', quantity: 1.0, unit_price: 48000.00 }
+      ];
+      state.sections = [
+        { title: 'Tender Terms & Firm Price Guarantee', content: 'This formal bid constitutes a firm offer to perform all required scope items detailed in the RFP at the prices specified herein, valid for 90 calendar days.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Jonathan Reynolds', signer_title: 'Executive Vice President, Apex Infrastructure', date: '2026-10-01' }
+      ];
+    } else if (type === 'work_order') {
+      state.header_subtitle = 'Field Operations & Service Dispatch Authorization';
+      state.from = {
+        name: 'Dispatch Coordinator',
+        company: 'Metro Mechanical Systems LLC',
+        address: '420 Commercial Ave, Suite 10, Denver, CO 80202',
+        email: 'dispatch@metromechanical.com',
+        phone: '+1 (303) 555-0192'
+      };
+      state.to = {
+        name: 'Highland Ridge Commercial Center',
+        company: 'Building Facilities Team',
+        address: '8800 E Arapahoe Rd, Centennial, CO 80112',
+        phone: '+1 (303) 555-0144'
+      };
+      state.custom_fields = [
+        { label: 'Work Order #', value: 'WO-2026-8819' },
+        { label: 'Priority Level', value: 'Urgent / Priority 1' },
+        { label: 'Lead Technician', value: 'Tyler Vance (EPA Universal #77491)' },
+        { label: 'Equipment Tag', value: 'Trane Roof Top Unit #4 (RTU-04)' }
+      ];
+      state.items = [
+        { description: 'Diagnostic Troubleshooting & Refrigerant Leak Check', quantity: 2.5, unit_price: 165.00 },
+        { description: 'Variable Speed ECM Blower Motor Replacement', quantity: 1.0, unit_price: 1250.00 },
+        { description: 'R-410A Refrigerant Recovery and Re-charge (12 lbs)', quantity: 12.0, unit_price: 45.00 }
+      ];
+      state.sections = [
+        { title: 'Work Completion Sign-Off', content: 'Work performed in accordance with manufacturer technical specifications and local mechanical codes. All old components properly recycled.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Tyler Vance', signer_title: 'Lead HVAC Certified Tech', date: '2026-10-01' },
+        { signer_name: 'Facility Manager Sign-off', signer_title: 'Site Representative', date: '2026-10-01' }
+      ];
+    } else if (type === 'expense_report') {
+      state.header_subtitle = 'Employee Business Expense Claim & Reconciliation';
+      state.from = {
+        name: 'Claire Sterling',
+        company: 'Corporate Engineering Division',
+        address: '100 Montgomery St, San Francisco, CA 94104',
+        email: 'claire.sterling@example.com',
+        phone: '+1 (415) 555-0177'
+      };
+      state.to = {
+        name: 'Finance & Accounts Payable',
+        company: 'Global Enterprises Inc.',
+        address: '100 Montgomery St, Floor 14, San Francisco, CA 94104',
+        email: 'ap@globalenterprises.com'
+      };
+      state.custom_fields = [
+        { label: 'Employee ID', value: 'EMP-90412' },
+        { label: 'Department / Cost Center', value: 'Product Engineering (CC-420)' },
+        { label: 'Purpose of Travel', value: 'Client Onsite Deployment & Architecture Review' },
+        { label: 'Report Period', value: 'Sep 25, 2026 – Sep 28, 2026' }
+      ];
+      state.items = [
+        { description: 'Flight SFO -> JFK (Delta Airlines Roundtrip)', quantity: 1.0, unit_price: 642.50 },
+        { description: 'Lodging: The Beekman Hotel NYC (3 Nights)', quantity: 3.0, unit_price: 345.00 },
+        { description: 'Client Dinner & Architecture Working Session', quantity: 1.0, unit_price: 248.80 },
+        { description: 'Ground Transportation (JFK Airport Express / Rides)', quantity: 1.0, unit_price: 112.40 }
+      ];
+      state.sections = [
+        { title: 'Employee Attestation', content: 'I certify that all expenses reported were incurred in the necessary conduct of company business, comply with the corporate travel policy, and are supported by itemized receipts.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Claire Sterling', signer_title: 'Lead Software Architect', date: '2026-10-01' },
+        { signer_name: 'VP of Engineering', signer_title: 'Approving Officer', date: '2026-10-01' }
+      ];
+    } else if (type === 'delivery_receipt') {
+      state.header_subtitle = 'Consignee Acknowledgment & Proof of Freight Delivery';
+      state.from = {
+        name: 'Freight Dispatch Operations',
+        company: 'Apex Logistics Freightways LLC',
+        address: '700 Harbor Blvd, Suite 200, Newark, NJ 07114',
+        email: 'dispatch@apexlogistics.com',
+        phone: '+1 (973) 555-0199'
+      };
+      state.to = {
+        name: 'Receiving Dock #4',
+        company: 'Precision Instruments Manufacturing',
+        address: '1200 Industrial Way, Philadelphia, PA 19104',
+        email: 'dock@precisioninst.com',
+        phone: '+1 (215) 555-0182'
+      };
+      state.custom_fields = [
+        { label: 'Bill of Lading (BOL)', value: 'BOL-APX-8849102' },
+        { label: 'Carrier Tractor / Trailer #', value: 'Unit #402 / Trailer #5322' },
+        { label: 'Driver Name & CDL', value: 'Marcus Brody (CDL-NJ #94821)' },
+        { label: 'Delivery Timestamp', value: 'October 1, 2026 14:35 EST' }
+      ];
+      state.items = [
+        { description: 'Shrink-wrapped Pallets - Electronic Components', quantity: 4.0, unit_price: 0.00 },
+        { description: 'Crated Calibration Sensors (Heavy / Fragile)', quantity: 2.0, unit_price: 0.00 },
+        { description: 'Master Documentation Enclosure Pouch', quantity: 1.0, unit_price: 0.00 }
+      ];
+      state.sections = [
+        { title: 'Condition Upon Receipt', content: 'Consignee acknowledges receipt of the freight listed above in apparent good condition except as noted. All carton seals intact.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Marcus Brody', signer_title: 'Delivery Driver, Apex Logistics', date: '2026-10-01' },
+        { signer_name: 'Receiving Dock Signatory', signer_title: 'Warehouse Receiving Clerk', date: '2026-10-01' }
+      ];
+    } else if (type === 'packing_slip') {
+      state.header_subtitle = 'Order Fulfillment Manifest & Package Contents';
+      state.from = {
+        name: 'Fulfillment Operations',
+        company: 'Vanguard Hardware Systems Inc.',
+        address: '500 Howard Street, San Francisco, CA 94105',
+        email: 'shipping@vanguardhardware.io',
+        phone: '+1 (415) 880-9120'
+      };
+      state.to = {
+        name: 'Receiving Department',
+        company: 'Horizon Data Centers LLC',
+        address: '400 Enterprise Way, Reston, VA 20190',
+        email: 'datacenter@horizondc.com'
+      };
+      state.custom_fields = [
+        { label: 'Order Number', value: 'ORD-2026-9921' },
+        { label: 'Shipping Method', value: 'FedEx Priority Overnight Air' },
+        { label: 'Tracking Number', value: '7829-4412-8819' },
+        { label: 'Total Packages', value: '3 Master Cartons' }
+      ];
+      state.items = [
+        { description: '1U Rackmount Vector Processing Nodes', quantity: 4.0, unit_price: 0.00 },
+        { description: '100GbE QSFP28 Direct Attach Copper Cables (2m)', quantity: 8.0, unit_price: 0.00 },
+        { description: 'Redundant Titanium 800W Hot-Swap Power Supplies', quantity: 8.0, unit_price: 0.00 }
+      ];
+      state.sections = [
+        { title: 'Inspection Instructions', content: 'Please inspect cartons immediately upon delivery. Verify serial numbers against packing manifest before deploying hardware into server racks.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Warehouse Inspector #42', signer_title: 'Quality Assurance Clerk', date: '2026-10-01' }
+      ];
     } else {
       // Default Commercial Invoice / Estimate / Statement Preset
       state.header_subtitle = 'Enterprise Systems & Precision Infrastructure Retainer';
@@ -3777,6 +4028,8 @@
     setVal('taxRateInput', state.tax_rate);
     setVal('discountInput', state.discount_amount);
     setVal('footerTextInput', state.footer_text || '');
+    setVal('notesInput', state.notes || '');
+    setVal('termsInput', state.terms || '');
 
     // Sync Formatters & Localization
     setVal('currencySelect', state.currency || 'USD');
@@ -3822,10 +4075,11 @@
     setCheck('togglePaymentQr', state.payment_qr_code !== false);
     updateLifecycleUI();
 
-    // Sync template archetype cards
-    document.querySelectorAll('.template-card').forEach(c => {
-      c.classList.toggle('active', c.dataset.docType === state.doc_type);
+    // Sync template archetype pills and adapt prescriptive UI taxonomy
+    document.querySelectorAll('.template-pill').forEach(c => {
+      c.classList.toggle('active', c.dataset.type === state.doc_type);
     });
+    adaptFormToArchetype(state.doc_type);
 
     // Sync theme palette and tokens
     syncPaletteControlsFromState();
@@ -3997,6 +4251,8 @@
       img.src = uri;
       img.alt = `Live Document Preview - Page ${pageIdx + 1}`;
       buffer.appendChild(img);
+    } else if (!currentImg.getAttribute('src')) {
+      currentImg.src = uri;
     } else if (currentImg.src !== uri && uri) {
       const nextImg = new Image();
       if (isPrimary) nextImg.id = 'previewImg';
@@ -4014,6 +4270,9 @@
             nextImg.classList.add('preview-layer-current');
           }, 240);
         });
+      };
+      nextImg.onerror = () => {
+        currentImg.src = uri;
       };
       nextImg.src = uri;
     }
@@ -4055,7 +4314,7 @@
     while (existingFrames.length < targetCount) {
       const idx = existingFrames.length;
       const f = document.createElement('div');
-      f.className = 'preview-page-frame';
+      f.className = 'preview-doc-wrapper preview-page-frame';
       f.id = (idx === 0) ? 'previewDocWrapper' : `previewDocWrapper-${idx}`;
       container.appendChild(f);
       existingFrames.push(f);
@@ -4952,24 +5211,27 @@
         const pageCountTag = currentTotalPages > 1 ? ` · ${currentTotalPages} Pages` : '';
         compileTelemetry.innerHTML = `⚡ <strong>${data.compile_time_ms}ms</strong> · Pressmark Vector Engine${pageCountTag}${computeTag}`;
 
+        document.querySelectorAll('.preview-page-frame').forEach(f => {
+          f.classList.remove('compiling-pulse', 'is-compiling', 'layout-morph-exit');
+        });
         const wrapper = document.getElementById('previewDocWrapper');
         if (wrapper) {
-          wrapper.classList.remove('compiling-pulse');
-          wrapper.classList.remove('is-compiling');
           wrapper.classList.add('preview-updated-flash');
           setTimeout(() => wrapper.classList.remove('preview-updated-flash'), 500);
         }
       } else {
         compileTelemetry.classList.remove('pulse');
-        compileTelemetry.innerText = 'Vector synthesis notice';
-        previewDocWrapper.classList.remove('compiling-pulse');
-        previewDocWrapper.classList.remove('is-compiling');
+        compileTelemetry.innerHTML = `<span style="color:#f87171">⚠️ ${data.error || 'Vector synthesis notice'}</span>`;
+        document.querySelectorAll('.preview-page-frame').forEach(f => {
+          f.classList.remove('compiling-pulse', 'is-compiling', 'layout-morph-exit');
+        });
       }
     } catch (err) {
       compileTelemetry.classList.remove('pulse');
-      compileTelemetry.innerText = 'Engine connection notice';
-      previewDocWrapper.classList.remove('compiling-pulse');
-      previewDocWrapper.classList.remove('is-compiling');
+      compileTelemetry.innerHTML = `<span style="color:#f87171">⚠️ Engine connection notice</span>`;
+      document.querySelectorAll('.preview-page-frame').forEach(f => {
+        f.classList.remove('compiling-pulse', 'is-compiling', 'layout-morph-exit');
+      });
       console.error(err);
     }
   }

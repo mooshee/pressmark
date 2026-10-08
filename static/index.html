@@ -1360,9 +1360,11 @@
       <div class="preview-viewport" id="previewViewport">
         <!-- Continuous Multi-Page Container -->
         <div class="preview-pages-container" id="previewPagesContainer">
-          <div class="preview-doc-wrapper" id="previewDocWrapper">
+          <div class="preview-doc-wrapper preview-page-frame" id="previewDocWrapper" data-page-index="0">
             <div class="page-number-tag" id="pageNumberTag0">Page 1</div>
-            <img id="previewImg" class="preview-doc-image" src="" alt="Live Document Preview">
+            <div class="preview-stage-buffer">
+              <img id="previewImg" class="preview-doc-image preview-layer-current" src="" alt="Live Document Preview">
+            </div>
             <div id="previewInteractiveOverlay" class="preview-interactive-overlay"></div>
           </div>
         </div>
