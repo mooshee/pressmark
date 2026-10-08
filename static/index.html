@@ -3,15 +3,80 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pressmark Studio · Sub-Millisecond Vector Document Engine</title>
-  <link rel="stylesheet" href="/css/studio.css">
+  <title>Pressmark Studio · Sub-Millisecond Vector Invoices, Leases & Documents</title>
+  <meta name="description" content="Sub-millisecond Rust-native vector document engine. Generate publication-grade invoices, commercial leases, estimates, and legal agreements with live preview, Stripe QR payment links, and ChatGPT / MCP agent integration.">
+  <meta name="keywords" content="vector document engine, invoice generator, pdf invoice, rust pdf, commercial lease agreement, stripe payment link qr, chatgpt document plugin, model context protocol, mcp server">
+  <meta name="author" content="Daniel Hallman">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://pressmark.dev/">
+
+  <!-- OpenGraph Metadata -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://pressmark.dev/">
+  <meta property="og:title" content="Pressmark Studio · Sub-Millisecond Vector Document Engine">
+  <meta property="og:description" content="Generate crisp, print-ready vector PDF invoices, commercial leases, and legal agreements in under 15ms. 1-scan QR code mobile payments, PEPPOL compliance, and ChatGPT / MCP integration.">
+  <meta property="og:image" content="https://pressmark.dev/assets/hero.jpg">
+  <meta property="og:site_name" content="Pressmark">
+
+  <!-- Twitter Card Metadata -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@pressmark">
+  <meta name="twitter:title" content="Pressmark Studio · Sub-Millisecond Vector Document Engine">
+  <meta name="twitter:description" content="Generate crisp, print-ready vector PDF invoices, commercial leases, and legal agreements in under 15ms with live preview and Stripe payments.">
+  <meta name="twitter:image" content="https://pressmark.dev/assets/hero.jpg">
+
+  <!-- Theme & Favicons -->
+  <meta name="theme-color" content="#090d16">
   <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
+  <link rel="apple-touch-icon" href="/assets/logo.jpg">
+  <link rel="stylesheet" href="/css/studio.css">
+
+  <!-- Schema.org JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Pressmark Document Studio",
+    "url": "https://pressmark.dev",
+    "description": "Sub-millisecond vector document and invoice synthesis engine powered by Rust.",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Any (Web, ChatGPT Action, MCP Protocol, CLI)",
+    "offers": [
+      {
+        "@type": "Offer",
+        "name": "Free Tier",
+        "price": "0.00",
+        "priceCurrency": "USD",
+        "description": "Unlimited previews, standard generation with Pressmark watermark"
+      },
+      {
+        "@type": "Offer",
+        "name": "Single Document Unlock Pass",
+        "price": "2.99",
+        "priceCurrency": "USD",
+        "description": "1 unwatermarked publication-grade vector export"
+      },
+      {
+        "@type": "Offer",
+        "name": "Solo Pro Subscription",
+        "price": "15.00",
+        "priceCurrency": "USD",
+        "description": "Unlimited unwatermarked exports, custom branding, Stripe QR payments"
+      }
+    ],
+    "author": {
+      "@type": "Person",
+      "name": "Daniel Hallman"
+    }
+  }
+  </script>
 </head>
 <body>
 
   <!-- TOP NAVBAR -->
-  <header class="navbar">
+  <header class="navbar" id="topNavbar">
     <div class="nav-brand">
+      <button type="button" class="mobile-nav-toggle" id="btnMobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
       <img src="/assets/logo.jpg" alt="Pressmark Logo" class="nav-logo">
       <div class="brand-text-group">
         <span class="brand-text">PRESSMARK</span>
@@ -129,10 +194,16 @@
         </div>
       </div>
 
-      <!-- ChatGPT Auth / Subscription Badge -->
-      <div class="chatgpt-auth-container" id="chatgptAuthContainer">
-        <!-- Logged Out State -->
-        <a href="/api/v1/auth/chatgpt/login" class="btn btn-chatgpt-auth btn-sm" id="btnChatGptLogin" title="Sign in with ChatGPT to power generation via your Plus/Pro plan">
+      <!-- Universal Auth & Account Container -->
+      <div class="chatgpt-auth-container auth-nav-container" id="chatgptAuthContainer">
+        <!-- Logged Out / Workspace Trigger -->
+        <button type="button" class="btn btn-secondary btn-sm btn-auth-trigger" id="btnOpenAuthModal" title="Sign In or Access Workspace">
+          <span class="auth-btn-icon" id="authTriggerIcon">👤</span>
+          <span id="authTriggerLabel">Sign In</span>
+        </button>
+
+        <!-- Hidden Compatibility Anchor for ChatGPT OAuth (allows programmatic or direct fallback) -->
+        <a href="/api/v1/auth/chatgpt/login" class="btn btn-chatgpt-auth btn-sm" id="btnChatGptLogin" style="display: none;" title="Sign in with ChatGPT to power generation via your Plus/Pro plan">
           <svg class="chatgpt-mark-svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.5045 4.5045 0 0 1-4.4945 4.4947zm-9.66-4.509a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1401-2.0298zm-1.0456-10.96a4.4755 4.4755 0 0 1 2.3419-1.9729v.1657l-.0047 5.5164a.7854.7854 0 0 0 .3927.6813l5.838 3.3685-2.02 1.1683a.0757.0757 0 0 1-.071 0l-4.8303-2.7913a4.4944 4.4944 0 0 1-1.6466-6.136zm14.2868 4.4996l-5.8428-3.3685 2.02-1.1683a.0757.0757 0 0 1 .071 0l4.8304 2.7913a4.4944 4.4944 0 0 1-.6861 8.1189v-5.6908a.7901.7901 0 0 0-.3925-.6826zm3.3857-3.4116a4.4708 4.4708 0 0 1 .5346 3.0137l-.142-.0852-4.783-2.7582a.7712.7712 0 0 0-.7806 0l-5.8428 3.3685v-2.3324a.0804.0804 0 0 1 .0332-.0615l4.8804-2.8155a4.4992 4.4992 0 0 1 6.1401 2.0298zM8.3077 12.8718l-2.02-1.1683a.0804.0804 0 0 1-.038-.052V6.0689a4.5045 4.5045 0 0 1 7.371-3.4539l-.142.0804-4.7783 2.7582a.7948.7948 0 0 0-.3927.6813v6.7369zm1.7458-1.5039l2.951-1.7037 2.951 1.7037v3.4074l-2.951 1.7037-2.951-1.7037z"/>
           </svg>
@@ -141,7 +212,7 @@
 
         <!-- Logged In State (Hidden by default until session checked) -->
         <div class="dropdown chatgpt-user-dropdown" id="chatgptUserDropdown" style="display: none;">
-          <button class="btn btn-chatgpt-connected btn-sm btn-dropdown-trigger" type="button" id="btnChatGptUser">
+          <button class="btn btn-chatgpt-connected btn-sm btn-dropdown-trigger" type="button" id="btnChatGptUser" aria-haspopup="true" aria-expanded="false">
             <span class="chatgpt-status-dot"></span>
             <span class="chatgpt-plan-badge" id="chatgptPlanLabel">ChatGPT Plus</span>
             <span class="chatgpt-user-email" id="chatgptUserEmail">user@example.com</span>
@@ -158,19 +229,26 @@
               <span class="status-val status-val-emerald" id="dropdownPlanStatus">ChatGPT Plus</span>
             </div>
             <div class="dropdown-status-row">
-              <span class="status-key">Copilot & OCR:</span>
-              <span class="status-val status-val-emerald">Powered by Subscription</span>
+              <span class="status-key">Watermark:</span>
+              <span class="status-val status-val-emerald" id="dropdownWatermarkStatus">None (Unlocked)</span>
             </div>
             <div class="dropdown-status-row">
-              <span class="status-key">PDF Watermark:</span>
-              <span class="status-val status-val-emerald">None (Unlocked)</span>
+              <span class="status-key">Copilot & OCR:</span>
+              <span class="status-val status-val-emerald" id="dropdownCopilotStatus">Powered by Subscription</span>
             </div>
             <div class="dropdown-divider"></div>
-            <button class="dropdown-item dropdown-item-danger" id="btnChatGptLogout">
+            <button class="dropdown-item" id="btnSwitchAccount" type="button">
+              <span class="dropdown-icon">🔄</span>
+              <div class="dropdown-item-info">
+                <span class="dropdown-item-title">Switch Account / Sign In</span>
+                <span class="dropdown-item-desc">Change email or connect provider</span>
+              </div>
+            </button>
+            <button class="dropdown-item dropdown-item-danger" id="btnChatGptLogout" type="button">
               <span class="dropdown-icon">🚪</span>
               <div class="dropdown-item-info">
-                <span class="dropdown-item-title">Disconnect ChatGPT</span>
-                <span class="dropdown-item-desc">Sign out and end compute sharing</span>
+                <span class="dropdown-item-title">Sign Out / Disconnect</span>
+                <span class="dropdown-item-desc">End session and reset</span>
               </div>
             </button>
           </div>
@@ -216,6 +294,16 @@
 
     <!-- LEFT CONTROLS PANEL -->
     <aside class="controls-pane" id="controlsPane">
+
+      <!-- SEMANTIC STUDIO BREADCRUMBS -->
+      <nav class="studio-breadcrumbs" id="studioBreadcrumbs" aria-label="Document Breadcrumbs">
+        <span class="crumb-item crumb-root">Pressmark</span>
+        <span class="crumb-sep" aria-hidden="true">/</span>
+        <span class="crumb-item crumb-category" id="crumbCategory">Commercial Invoicing</span>
+        <span class="crumb-sep" aria-hidden="true">/</span>
+        <span class="crumb-item crumb-active" id="crumbDocName">Tax Invoice</span>
+        <span class="crumb-id-tag" id="crumbDocNumber">#INV-2026-0001</span>
+      </nav>
 
       <!-- ========================================================
            STEP 1: PRIMARY DOCUMENT ARCHETYPE & CATEGORY SELECTOR
@@ -1436,6 +1524,76 @@
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
         <button class="btn btn-primary" id="btnApplyJson">Apply JSON to Document</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- UNIVERSAL AUTHENTICATION & WORKSPACE MODAL -->
+  <div class="modal-overlay" id="modalAuth" role="dialog" aria-modal="true" aria-labelledby="modalAuthTitle">
+    <div class="modal-content modal-content-auth">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2 class="modal-title" id="modalAuthTitle">Sign In to Pressmark</h2>
+          <p class="modal-subtitle">Choose how you'd like to access your workspace, sync documents, or share compute</p>
+        </div>
+        <button class="modal-close" id="btnCloseAuth" aria-label="Close modal">&times;</button>
+      </div>
+
+      <!-- Auth Option Cards -->
+      <div class="auth-options-grid">
+        <!-- 1. Guest Workspace (Zero friction) -->
+        <div class="auth-option-card auth-card-guest">
+          <div class="auth-card-badge">Instant Access</div>
+          <div class="auth-card-icon">🛡️</div>
+          <div class="auth-card-body">
+            <h3 class="auth-card-title">Continue as Guest</h3>
+            <p class="auth-card-desc">No password needed. Your documents and company profile stay saved on this device via persistent local storage.</p>
+          </div>
+          <button type="button" class="btn btn-secondary btn-block" id="btnAuthGuest">Open Guest Workspace</button>
+        </div>
+
+        <!-- 2. Email Sign-In -->
+        <div class="auth-option-card auth-card-email">
+          <div class="auth-card-badge">Universal</div>
+          <div class="auth-card-icon">✉️</div>
+          <div class="auth-card-body">
+            <h3 class="auth-card-title">Sign in with Email</h3>
+            <p class="auth-card-desc">Sync your templates and unlock watermarks across devices with your email account.</p>
+            <form id="formEmailAuth" onsubmit="return false;" class="auth-email-form">
+              <input type="email" id="inputAuthEmail" class="form-input" placeholder="name@company.com" required autocomplete="email">
+              <button type="submit" class="btn btn-primary btn-block" id="btnSubmitEmailAuth" style="margin-top: 8px;">Continue with Email</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- 3. ChatGPT Subscription Pass-Through -->
+        <div class="auth-option-card auth-card-chatgpt">
+          <div class="auth-card-badge auth-badge-chatgpt">Compute Sharing</div>
+          <div class="auth-card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="#10a37f">
+              <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.5045 4.5045 0 0 1-4.4945 4.4947zm-9.66-4.509a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1401-2.0298zm-1.0456-10.96a4.4755 4.4755 0 0 1 2.3419-1.9729v.1657l-.0047 5.5164a.7854.7854 0 0 0 .3927.6813l5.838 3.3685-2.02 1.1683a.0757.0757 0 0 1-.071 0l-4.8303-2.7913a4.4944 4.4944 0 0 1-1.6466-6.136zm14.2868 4.4996l-5.8428-3.3685 2.02-1.1683a.0757.0757 0 0 1 .071 0l4.8304 2.7913a4.4944 4.4944 0 0 1-.6861 8.1189v-5.6908a.7901.7901 0 0 0-.3925-.6826zm3.3857-3.4116a4.4708 4.4708 0 0 1 .5346 3.0137l-.142-.0852-4.783-2.7582a.7712.7712 0 0 0-.7806 0l-5.8428 3.3685v-2.3324a.0804.0804 0 0 1 .0332-.0615l4.8804-2.8155a4.4992 4.4992 0 0 1 6.1401 2.0298zM8.3077 12.8718l-2.02-1.1683a.0804.0804 0 0 1-.038-.052V6.0689a4.5045 4.5045 0 0 1 7.371-3.4539l-.142.0804-4.7783 2.7582a.7948.7948 0 0 0-.3927.6813v6.7369zm1.7458-1.5039l2.951-1.7037 2.951 1.7037v3.4074l-2.951 1.7037-2.951-1.7037z"/>
+            </svg>
+          </div>
+          <div class="auth-card-body">
+            <h3 class="auth-card-title">Sign in with ChatGPT</h3>
+            <p class="auth-card-desc">Have ChatGPT Plus, Pro, or Team? Delegate AI Copilot prompts directly to your OpenAI subscription quota with zero API fees.</p>
+          </div>
+          <a href="/api/v1/auth/chatgpt/login" class="btn btn-chatgpt-auth btn-block" id="btnModalChatGptLogin">Connect ChatGPT Subscription</a>
+        </div>
+
+        <!-- 4. Developer / Agent Token -->
+        <div class="auth-option-card auth-card-dev">
+          <div class="auth-card-badge">Headless & Agents</div>
+          <div class="auth-card-icon">🔑</div>
+          <div class="auth-card-body">
+            <h3 class="auth-card-title">Developer API / Agent Key</h3>
+            <p class="auth-card-desc">Connect autonomous agents (Codex, AGY, Claude Code) or pass a Pressmark API key for headless PDF synthesis.</p>
+            <form id="formApiKeyAuth" onsubmit="return false;" class="auth-apikey-form">
+              <input type="password" id="inputAuthApiKey" class="form-input" placeholder="prsm_live_..." autocomplete="off">
+              <button type="submit" class="btn btn-secondary btn-block" id="btnSubmitApiKeyAuth" style="margin-top: 8px;">Connect Agent Key</button>
+            </form>
+          </div>
+        </div>
       </div>
     </div>
   </div>

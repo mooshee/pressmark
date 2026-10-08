@@ -1617,11 +1617,14 @@
   // ===========================================================================
   // CHATGPT AUTHENTICATION & SUBSCRIPTION PASS-THROUGH
   // ===========================================================================
+  // ===========================================================================
+  // UNIVERSAL AUTHENTICATION & WORKSPACE SESSION MANAGEMENT
+  // ===========================================================================
   let currentChatGptSession = null;
 
   async function checkChatGptSession() {
     try {
-      const res = await fetch('/api/v1/auth/chatgpt/session');
+      const res = await fetch('/api/v1/auth/session');
       if (res.ok) {
         const data = await res.json();
         if (data.authenticated && data.user) {
@@ -1633,25 +1636,31 @@
         }
       }
     } catch (e) {
-      console.warn('ChatGPT session query error:', e);
+      console.warn('Session query error:', e);
     }
   }
 
   function renderLoggedInChatGptUI(data) {
     const user = data.user;
     const loginBtn = document.getElementById('btnChatGptLogin');
+    const authTrigger = document.getElementById('btnOpenAuthModal');
     const userDropdown = document.getElementById('chatgptUserDropdown');
     const planLabel = document.getElementById('chatgptPlanLabel');
     const userEmail = document.getElementById('chatgptUserEmail');
     const userName = document.getElementById('dropdownUserName');
     const planStatus = document.getElementById('dropdownPlanStatus');
+    const watermarkStatus = document.getElementById('dropdownWatermarkStatus');
 
     if (loginBtn) loginBtn.style.display = 'none';
-    if (userDropdown) userDropdown.style.display = 'block';
+    if (authTrigger) authTrigger.style.display = 'none';
+    if (userDropdown) userDropdown.style.display = 'inline-block';
     if (planLabel) planLabel.innerText = user.plan_display;
     if (userEmail) userEmail.innerText = user.email;
     if (userName) userName.innerText = user.name;
-    if (planStatus) planStatus.innerText = `${user.plan_display} (Verified)`;
+    if (planStatus) planStatus.innerText = `${user.plan_display} (Active)`;
+    if (watermarkStatus) {
+      watermarkStatus.innerText = user.watermark_free ? 'None (Unlocked)' : 'Standard Watermark';
+    }
 
     // Update AI Copilot sidebar banner
     const badge = document.getElementById('bannerSubscriberBadge');
@@ -1661,23 +1670,43 @@
 
     if (badge) {
       badge.innerText = `${user.plan_display} Active`;
-      badge.style.backgroundColor = 'rgba(16, 163, 127, 0.25)';
-      badge.style.color = '#34d399';
+      badge.style.backgroundColor = user.is_subscriber ? 'rgba(16, 163, 127, 0.25)' : 'rgba(100, 116, 139, 0.2)';
+      badge.style.color = user.is_subscriber ? '#34d399' : '#94a3b8';
     }
-    if (title) title.innerText = `⚡ Powered by ${user.plan_display}`;
+    if (title) title.innerText = `⚡ ${user.plan_display}`;
     if (desc) {
-      desc.innerText = `Connected as ${user.email}. All Copilot actions, layout changes, and OCR extractions run directly on your personal ${user.plan_display} compute quota with zero API bills.`;
+      if (user.provider === 'chatgpt') {
+        desc.innerText = `Connected as ${user.email}. All Copilot actions, layout changes, and OCR extractions run directly on your personal ${user.plan_display} compute quota with zero API bills.`;
+      } else {
+        desc.innerText = `Active workspace for ${user.email}. Previews compile in sub-15ms with full state persistence.`;
+      }
     }
     if (actionContainer) {
-      actionContainer.innerHTML = `<span style="font-size: 11px; font-weight: 600; color: #34d399; display: flex; align-items: center; gap: 4px;"><span>🟢</span> Unlimited Unwatermarked Exports Active</span>`;
+      if (user.watermark_free) {
+        actionContainer.innerHTML = `<span style="font-size: 11px; font-weight: 600; color: #34d399; display: flex; align-items: center; gap: 4px;"><span>🟢</span> Unlimited Unwatermarked Exports Active</span>`;
+      } else {
+        actionContainer.innerHTML = `<button type="button" class="btn btn-secondary btn-sm" id="btnBannerUpgrade"><span>Upgrade to Pro</span></button>`;
+        const btnUpg = document.getElementById('btnBannerUpgrade');
+        if (btnUpg) {
+          btnUpg.addEventListener('click', () => {
+            const pricingModal = document.getElementById('pricingModal');
+            if (pricingModal) pricingModal.classList.add('active');
+          });
+        }
+      }
     }
   }
 
   function renderLoggedOutChatGptUI() {
     const loginBtn = document.getElementById('btnChatGptLogin');
+    const authTrigger = document.getElementById('btnOpenAuthModal');
     const userDropdown = document.getElementById('chatgptUserDropdown');
-    if (loginBtn) loginBtn.style.display = 'inline-flex';
+    const triggerLabel = document.getElementById('authTriggerLabel');
+
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (authTrigger) authTrigger.style.display = 'inline-flex';
     if (userDropdown) userDropdown.style.display = 'none';
+    if (triggerLabel) triggerLabel.innerText = 'Sign In';
 
     const badge = document.getElementById('bannerSubscriberBadge');
     const title = document.getElementById('bannerComputeTitle');
@@ -1685,32 +1714,152 @@
     const actionContainer = document.getElementById('bannerActionContainer');
 
     if (badge) {
-      badge.innerText = 'Ready to Connect';
+      badge.innerText = 'Free Workspace';
       badge.style.backgroundColor = 'rgba(100, 116, 139, 0.2)';
       badge.style.color = '#94a3b8';
     }
-    if (title) title.innerText = 'ChatGPT Subscription Pass-Through';
+    if (title) title.innerText = 'Sign In or Connect ChatGPT';
     if (desc) {
-      desc.innerText = 'Sign in with ChatGPT to power AI Copilot and OCR extraction via your personal ChatGPT Plus or Pro plan quota with zero developer API costs.';
+      desc.innerText = 'Open a guest workspace, sign in with your email, or connect ChatGPT Plus/Pro to power AI Copilot and watermark-free exports.';
     }
     if (actionContainer) {
-      actionContainer.innerHTML = `<a href="/api/v1/auth/chatgpt/login" class="btn btn-chatgpt-auth btn-sm" id="btnBannerConnect"><span>Sign in with ChatGPT</span></a>`;
+      actionContainer.innerHTML = `<button type="button" class="btn btn-secondary btn-sm" id="btnBannerOpenAuth"><span>Sign In / Workspace</span></button>`;
+      const btnAuth = document.getElementById('btnBannerOpenAuth');
+      if (btnAuth) {
+        btnAuth.addEventListener('click', () => {
+          const modalAuth = document.getElementById('modalAuth');
+          if (modalAuth) modalAuth.classList.add('active');
+        });
+      }
     }
   }
 
   function bindChatGptAuth() {
+    const modalAuth = document.getElementById('modalAuth');
+    const btnOpenAuth = document.getElementById('btnOpenAuthModal');
+    const btnCloseAuth = document.getElementById('btnCloseAuth');
+    const btnSwitchAccount = document.getElementById('btnSwitchAccount');
+
+    if (btnOpenAuth && modalAuth) {
+      btnOpenAuth.addEventListener('click', () => modalAuth.classList.add('active'));
+    }
+    if (btnSwitchAccount && modalAuth) {
+      btnSwitchAccount.addEventListener('click', () => {
+        const dd = document.getElementById('chatgptUserDropdown');
+        if (dd) dd.classList.remove('open');
+        modalAuth.classList.add('active');
+      });
+    }
+    if (btnCloseAuth && modalAuth) {
+      btnCloseAuth.addEventListener('click', () => modalAuth.classList.remove('active'));
+    }
+    if (modalAuth) {
+      modalAuth.addEventListener('click', (e) => {
+        if (e.target === modalAuth) modalAuth.classList.remove('active');
+      });
+    }
+
+    // Guest login button
+    const btnAuthGuest = document.getElementById('btnAuthGuest');
+    if (btnAuthGuest) {
+      btnAuthGuest.addEventListener('click', async () => {
+        try {
+          const res = await fetch('/api/v1/auth/guest', { method: 'POST' });
+          if (res.ok) {
+            const data = await res.json();
+            currentChatGptSession = data;
+            renderLoggedInChatGptUI(data);
+            if (modalAuth) modalAuth.classList.remove('active');
+            showAiToast('🛡️ Guest workspace active. Documents saved to local storage.');
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      });
+    }
+
+    // Email login form
+    const formEmailAuth = document.getElementById('formEmailAuth');
+    const inputAuthEmail = document.getElementById('inputAuthEmail');
+    if (formEmailAuth && inputAuthEmail) {
+      formEmailAuth.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = inputAuthEmail.value.trim();
+        if (!email || !email.includes('@')) {
+          alert('Please enter a valid email address');
+          return;
+        }
+        try {
+          const res = await fetch('/api/v1/auth/email/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            currentChatGptSession = data;
+            renderLoggedInChatGptUI(data);
+            if (modalAuth) modalAuth.classList.remove('active');
+            showAiToast(`✉️ Signed in as ${email}. Full studio access unlocked.`);
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      });
+    }
+
+    // API Key login form
+    const formApiKeyAuth = document.getElementById('formApiKeyAuth');
+    const inputAuthApiKey = document.getElementById('inputAuthApiKey');
+    if (formApiKeyAuth && inputAuthApiKey) {
+      formApiKeyAuth.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const key = inputAuthApiKey.value.trim();
+        if (!key) {
+          alert('Please enter an API or Agent key');
+          return;
+        }
+        try {
+          const res = await fetch('/api/v1/auth/api-key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: key })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            currentChatGptSession = data;
+            renderLoggedInChatGptUI(data);
+            if (modalAuth) modalAuth.classList.remove('active');
+            showAiToast('🔑 Developer API key authenticated. Watermark-free exports active.');
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      });
+    }
+
+    // Logout button
     const btnLogout = document.getElementById('btnChatGptLogout');
     if (btnLogout) {
       btnLogout.addEventListener('click', async (e) => {
         e.preventDefault();
         try {
-          await fetch('/api/v1/auth/chatgpt/logout', { method: 'POST' });
+          await fetch('/api/v1/auth/logout', { method: 'POST' });
           currentChatGptSession = null;
           renderLoggedOutChatGptUI();
-          showAiToast('Disconnected ChatGPT session');
+          showAiToast('Signed out of workspace.');
         } catch (err) {
           console.error(err);
         }
+      });
+    }
+
+    // Mobile nav toggle
+    const btnMobileNavToggle = document.getElementById('btnMobileNavToggle');
+    const topNavbar = document.getElementById('topNavbar');
+    if (btnMobileNavToggle && topNavbar) {
+      btnMobileNavToggle.addEventListener('click', () => {
+        topNavbar.classList.toggle('nav-mobile-open');
       });
     }
 
@@ -4749,6 +4898,20 @@
     } else {
       if (amountPaidRow) amountPaidRow.style.display = 'none';
       if (balanceDueRow) balanceDueRow.style.display = 'none';
+    }
+
+    // Synchronize Studio Breadcrumbs
+    const crumbCategory = document.getElementById('crumbCategory');
+    const crumbDocName = document.getElementById('crumbDocName');
+    const crumbDocNumber = document.getElementById('crumbDocNumber');
+    if (crumbCategory) {
+      crumbCategory.innerText = (state.category || 'commercial invoicing').replace(/_/g, ' ');
+    }
+    if (crumbDocName) {
+      crumbDocName.innerText = state.document_type || 'Tax Invoice';
+    }
+    if (crumbDocNumber) {
+      crumbDocNumber.innerText = '#' + (state.document_number || 'INV-2026-0001');
     }
   }
 

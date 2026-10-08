@@ -1,0 +1,13 @@
+# Pressmark Vector Document Engine - Robots Configuration
+# Author: Daniel Hallman
+
+User-agent: *
+Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /.well-known/ai-plugin.json
+Allow: /api/v1/openapi.json
+Disallow: /api/v1/auth/
+Disallow: /api/v1/webhooks/
+
+Sitemap: https://pressmark.dev/sitemap.xml

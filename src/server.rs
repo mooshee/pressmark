@@ -2,7 +2,9 @@
 //!
 //! Author: Daniel Hallman
 
-use crate::auth::{self, CallbackQuery, ChatGptAuthManager, LoginQuery};
+use crate::auth::{
+    self, ApiKeyLoginRequest, CallbackQuery, ChatGptAuthManager, EmailLoginRequest, LoginQuery,
+};
 use crate::engine::{compile_pdf_bytes, compile_png_bytes, generate_pdf, generate_preview_png, generate_all_preview_pngs};
 use crate::mcp::{JsonRpcRequest, McpHandler};
 use crate::models::{DocumentRequest, GenerateResponse, PreviewResponse, CopilotRequest, CopilotResponse, VisionRequest, VisionResponse, LineItem, PartyDetails};
@@ -93,10 +95,12 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             .unwrap_or(5) * 1024 * 1024;
 
         Router::new()
-        // Interactive Dashboard & Legal
+        // Interactive Dashboard, Legal & SEO
         .route("/", get(handle_index))
         .route("/privacy", get(handle_privacy))
         .route("/terms", get(handle_terms))
+        .route("/robots.txt", get(handle_robots))
+        .route("/sitemap.xml", get(handle_sitemap))
         .route("/health", get(handle_health))
         .route("/healthz", get(handle_health))
         // API v1
@@ -112,7 +116,13 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/lifecycle/pay", post(handle_lifecycle_pay))
         .route("/api/v1/webhooks/stripe", post(handle_stripe_webhook))
         .route("/.well-known/ai-plugin.json", get(handle_ai_plugin))
-        // ChatGPT Login & Subscription Pass-Through
+        // Universal Authentication
+        .route("/api/v1/auth/session", get(handle_chatgpt_session))
+        .route("/api/v1/auth/guest", post(handle_guest_login))
+        .route("/api/v1/auth/email/login", post(handle_email_login))
+        .route("/api/v1/auth/api-key", post(handle_api_key_login))
+        .route("/api/v1/auth/logout", post(handle_chatgpt_logout))
+        // ChatGPT Login & Subscription Pass-Through (preserved for backwards-compatibility)
         .route("/api/v1/auth/chatgpt/login", get(handle_chatgpt_login))
         .route("/api/v1/auth/chatgpt/callback", get(handle_chatgpt_callback))
         .route("/api/v1/auth/chatgpt/session", get(handle_chatgpt_session))
@@ -168,6 +178,38 @@ async fn handle_terms() -> impl IntoResponse {
             StatusCode::INTERNAL_SERVER_ERROR,
             Html(format!("<h1>Error loading terms.html: {}</h1>", e)),
         ),
+    }
+}
+
+async fn handle_robots() -> impl IntoResponse {
+    match tokio::fs::read_to_string("static/robots.txt").await {
+        Ok(body) => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+            body,
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error loading robots.txt: {}", e),
+        )
+            .into_response(),
+    }
+}
+
+async fn handle_sitemap() -> impl IntoResponse {
+    match tokio::fs::read_to_string("static/sitemap.xml").await {
+        Ok(body) => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "application/xml; charset=utf-8")],
+            body,
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error loading sitemap.xml: {}", e),
+        )
+            .into_response(),
     }
 }
 
@@ -467,6 +509,26 @@ async fn handle_chatgpt_logout(
     headers: HeaderMap,
 ) -> impl IntoResponse {
     auth::handle_chatgpt_logout(State(state.auth_mgr.clone()), headers).await
+}
+
+async fn handle_guest_login(
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    auth::handle_guest_login(State(state.auth_mgr.clone())).await
+}
+
+async fn handle_email_login(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<EmailLoginRequest>,
+) -> impl IntoResponse {
+    auth::handle_email_login(State(state.auth_mgr.clone()), Json(payload)).await
+}
+
+async fn handle_api_key_login(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ApiKeyLoginRequest>,
+) -> impl IntoResponse {
+    auth::handle_api_key_login(State(state.auth_mgr.clone()), Json(payload)).await
 }
 
 #[derive(Debug, serde::Deserialize)]
