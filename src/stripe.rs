@@ -73,6 +73,63 @@ pub fn get_stripe_webhook_secret() -> Option<String> {
     }
 }
 
+/// Resolve all configured Stripe Webhook Secrets (e.g. live, test, and fallback).
+/// This allows a production deployment to verify sandbox/test webhook deliveries without flipping environments.
+pub fn get_stripe_webhook_secrets() -> Vec<String> {
+    let mut secrets = Vec::new();
+    if let Some(s) = get_stripe_webhook_secret() {
+        let st = s.trim().to_string();
+        if !st.is_empty() {
+            secrets.push(st);
+        }
+    }
+    // Also include test secret if running in live mode, or live secret if running in test mode
+    if is_live_mode() {
+        if let Ok(s) = std::env::var("STRIPE_WEBHOOK_SECRET_TEST") {
+            let st = s.trim().to_string();
+            if !st.is_empty() && !secrets.contains(&st) {
+                secrets.push(st);
+            }
+        }
+    } else {
+        if let Ok(s) = std::env::var("STRIPE_WEBHOOK_SECRET_LIVE") {
+            let st = s.trim().to_string();
+            if !st.is_empty() && !secrets.contains(&st) {
+                secrets.push(st);
+            }
+        }
+    }
+    if let Ok(s) = std::env::var("STRIPE_WEBHOOK_SECRET") {
+        let st = s.trim().to_string();
+        if !st.is_empty() && !secrets.contains(&st) {
+            secrets.push(st);
+        }
+    }
+    secrets
+}
+
+/// Verify the Stripe-Signature header against any configured webhook secret.
+pub fn verify_stripe_signature_against_any(
+    payload: &[u8],
+    sig_header: &str,
+    secrets: &[String],
+    tolerance_secs: u64,
+) -> Result<u64, StripeWebhookError> {
+    if secrets.is_empty() {
+        return Err(StripeWebhookError::SecretNotConfigured);
+    }
+    let mut last_err = StripeWebhookError::InvalidSignature;
+    for secret in secrets {
+        match verify_stripe_signature(payload, sig_header, secret, tolerance_secs) {
+            Ok(t) => return Ok(t),
+            Err(e) => {
+                last_err = e;
+            }
+        }
+    }
+    Err(last_err)
+}
+
 /// Verify the Stripe-Signature header against the raw body payload.
 /// Format: `t=1492774577,v1=5257a869e7ecebeda32affa62cd323080cd477e62cf525e80cc1e88297e286add`
 pub fn verify_stripe_signature(

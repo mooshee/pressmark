@@ -822,6 +822,36 @@ async fn test_p0_blocker_2_stripe_webhook_and_fulfillment() {
     let dup_json: serde_json::Value = serde_json::from_slice(&dup_bytes).unwrap();
     assert_eq!(dup_json["status"], "already_processed");
 
+    // 4b. Test Multi-Secret Verification: Sandbox webhook arrives while STRIPE_LIVE_MODE=true
+    std::env::set_var("STRIPE_LIVE_MODE", "true");
+    std::env::set_var("STRIPE_WEBHOOK_SECRET_LIVE", "whsec_live_production_vault_secret");
+    std::env::set_var("STRIPE_WEBHOOK_SECRET_TEST", "whsec_test_sandbox_vault_secret");
+
+    let unique_event_id = format!("evt_sandbox_{}_{}", now, std::process::id());
+    let test_payload_str = format!(
+        r#"{{"id":"{}","type":"payment_intent.succeeded","data":{{"object":{{"amount":2000,"currency":"usd","receipt_email":"test@example.com","metadata":{{"document_number":"INV-2026-TEST"}}}}}}}}"#,
+        unique_event_id
+    );
+    let test_payload = test_payload_str.as_bytes();
+    let mut mac_sandbox = HmacSha256::new_from_slice(b"whsec_test_sandbox_vault_secret").unwrap();
+    let signed_sandbox = format!("{}.{}", now, test_payload_str);
+    mac_sandbox.update(signed_sandbox.as_bytes());
+    let sig_sandbox_hex = hex::encode(mac_sandbox.finalize().into_bytes());
+    let sig_sandbox_header = format!("t={},v1={}", now, sig_sandbox_hex);
+
+    let req_sandbox = Request::builder()
+        .uri("/api/v1/webhooks/stripe")
+        .method("POST")
+        .header("content-type", "application/json")
+        .header("stripe-signature", sig_sandbox_header)
+        .body(Body::from(test_payload.to_vec()))
+        .unwrap();
+    let res_sandbox = router.clone().oneshot(req_sandbox).await.unwrap();
+    assert_eq!(res_sandbox.status(), StatusCode::OK);
+    let sandbox_bytes = axum::body::to_bytes(res_sandbox.into_body(), 1024 * 1024).await.unwrap();
+    let sandbox_json: serde_json::Value = serde_json::from_slice(&sandbox_bytes).unwrap();
+    assert_eq!(sandbox_json["status"], "success");
+
     // 5. Test Live Stripe Pricing Env Overrides
     std::env::set_var("STRIPE_SOLO_PRICE_ID", "price_live_solo_production_override");
     let catalog = pressmark::pricing::get_pricing_catalog();

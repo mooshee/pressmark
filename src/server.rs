@@ -628,7 +628,7 @@ async fn handle_stripe_webhook(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Response {
-    let secret = crate::stripe::get_stripe_webhook_secret().unwrap_or_default();
+    let secrets = crate::stripe::get_stripe_webhook_secrets();
     let allow_unverified = std::env::var("PRESSMARK_ALLOW_UNVERIFIED_WEBHOOKS")
         .map(|v| v == "1" || v == "true")
         .unwrap_or(false);
@@ -648,7 +648,7 @@ async fn handle_stripe_webhook(
             }
         };
 
-        if let Err(e) = crate::stripe::verify_stripe_signature(&body, sig, &secret, 300) {
+        if let Err(e) = crate::stripe::verify_stripe_signature_against_any(&body, sig, &secrets, 300) {
             return (
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
