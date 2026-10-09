@@ -32,10 +32,10 @@
       name: 'Pressmark Studio Inc.',
       company: 'Pressmark Technologies LLC',
       address: '742 Evergreen Terrace, Suite 400\nSan Francisco, CA 94107',
-      email: 'billing@pressmark.io',
+      email: 'billing@pressmark.dev',
       phone: '+1 (415) 890-4421',
       tax_id: 'US-94-3829104',
-      website: 'https://pressmark.io',
+      website: 'https://pressmark.dev',
       registration_number: 'REG-84920'
     },
     to: {

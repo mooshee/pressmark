@@ -972,7 +972,7 @@ fn test_p0_blocker_4_production_daemon_and_reverse_proxy_topology() {
         .expect(".env.production.example must exist");
     assert!(env_content.contains("PRESSMARK_HOST=127.0.0.1"));
     assert!(env_content.contains("PRESSMARK_PORT=3842"));
-    assert!(env_content.contains("PRESSMARK_BASE_URL=https://pressmark.io"));
+    assert!(env_content.contains("PRESSMARK_BASE_URL=https://pressmark.dev"));
     assert!(env_content.contains("PRESSMARK_DB_PATH=/var/lib/pressmark/pressmark.db"));
     assert!(env_content.contains("PRESSMARK_CACHE_DIR=/var/cache/pressmark"));
     assert!(env_content.contains("PRESSMARK_ENGINE_BIN="));
