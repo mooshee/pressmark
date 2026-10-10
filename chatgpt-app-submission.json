@@ -1,0 +1,153 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/app-submission.schema.json",
+  "app_info": {
+    "display_name": "Pressmark",
+    "subtitle": "Instant Invoices & Contracts",
+    "description": "High-performance vector document synthesis engine. Generate publication-grade invoices, estimates, receipts, contracts, NDAs, and real estate agreements in sub-25ms with vector QR code mobile payments.",
+    "category": "PRODUCTIVITY",
+    "homepage": "https://pressmark.dev",
+    "privacy_policy_url": "https://pressmark.dev/privacy",
+    "terms_of_service_url": "https://pressmark.dev/terms",
+    "contact_email": "daniel@mooshworks.com"
+  },
+  "mcp_config": {
+    "url": "https://pressmark.dev/mcp",
+    "transport": "streamable-http",
+    "authentication": {
+      "type": "none",
+      "supports_guest": true,
+      "instructions": "Pressmark executes statelessly and does not require credentials for document compilation."
+    }
+  },
+  "tools": {
+    "generate_document": {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Generates a vector PDF in memory; creates no external state mutations.",
+        "destructive_justification": "Non-destructive. Document generation produces an ephemeral artifact.",
+        "open_world_justification": "Does not access external web resources."
+      }
+    },
+    "preview_document": {
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Renders an inline Base64 PNG preview for visual inspection in chat without side effects.",
+        "destructive_justification": "Purely visual rendering.",
+        "open_world_justification": "Does not access external web resources."
+      }
+    },
+    "calculate_totals": {
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs deterministic arithmetic calculations for subtotals, tax rates, and discounts.",
+        "destructive_justification": "Pure mathematical calculation.",
+        "open_world_justification": "Does not access external web resources."
+      }
+    },
+    "get_pricing": {
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads static pricing tiers and checkout URLs.",
+        "destructive_justification": "Read-only catalog query.",
+        "open_world_justification": "Does not access external web resources."
+      }
+    },
+    "convert_document": {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs document lifecycle state transformation (e.g. estimate to invoice).",
+        "destructive_justification": "Non-destructive transformation of in-memory document structures.",
+        "open_world_justification": "Does not access external web resources."
+      }
+    },
+    "record_payment": {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Computes paid balance, updates payment status, and issues an official receipt.",
+        "destructive_justification": "Non-destructive financial record rendering.",
+        "open_world_justification": "Does not access external web resources."
+      }
+    }
+  },
+  "positive_test_cases": [
+    {
+      "description": "Freelance consulting invoice with Stripe checkout link and mobile QR code",
+      "user_prompt": "Generate a freelance consulting invoice from Daniel Hallman at Moosh Works (daniel@mooshworks.com) to Acme Corp (billing@acme.com) for 15 hours of Systems Architecture at $250/hr, due in 14 days, with payment link https://buy.stripe.com/test_inv_123 and a mobile QR code.",
+      "tools_triggered": ["generate_document", "preview_document"],
+      "expected_output": "A publication-grade vector PDF invoice totaling $3,750.00 with inline high-res PNG preview and embedded vector SVG QR code."
+    },
+    {
+      "description": "Estimate-to-Invoice lifecycle conversion",
+      "user_prompt": "Convert my project estimate EST-2026-0042 ($5,000 for Mobile App Design) into an official Tax Invoice due in 30 days with payment link https://buy.stripe.com/test_app_456.",
+      "tools_triggered": ["convert_document"],
+      "expected_output": "Document re-sequenced to INV-2026-0042, issue date updated to today, due date set to +30 days, status marked pending with payment link."
+    },
+    {
+      "description": "Commercial Triple-Net (NNN) lease summary with CAM allocation",
+      "user_prompt": "Draft a commercial triple-net (NNN) lease summary for Suite 400 at 100 Innovation Way between Hallman Properties LLC (Landlord) and TechVentures Inc (Tenant), 3,500 sq ft at $38/sqft/yr base rent, plus $8.50/sqft/yr estimated CAM charges, starting November 1, 2026.",
+      "tools_triggered": ["generate_document"],
+      "expected_output": "A multi-page commercial lease instrument with itemized monthly base rent ($11,083.33) and CAM ($2,479.17) totaling $13,562.50/mo, operating expense pass-throughs, and mutual signature lines."
+    },
+    {
+      "description": "Invoice payment settlement and official receipt generation",
+      "user_prompt": "Record full payment of $3,750 for invoice INV-2026-001 received via Stripe Card on October 7, 2026 (transaction ID: ch_3N82jK4v15aw) and generate an official paid receipt.",
+      "tools_triggered": ["record_payment"],
+      "expected_output": "Official payment receipt document stamped 'PAID IN FULL', balance due updated to $0.00, and transaction audit trail recorded."
+    },
+    {
+      "description": "Real-time totals calculation with sales tax and discount inquiry",
+      "user_prompt": "Calculate line-item totals with 9.25% sales tax and a $150 early-payment discount for 3 laptops at $1,200 each, and tell me the subscription cost to remove watermarks on future exports.",
+      "tools_triggered": ["calculate_totals", "get_pricing"],
+      "expected_output": "Calculates subtotal $3,600.00, tax $333.00, discount $150.00, grand total $3,783.00, and returns the Solo Pro subscription and single-pass pricing."
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Scope gating: do not trigger for unrelated general inquiries",
+      "user_prompt": "What is the capital of France and what will the weather be like there tomorrow?",
+      "tools_triggered": [],
+      "expected_output": "The model should answer directly using general knowledge without invoking Pressmark tools, as geography and weather are out of scope."
+    },
+    {
+      "description": "Input validation: reject missing mandatory counterparty information",
+      "user_prompt": "Generate an invoice for 5 widgets at $10.",
+      "tools_triggered": ["generate_document"],
+      "expected_output": "Tool returns a validation error requiring party details (seller name and buyer name); assistant prompts user for the missing counterparty info."
+    },
+    {
+      "description": "Arithmetic validation: reject negative quantities and negative unit rates",
+      "user_prompt": "Generate an invoice with -5 consulting hours at -$100/hr.",
+      "tools_triggered": ["generate_document"],
+      "expected_output": "Tool or model halts compilation, explaining that negative quantities cannot be billed and instructing the user to issue a formal credit_note refund instead."
+    }
+  ],
+  "review_instructions": {
+    "test_account_credentials": "No credentials required. Pressmark operates statelessly and provides full compilation capability to guest users.",
+    "video_walkthrough_url": "https://pressmark.dev/demo",
+    "data_safety_attestation": "Pressmark adheres to zero-retention ephemeral processing: no user documents, line items, or client details are stored or used for AI model training."
+  }
+}
