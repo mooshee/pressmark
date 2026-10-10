@@ -1006,3 +1006,32 @@ fn test_p0_blocker_4_production_daemon_and_reverse_proxy_topology() {
     assert!(nginx_content.contains("Strict-Transport-Security"));
 }
 
+#[tokio::test]
+async fn test_openai_apps_challenge_endpoint() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use pressmark::server::{create_router, AppState};
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    // Test with environment variable token
+    std::env::set_var("OPENAI_APPS_CHALLENGE_TOKEN", "openai-challenge-test-token-xyz");
+
+    let app_state = Arc::new(AppState::default());
+    let router = create_router(app_state);
+
+    let req = Request::builder()
+        .uri("/.well-known/openai-apps-challenge")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+
+    let res = router.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(res.into_body(), 1024).await.unwrap();
+    assert_eq!(&body[..], b"openai-challenge-test-token-xyz");
+
+    std::env::remove_var("OPENAI_APPS_CHALLENGE_TOKEN");
+}
+

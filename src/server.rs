@@ -116,6 +116,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/lifecycle/pay", post(handle_lifecycle_pay))
         .route("/api/v1/webhooks/stripe", post(handle_stripe_webhook))
         .route("/.well-known/ai-plugin.json", get(handle_ai_plugin))
+        .route("/.well-known/openai-apps-challenge", get(handle_openai_apps_challenge))
         // Universal Authentication
         .route("/api/v1/auth/session", get(handle_chatgpt_session))
         .route("/api/v1/auth/guest", post(handle_guest_login))
@@ -357,6 +358,17 @@ async fn handle_openapi(State(state): State<Arc<AppState>>) -> impl IntoResponse
 
 async fn handle_ai_plugin(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     Json(get_ai_plugin_manifest(&state.base_url))
+}
+
+async fn handle_openai_apps_challenge() -> impl IntoResponse {
+    let token = std::env::var("OPENAI_APPS_CHALLENGE_TOKEN")
+        .unwrap_or_else(|_| {
+            std::fs::read_to_string("static/.well-known/openai-apps-challenge")
+                .unwrap_or_default()
+                .trim()
+                .to_string()
+        });
+    (StatusCode::OK, token)
 }
 
 async fn handle_mcp(Json(req): Json<JsonRpcRequest>) -> impl IntoResponse {
