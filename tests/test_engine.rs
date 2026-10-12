@@ -26,7 +26,7 @@ fn create_sample_invoice() -> DocumentRequest {
             name: "Pressmark Technologies".to_string(),
             company: Some("Pressmark LLC".to_string()),
             address: Some("123 Market St, San Francisco, CA".to_string()),
-            email: Some("billing@pressmark.io".to_string()),
+            email: Some("billing@pressmark.dev".to_string()),
             phone: Some("+1 (415) 555-0100".to_string()),
             tax_id: Some("XX-XXXXXXX".to_string()),
             ..Default::default()

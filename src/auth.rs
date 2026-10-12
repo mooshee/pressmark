@@ -284,9 +284,9 @@ impl ChatGptAuthManager {
     ) -> ChatGptSession {
         let session_id = format!("cpt_sess_{}", Uuid::new_v4().simple());
         let email = email_opt.unwrap_or_else(|| match plan {
-            ChatGptPlan::Pro | ChatGptPlan::Agency => "pro.creator@pressmark.io".to_string(),
+            ChatGptPlan::Pro | ChatGptPlan::Agency => "pro.creator@pressmark.dev".to_string(),
             ChatGptPlan::Team | ChatGptPlan::Enterprise | ChatGptPlan::Business => {
-                "team.lead@pressmark.io".to_string()
+                "team.lead@pressmark.dev".to_string()
             }
             ChatGptPlan::Plus | ChatGptPlan::SoloPro => "daniel@mooshworks.com".to_string(),
             ChatGptPlan::Developer => "agent@pressmark.local".to_string(),

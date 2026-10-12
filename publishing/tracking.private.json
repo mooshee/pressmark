@@ -2,27 +2,27 @@
   "schema_version": 1,
   "product": "pressmark",
   "routes": {
-    "openai_plugins": {
-      "account_ref": "daniel@mooshworks.com",
-      "publisher_display": "Daniel Hallman",
-      "status": "package_ready",
-      "raw_status": "Package ZIP dist/pressmark-flat.zip generated; domain challenge endpoint live at /.well-known/openai-apps-challenge",
-      "submission_id": null,
-      "submission_url": "https://platform.openai.com/plugins",
-      "listing_url": null,
-      "blocker": null,
-      "next_action": "Upload dist/pressmark-flat.zip in OpenAI Platform Plugins portal and complete domain verification challenge."
-    },
     "claude_desktop": {
       "account_ref": null,
       "publisher_display": "Daniel Hallman",
-      "status": "package_ready",
+      "status": "success",
       "raw_status": "Claude Code plugin manifest prepared",
       "submission_id": null,
       "submission_url": null,
       "listing_url": null,
       "blocker": null,
       "next_action": "Verify local Claude plugin installation."
+    },
+    "cursor_marketplace": {
+      "account_ref": null,
+      "publisher_display": "Daniel Hallman",
+      "status": "success",
+      "raw_status": ".cursor-plugin manifest and configuration prepared",
+      "submission_id": null,
+      "submission_url": "https://cursor.com/marketplace",
+      "listing_url": null,
+      "blocker": null,
+      "next_action": "Test local Cursor extension installation and tool discovery."
     },
     "glama_mcp": {
       "account_ref": null,
@@ -46,18 +46,64 @@
       "blocker": null,
       "next_action": "Submit official MCP registry listing PR upon public repo availability."
     },
-    "cursor_marketplace": {
-      "account_ref": null,
+    "openai_plugins": {
+      "account_ref": "daniel@mooshworks.com",
       "publisher_display": "Daniel Hallman",
-      "status": "package_ready",
-      "raw_status": ".cursor-plugin manifest and configuration prepared",
+      "status": "in_progress",
+      "raw_status": "Package ZIP dist/pressmark-flat.zip generated; domain challenge endpoint live at /.well-known/openai-apps-challenge",
       "submission_id": null,
-      "submission_url": "https://cursor.com/marketplace",
+      "submission_url": "https://platform.openai.com/plugins",
       "listing_url": null,
       "blocker": null,
-      "next_action": "Test local Cursor extension installation and tool discovery."
+      "next_action": "Upload dist/pressmark-flat.zip in OpenAI Platform Plugins portal and complete domain verification challenge."
     }
   },
   "hosts": {},
-  "events": []
+  "events": [
+    {
+      "id": "openai-plugin-portal",
+      "route": "openai_plugins",
+      "action": "submit",
+      "outcome": "in_progress",
+      "observed_at": null,
+      "known_date": null,
+      "evidence": "daniel@mooshworks.com manual upload initiated",
+      "account_ref": null,
+      "product_version": null,
+      "raw_status": null,
+      "blocker": null,
+      "next_action": null,
+      "receipt_url": null
+    },
+    {
+      "id": "claude-desktop-test",
+      "route": "claude_desktop",
+      "action": "submit",
+      "outcome": "success",
+      "observed_at": null,
+      "known_date": null,
+      "evidence": "Local configuration added to claude_desktop_config.json using stdio transport",
+      "account_ref": null,
+      "product_version": null,
+      "raw_status": null,
+      "blocker": null,
+      "next_action": null,
+      "receipt_url": null
+    },
+    {
+      "id": "cursor-local-test",
+      "route": "cursor_marketplace",
+      "action": "submit",
+      "outcome": "success",
+      "observed_at": null,
+      "known_date": null,
+      "evidence": "Local configuration added to .cursor/mcp.json using stdio transport",
+      "account_ref": null,
+      "product_version": null,
+      "raw_status": null,
+      "blocker": null,
+      "next_action": null,
+      "receipt_url": null
+    }
+  ]
 }

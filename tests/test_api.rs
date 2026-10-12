@@ -263,7 +263,7 @@ fn test_chatgpt_oauth_pkce_generation_and_auth_url() {
     let auth_mgr = ChatGptAuthManager::new();
     let (auth_url, state) = auth_mgr.start_auth(
         "pressmark-client-id",
-        "https://pressmark.io/api/v1/auth/chatgpt/callback",
+        "https://pressmark.dev/api/v1/auth/chatgpt/callback",
         Some("/studio".to_string()),
     );
 
@@ -351,13 +351,13 @@ fn test_chatgpt_session_store_and_token_extraction() {
 
 #[test]
 fn test_openapi_and_plugin_manifest_chatgpt_oauth_spec() {
-    let manifest = get_ai_plugin_manifest("https://pressmark.io");
+    let manifest = get_ai_plugin_manifest("https://pressmark.dev");
     assert_eq!(manifest["auth"]["type"], "oauth");
     assert_eq!(manifest["auth"]["client_url"], "https://auth.openai.com/api/accounts/authorize");
     assert_eq!(manifest["auth"]["authorization_url"], "https://auth.openai.com/api/accounts/oauth/token");
     assert_eq!(manifest["auth"]["scope"], "openid profile email model.request");
 
-    let spec = get_openapi_spec("https://pressmark.io");
+    let spec = get_openapi_spec("https://pressmark.dev");
     assert!(spec["paths"]["/api/v1/auth/chatgpt/session"].is_object());
     assert!(spec["paths"]["/api/v1/copilot"].is_object());
     assert!(spec["components"]["securitySchemes"]["chatgpt_oauth"].is_object());
@@ -987,7 +987,7 @@ fn test_p0_blocker_4_production_daemon_and_reverse_proxy_topology() {
     // 3. Caddyfile Verification
     let caddy_content = std::fs::read_to_string("deploy/Caddyfile")
         .expect("deploy/Caddyfile must exist");
-    assert!(caddy_content.contains("pressmark.io"));
+    assert!(caddy_content.contains("pressmark.dev"));
     assert!(caddy_content.contains("reverse_proxy 127.0.0.1:3842"));
     assert!(caddy_content.contains("max_size 25MB"));
     assert!(caddy_content.contains("flush_interval -1"));

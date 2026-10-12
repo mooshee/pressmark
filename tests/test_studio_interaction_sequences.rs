@@ -32,7 +32,7 @@ fn create_sample_request(doc_type: DocumentType) -> DocumentRequest {
             name: "Pressmark Technologies".to_string(),
             company: Some("Pressmark LLC".to_string()),
             address: Some("123 Market St, San Francisco, CA".to_string()),
-            email: Some("billing@pressmark.io".to_string()),
+            email: Some("billing@pressmark.dev".to_string()),
             phone: Some("+1 (415) 555-0100".to_string()),
             tax_id: Some("US-94-8849201".to_string()),
             website: Some("pressmark.dev".to_string()),

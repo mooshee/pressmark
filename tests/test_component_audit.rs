@@ -812,10 +812,10 @@ fn test_render_diverse_template_gallery_and_export_artifacts() {
             name: "Pressmark Technologies LLC".to_string(),
             company: Some("High-Throughput Vector Platforms".to_string()),
             address: Some("742 Evergreen Terrace, Suite 400\nSan Francisco, CA 94107".to_string()),
-            email: Some("billing@pressmark.io".to_string()),
+            email: Some("billing@pressmark.dev".to_string()),
             phone: Some("+1 (415) 890-4421".to_string()),
             tax_id: Some("US-94-3829104".to_string()),
-            website: Some("https://pressmark.io".to_string()),
+            website: Some("https://pressmark.dev".to_string()),
             registration_number: Some("REG-84920".to_string()),
         },
         to: PartyDetails {

@@ -29,10 +29,10 @@ fn test_generate_visual_qa_artifacts() {
             name: "Pressmark Technologies LLC".into(),
             company: Some("High-Throughput Vector Platforms".into()),
             address: Some("742 Evergreen Terrace, Suite 400\nSan Francisco, CA 94107".into()),
-            email: Some("billing@pressmark.io".into()),
+            email: Some("billing@pressmark.dev".into()),
             phone: Some("+1 (415) 890-4421".into()),
             tax_id: Some("US-94-3829104".into()),
-            website: Some("https://pressmark.io".into()),
+            website: Some("https://pressmark.dev".into()),
             registration_number: Some("REG-84920".into()),
         },
         to: PartyDetails {

@@ -1,7 +1,7 @@
 # Pressmark Vector Document Engine - Caddyfile Reverse Proxy
 # Author: Daniel Hallman
 
-pressmark.dev, www.pressmark.dev, pressmark.io, www.pressmark.io {
+pressmark.dev, www.pressmark.dev, pressmark.dev, www.pressmark.dev {
     # Automatic HTTPS with Let's Encrypt / ZeroSSL
     tls daniel@mooshworks.com
 

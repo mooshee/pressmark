@@ -256,7 +256,7 @@ pub fn process_stripe_event(event: StripeEvent) -> Result<FulfillmentAction, Str
             let customer_email = obj["receipt_email"]
                 .as_str()
                 .or_else(|| obj["charges"]["data"][0]["billing_details"]["email"].as_str())
-                .unwrap_or("customer@pressmark.io")
+                .unwrap_or("customer@pressmark.dev")
                 .to_string();
 
             let doc_num = obj["metadata"]["document_number"]
@@ -295,7 +295,7 @@ pub fn process_stripe_event(event: StripeEvent) -> Result<FulfillmentAction, Str
             let customer_email = obj["customer_details"]["email"]
                 .as_str()
                 .or_else(|| obj["customer_email"].as_str())
-                .unwrap_or("customer@pressmark.io")
+                .unwrap_or("customer@pressmark.dev")
                 .to_string();
 
             let doc_num = obj["metadata"]["document_number"]
@@ -320,7 +320,7 @@ pub fn process_stripe_event(event: StripeEvent) -> Result<FulfillmentAction, Str
             let refund_cents = obj["amount_refunded"].as_u64().unwrap_or(0);
             let customer_email = obj["billing_details"]["email"]
                 .as_str()
-                .unwrap_or("customer@pressmark.io")
+                .unwrap_or("customer@pressmark.dev")
                 .to_string();
 
             let original_doc = obj["metadata"]["document_number"]
