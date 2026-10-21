@@ -9,6 +9,10 @@ Author: Daniel Hallman
 
 Use this skill when the user asks for real estate leases, property manager disbursements, rent rolls, tenant notices, or settlement statements.
 
+## Quick start
+
+1. Open [Pressmark Studio](https://pressmark.dev) to customize and preview real estate templates, or connect your MCP client to `https://pressmark.dev/mcp`.
+
 ## Supported Archetypes
 - `residential_lease`: Multi-tenant residential leases with statutory clauses (Lead-based paint disclosures, security deposit escrow disclosures, late fee caps, and entry rules).
 - `commercial_nnn_lease`: Triple-net commercial lease summaries with Base Rent, CAM operating expenses, permitted use, and indemnification.

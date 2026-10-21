@@ -128,8 +128,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/auth/chatgpt/callback", get(handle_chatgpt_callback))
         .route("/api/v1/auth/chatgpt/session", get(handle_chatgpt_session))
         .route("/api/v1/auth/chatgpt/logout", post(handle_chatgpt_logout))
-        // MCP Endpoint
-        .route("/mcp", post(handle_mcp))
+        // MCP Endpoints & Tool Discovery
+        .route("/mcp", get(handle_mcp_get).post(handle_mcp))
+        .route("/api/v1/mcp", get(handle_mcp_get).post(handle_mcp))
+        .route("/api/v1/mcp/tools.json", get(handle_mcp_tools))
         // Static assets
         .nest_service("/assets", ServeDir::new("static/assets"))
         .nest_service("/css", ServeDir::new("static/css"))
@@ -148,7 +150,7 @@ async fn handle_health() -> impl IntoResponse {
         "status": "healthy",
         "service": "pressmark",
         "engine": "pressmark-vector-v1",
-        "version": "0.1.0"
+        "version": "1.0.0"
     })))
 }
 
@@ -371,8 +373,79 @@ async fn handle_openai_apps_challenge() -> impl IntoResponse {
     (StatusCode::OK, token)
 }
 
-async fn handle_mcp(Json(req): Json<JsonRpcRequest>) -> impl IntoResponse {
-    Json(McpHandler::handle_request(req))
+async fn handle_mcp_get() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(header::HeaderName::from_static("x-mcp-protocol-version"), "2026-07-28")],
+        Json(serde_json::json!({
+            "service": "pressmark",
+            "title": "Pressmark Vector Document Engine",
+            "version": crate::mcp::MCP_SERVER_VERSION,
+            "protocolVersion": "2026-07-28",
+            "supportedProtocols": crate::mcp::SUPPORTED_MCP_PROTOCOLS,
+            "transport": "streamable-http",
+            "endpoints": {
+                "mcp": "/mcp",
+                "mcp_v1": "/api/v1/mcp",
+                "tools": "/api/v1/mcp/tools.json"
+            }
+        })),
+    )
+}
+
+async fn handle_mcp_tools() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "name": "pressmark",
+            "version": crate::mcp::MCP_SERVER_VERSION,
+            "tools": McpHandler::get_tools()
+        })),
+    )
+}
+
+async fn handle_mcp(headers: HeaderMap, Json(req): Json<JsonRpcRequest>) -> Response {
+    let is_notif = McpHandler::is_notification(&req);
+    let client_proto = headers
+        .get("x-mcp-protocol-version")
+        .or_else(|| headers.get("mcp-protocol-version"))
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("2025-06-18")
+        .to_string();
+    let is_2026 = client_proto == "2026-07-28" || req.method == "server/discover";
+
+    let mut resp = McpHandler::handle_request(req);
+    if is_2026 {
+        if let Some(ref mut result) = resp.result {
+            if let Some(obj) = result.as_object_mut() {
+                obj.entry("resultType".to_string())
+                    .or_insert_with(|| serde_json::json!("complete"));
+                obj.entry("ttlMs".to_string())
+                    .or_insert_with(|| serde_json::json!(300_000));
+                obj.entry("cacheScope".to_string())
+                    .or_insert_with(|| serde_json::json!("public-anonymous"));
+                obj.entry("_meta".to_string()).or_insert_with(|| {
+                    serde_json::json!({
+                        "protocolVersion": "2026-07-28",
+                        "streamingSupported": true,
+                        "cacheTtlMs": 300_000
+                    })
+                });
+            }
+        }
+    }
+
+    let mut resp_headers = HeaderMap::new();
+    let proto_header = if is_2026 { "2026-07-28" } else { "2025-06-18" };
+    if let Ok(hv) = proto_header.parse() {
+        resp_headers.insert("x-mcp-protocol-version", hv);
+    }
+
+    if is_notif && resp.id.is_none() {
+        return (StatusCode::ACCEPTED, resp_headers).into_response();
+    }
+
+    (StatusCode::OK, resp_headers, Json(resp)).into_response()
 }
 
 async fn handle_copilot(

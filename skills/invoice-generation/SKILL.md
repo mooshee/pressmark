@@ -9,6 +9,10 @@ Author: Daniel Hallman
 
 Use this skill when the user requests generating, previewing, designing, or calculating invoices, estimates, quotes, receipts, contracts, NDAs, or purchase orders.
 
+## Quick start
+
+1. Open [Pressmark Studio](https://pressmark.dev) to design documents interactively in the browser, or connect your MCP client to `https://pressmark.dev/mcp`.
+
 ## MCP Tools Utilized
 - `preview_document`: Renders a high-resolution PNG preview of the document as a Base64 Data URI for immediate visual inspection in the chat.
 - `generate_document`: Synthesizes an uncompressed, publication-grade vector PDF with embedded 1-scan QR code mobile payments.
@@ -32,8 +36,8 @@ Use this skill when the user requests generating, previewing, designing, or calc
 1. **Information Extraction**:
    - Extract Issuer/Seller metadata (`from`: name, company, address, email, tax_id/VAT).
    - Extract Recipient/Client metadata (`to`: name, company, address, email).
-   - Extract line items (`description`, `quantity`, `unit_price`, optional `tax_rate`).
-   - Extract payment details (due date, currency, optional Stripe payment link).
+   - Extract line items (`description`, `quantity`, `unit_price`, optional line-level `discount`).
+   - Extract document-level financial and payment details (`tax_rate`, `discount_amount`, `due_date`, `currency`, optional Stripe `payment_link`).
 
 2. **Visual Preview**:
    - Call `preview_document` first with the structured document parameters.

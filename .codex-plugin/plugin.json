@@ -10,7 +10,9 @@
   },
   "homepage": "https://pressmark.dev",
   "repository": "https://github.com/mooshee/pressmark",
-  "license": "Proprietary",
+  "license": "MIT",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "keywords": [
     "invoice",
     "invoicing",
@@ -22,8 +24,28 @@
     "vector",
     "stripe",
     "billing",
-    "peppol"
+    "real-estate"
   ],
+  "interface": {
+    "displayName": "Pressmark Document & Invoice Studio",
+    "shortDescription": "Sub-25ms vector PDF invoices, estimates, receipts, contracts & real estate agreements",
+    "longDescription": "Generate publication-grade vector PDF invoices, estimates, receipts, credit notes, NDAs, contracts, and real estate agreements with instant 144-PPI PNG previews and 1-scan QR code mobile payments.",
+    "developerName": "Daniel Hallman",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://pressmark.dev",
+    "privacyPolicyURL": "https://pressmark.dev/privacy",
+    "termsOfServiceURL": "https://pressmark.dev/terms",
+    "defaultPrompt": [
+      "Generate a freelance consulting invoice with Stripe payment link and mobile QR code.",
+      "Convert project estimate EST-2026-0042 into an official tax invoice.",
+      "Draft a commercial triple-net (NNN) lease summary with CAM allocation."
+    ],
+    "brandColor": "#4F46E5",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/icon.svg",
+    "screenshots": ["./assets/banner.png"]
+  },
   "extensions": {
     "com.openai": {
       "displayName": "Pressmark Document & Invoice Studio",

@@ -1,14 +1,20 @@
 # PRESSMARK · Sub-Millisecond Vector Document Engine & Interactive Studio
 
 [![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org/)
-[![Pressmark Engine](https://img.shields.io/badge/Pressmark%20Engine-v1.0-blue.svg)](#)
+[![Pressmark Engine](https://img.shields.io/badge/Pressmark%20Engine-v1.0.0-blue.svg)](https://pressmark.dev)
+[![Pressmark MCP server quality and maintenance on Glama](https://glama.ai/mcp/servers/mooshee/pressmark/badges/score.svg)](https://glama.ai/mcp/servers/mooshee/pressmark)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 > **Author**: Daniel Hallman  
-> **Brand**: Pressmark Studio  
+> **Brand**: [Pressmark Studio](https://pressmark.dev)  
 > **Architecture**: Pure Rust (Tokio + Axum) + Sub-Millisecond Vector Synthesis Engine  
 
-Pressmark is an ultra-fast, publication-grade document synthesis engine, real-time interactive design studio, and ChatGPT plugin/Action server. Built to replace sluggish legacy document pipelines (Puppeteer/Headless Chrome, Python ReportLab, WeasyPrint), Pressmark compiles crisp, print-ready vector PDFs and high-resolution PNG previews in under **25 milliseconds** with zero disk churn and sub-cent unit economics.
+Pressmark is an ultra-fast, publication-grade document synthesis engine, real-time interactive design studio, and Model Context Protocol (MCP) / ChatGPT plugin server. Built to replace sluggish legacy document pipelines (Puppeteer/Headless Chrome, Python ReportLab, WeasyPrint), Pressmark compiles crisp, print-ready vector PDFs and high-resolution PNG previews in under **25 milliseconds** with zero disk churn and sub-cent unit economics.
+
+## Quick start
+
+1. Open [Pressmark Studio](https://pressmark.dev) to design, preview, and download vector PDFs in your browser.
+2. Connect any MCP client (Claude Code, Cursor, Codex, Grok, Gemini CLI, Hermes) to `https://pressmark.dev/mcp` (`streamable-http`), or download the pre-packaged plugin bundles from [GitHub Releases](https://github.com/mooshee/pressmark/releases).
 
 ---
 
@@ -119,13 +125,14 @@ Pressmark is an ultra-fast, publication-grade document synthesis engine, real-ti
 
 Pressmark serves full ChatGPT Plugin and OpenAPI 3.1 action specs natively out of the box:
 
-- **ChatGPT Plugin Manifest**: `GET /.well-known/ai-plugin.json`
-- **OpenAPI 3.1 Specification**: `GET /api/v1/openapi.json`
-- **Model Context Protocol (MCP)**: `POST /mcp`
+- **ChatGPT Plugin Manifest**: `GET https://pressmark.dev/.well-known/ai-plugin.json`
+- **OpenAPI 3.1 Specification**: `GET https://pressmark.dev/api/v1/openapi.json`
+- **Model Context Protocol (MCP)**: `POST https://pressmark.dev/mcp` (and `POST https://pressmark.dev/api/v1/mcp`)
+- **MCP Tool Catalog**: `GET https://pressmark.dev/api/v1/mcp/tools.json`
 
 ### Connecting to Custom GPT:
 1. In ChatGPT GPT Editor, navigate to **Configure > Actions > Create new action**.
-2. Paste your Pressmark OpenAPI URL: `http://localhost:3842/api/v1/openapi.json`
+2. Paste the Pressmark OpenAPI URL: `https://pressmark.dev/api/v1/openapi.json`
 3. Authentication: `None` (or API Key header).
 4. Prompt Example:
    > *"Create an invoice for client 'Vance Dynamics' from 'Pressmark Studio' for 32 hours of Rust backend engineering at $185/hr, plus 8.25% tax. Apply the Modern Slate theme and include a signature block."*
@@ -136,7 +143,7 @@ Pressmark serves full ChatGPT Plugin and OpenAPI 3.1 action specs natively out o
 
 | Plan | Price | Monthly Limit | Target Persona | Features |
 | :--- | :--- | :--- | :--- | :--- |
-| **Free Community** | **$0** | 3 docs / mo | Occasional Users | All 18 archetypes, subtle watermark |
+| **Free Community** | **$0** | 3 docs / mo | Occasional Users | All archetypes, subtle watermark |
 | **Single Unlock Pass** | **$2.99** one-time | 1 document | Impulse / 1-Tap | Zero watermark, 1-tap Apple/Google Pay |
 | **Solo Pro** | **$15** / mo | 50 docs / mo | Freelancers & Solo | Full custom logos, signatures, ChatGPT Actions |
 | **Business Studio** | **$49** / mo | 250 docs / mo | Growing Agencies | High-res 300 PPI PNGs, API Keys, Priority queue |
@@ -144,7 +151,7 @@ Pressmark serves full ChatGPT Plugin and OpenAPI 3.1 action specs natively out o
 
 ---
 
-## 6. Quickstart & Local Deployment
+## 6. Local Development & Self-Hosting
 
 ### Prerequisites
 - Rust 1.80+ (`cargo`)
@@ -152,7 +159,7 @@ Pressmark serves full ChatGPT Plugin and OpenAPI 3.1 action specs natively out o
 ### Run Locally
 ```bash
 # Clone and enter workspace
-git clone https://github.com/hallman-lab/pressmark.git
+git clone https://github.com/mooshee/pressmark.git
 cd pressmark
 
 # Run isolated parallel test suite
@@ -162,4 +169,4 @@ cargo nextest run
 cargo run --release
 ```
 
-Open `http://localhost:3842` in your browser to experience the real-time studio.
+Open `http://localhost:3842` in your browser for local development, or visit [https://pressmark.dev](https://pressmark.dev) for the live production studio.

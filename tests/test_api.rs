@@ -99,7 +99,112 @@ fn test_mcp_tools_list_and_call() {
     };
     let call_resp = McpHandler::handle_request(call_req);
     assert!(call_resp.result.is_some());
-    assert_eq!(call_resp.result.unwrap()["currency"], "USD");
+    let price_res = call_resp.result.unwrap();
+    assert_eq!(price_res["currency"], "USD");
+    assert!(price_res["content"].is_array());
+}
+
+#[test]
+fn test_mcp_lifecycle_handshake_and_negative_validation() {
+    // 1. initialize handshake
+    let init_req = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(json!(1)),
+        method: "initialize".to_string(),
+        params: Some(json!({
+            "protocolVersion": "2026-07-28",
+            "capabilities": {},
+            "clientInfo": { "name": "test-client", "version": "1.0.0" }
+        })),
+    };
+    let init_resp = McpHandler::handle_request(init_req);
+    let init_res = init_resp.result.expect("initialize should return result");
+    assert_eq!(init_res["protocolVersion"], "2026-07-28");
+    assert_eq!(init_res["serverInfo"]["name"], "pressmark");
+    assert_eq!(init_res["serverInfo"]["version"], "1.0.0");
+
+    // 2. server/discover handshake
+    let disc_req = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(json!(2)),
+        method: "server/discover".to_string(),
+        params: Some(json!({})),
+    };
+    let disc_resp = McpHandler::handle_request(disc_req);
+    let disc_res = disc_resp.result.expect("server/discover should return result");
+    assert_eq!(disc_res["protocolVersion"], "2026-07-28");
+    assert_eq!(disc_res["resultType"], "complete");
+    assert_eq!(disc_res["cacheScope"], "public-anonymous");
+
+    // 3. notifications/initialized & ping
+    let notif_req = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: None,
+        method: "notifications/initialized".to_string(),
+        params: None,
+    };
+    assert!(McpHandler::is_notification(&notif_req));
+    let notif_resp = McpHandler::handle_request(notif_req);
+    assert!(notif_resp.error.is_none());
+
+    // 4. Negative Test Case 1: Unsupported convert_document target_type
+    let bad_convert = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(json!(4)),
+        method: "tools/call".to_string(),
+        params: Some(json!({
+            "name": "convert_document",
+            "arguments": {
+                "target_type": "mortgage_deed",
+                "document": {
+                    "doc_type": "estimate",
+                    "from": { "name": "Seller" },
+                    "to": { "name": "Buyer" }
+                }
+            }
+        })),
+    };
+    let bad_convert_resp = McpHandler::handle_request(bad_convert);
+    assert!(bad_convert_resp.error.is_some());
+    assert_eq!(bad_convert_resp.error.unwrap()["code"], -32602);
+
+    // 5. Negative Test Case 2: Missing counterparty name
+    let missing_party = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(json!(5)),
+        method: "tools/call".to_string(),
+        params: Some(json!({
+            "name": "generate_document",
+            "arguments": {
+                "doc_type": "invoice",
+                "from": { "name": "" },
+                "to": { "name": "Buyer" },
+                "items": [{ "description": "Widget", "quantity": 5.0, "unit_price": 10.0 }]
+            }
+        })),
+    };
+    let missing_party_resp = McpHandler::handle_request(missing_party);
+    assert!(missing_party_resp.error.is_some());
+    assert_eq!(missing_party_resp.error.unwrap()["code"], -32602);
+
+    // 6. Negative Test Case 3: Negative quantity on non-credit-note
+    let neg_qty = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(json!(6)),
+        method: "tools/call".to_string(),
+        params: Some(json!({
+            "name": "generate_document",
+            "arguments": {
+                "doc_type": "invoice",
+                "from": { "name": "Seller" },
+                "to": { "name": "Buyer" },
+                "items": [{ "description": "Consulting", "quantity": -5.0, "unit_price": -100.0 }]
+            }
+        })),
+    };
+    let neg_qty_resp = McpHandler::handle_request(neg_qty);
+    assert!(neg_qty_resp.error.is_some());
+    assert_eq!(neg_qty_resp.error.unwrap()["code"], -32602);
 }
 
 #[test]

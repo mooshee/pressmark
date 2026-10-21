@@ -1,5 +1,6 @@
 {
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/app-submission.schema.json",
+  "$schema": "https://developers.openai.com/plugins/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
   "app_info": {
     "display_name": "Pressmark",
     "subtitle": "Instant Invoices & Contracts",
@@ -22,7 +23,7 @@
   "tools": {
     "generate_document": {
       "annotations": {
-        "readOnlyHint": false,
+        "readOnlyHint": true,
         "destructiveHint": false,
         "openWorldHint": false
       },
@@ -70,24 +71,24 @@
     },
     "convert_document": {
       "annotations": {
-        "readOnlyHint": false,
+        "readOnlyHint": true,
         "destructiveHint": false,
         "openWorldHint": false
       },
       "justifications": {
-        "read_only_justification": "Performs document lifecycle state transformation (e.g. estimate to invoice).",
+        "read_only_justification": "Performs stateless document lifecycle transformation in memory without mutating external records.",
         "destructive_justification": "Non-destructive transformation of in-memory document structures.",
         "open_world_justification": "Does not access external web resources."
       }
     },
     "record_payment": {
       "annotations": {
-        "readOnlyHint": false,
+        "readOnlyHint": true,
         "destructiveHint": false,
         "openWorldHint": false
       },
       "justifications": {
-        "read_only_justification": "Computes paid balance, updates payment status, and issues an official receipt.",
+        "read_only_justification": "Statelessly computes paid balance and synthesizes an official receipt PDF without mutating external records.",
         "destructive_justification": "Non-destructive financial record rendering.",
         "open_world_justification": "Does not access external web resources."
       }
@@ -127,22 +128,22 @@
   ],
   "negative_test_cases": [
     {
-      "description": "Scope gating: do not trigger for unrelated general inquiries",
+      "description": "Scope gating: do not trigger for unrelated geography and weather inquiries",
       "user_prompt": "What is the capital of France and what will the weather be like there tomorrow?",
       "tools_triggered": [],
       "expected_output": "The model should answer directly using general knowledge without invoking Pressmark tools, as geography and weather are out of scope."
     },
     {
-      "description": "Input validation: reject missing mandatory counterparty information",
-      "user_prompt": "Generate an invoice for 5 widgets at $10.",
-      "tools_triggered": ["generate_document"],
-      "expected_output": "Tool returns a validation error requiring party details (seller name and buyer name); assistant prompts user for the missing counterparty info."
+      "description": "Scope gating: do not trigger for airline travel or hotel reservations",
+      "user_prompt": "Book a direct roundtrip flight from New York to London departing next Friday.",
+      "tools_triggered": [],
+      "expected_output": "Do not invoke Pressmark tools; flight and travel reservations are outside Pressmark's document synthesis domain."
     },
     {
-      "description": "Arithmetic validation: reject negative quantities and negative unit rates",
-      "user_prompt": "Generate an invoice with -5 consulting hours at -$100/hr.",
-      "tools_triggered": ["generate_document"],
-      "expected_output": "Tool or model halts compilation, explaining that negative quantities cannot be billed and instructing the user to issue a formal credit_note refund instead."
+      "description": "Scope gating: do not trigger for personal bank account transfers",
+      "user_prompt": "Transfer $500 from my checking account to my savings account right now.",
+      "tools_triggered": [],
+      "expected_output": "Do not invoke Pressmark tools; Pressmark synthesizes billing documents and receipts but does not access bank accounts or initiate wire transfers."
     }
   ],
   "review_instructions": {

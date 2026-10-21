@@ -42,6 +42,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     continue;
                 }
                 if let Ok(req) = serde_json::from_str::<pressmark::mcp::JsonRpcRequest>(&line_str) {
+                    if pressmark::mcp::McpHandler::is_notification(&req) && req.id.is_none() {
+                        continue;
+                    }
                     let resp = pressmark::mcp::McpHandler::handle_request(req);
                     let _ = serde_json::to_writer(&mut out, &resp);
                     let _ = out.write_all(b"\n");

@@ -9,25 +9,28 @@ Author: Daniel Hallman
 
 Use this skill when the user asks to convert an existing estimate or quote into an invoice, record a customer payment, mark an invoice as paid, or issue a refund credit note.
 
+## Quick start
+
+1. Open [Pressmark Studio](https://pressmark.dev) to manage document lifecycles in the browser, or connect your MCP client to `https://pressmark.dev/mcp`.
+
 ## MCP Tools Utilized
-- `convert_document`: Transforms document lifecycle state (e.g. `estimate` -> `invoice`, `invoice` -> `receipt`, `invoice` -> `credit_note`). Updates document numbering sequences (`EST-` -> `INV-` -> `REC-` -> `CRD-`), adjusts issue/due dates, and transitions payment status flags.
-- `record_payment`: Records payment transactions against an outstanding invoice. Recalculates `balance_due = grand_total - total_paid`, updates status (`unpaid`, `partially_paid`, or `paid`), and returns the updated document object.
+- `convert_document`: Transforms document lifecycle state (e.g. `estimate` -> `invoice`, `invoice` -> `receipt`, `invoice` -> `credit_note`). Updates document numbering sequences (`EST-` -> `INV-` -> `RCT-` -> `CRD-`), adjusts issue/due dates, and transitions payment status flags.
+- `record_payment`: Records payment transactions against an outstanding invoice. Recalculates `balance_due = grand_total - amount_paid`, updates status (`unpaid`, `partial`, or `paid`), and returns the updated document object and vector PDF.
 
 ## Lifecycle Transition Matrix
 
 1. **Estimate / Quote Accepted**:
-   - Call `convert_document` with `target_type: "invoice"` and optional `due_date_days: 14` or `30`.
+   - Call `convert_document` with `target_type: "invoice"` and optional `due_days: 15` or `30`, plus `payment_link` and `payment_qr_code: true`.
    - The document ID transitions from `EST-XXXX` to `INV-XXXX`.
    - Issue date updates to the current date, due date is calculated, and payment status defaults to `unpaid`.
 
 2. **Partial Payment Received**:
-   - Call `record_payment` with `payment_amount: <amount>`, `payment_method: "stripe"` (or `"bank_transfer"` / `"card"`), and `reference: <tx_id>`.
-   - If `payment_amount < grand_total`, status transitions to `partially_paid`, and `balance_due` reflects the remaining owed balance.
+   - Call `record_payment` with `amount_paid: <amount>`, `payment_method: "Stripe"` (or `"Bank Wire"` / `"Apple Pay"`), and `transaction_reference: <tx_id>`.
+   - If `amount_paid < grand_total`, status transitions to `partial`, and `balance_due` reflects the remaining owed balance.
 
 3. **Settled / Full Payment Received**:
-   - Call `record_payment` with `payment_amount: balance_due`.
-   - Payment status transitions to `paid`, `balance_due` becomes `0.00`, and a stamped paid watermark is enabled.
-   - User can optionally convert to an official tax receipt (`REC-XXXX`) via `convert_document` (`target_type: "receipt"`).
+   - Call `record_payment` with `amount_paid: balance_due` (or omit `amount_paid` to settle in full).
+   - Payment status transitions to `paid`, `balance_due` becomes `0.00`, and an official payment receipt (`RCT-XXXX`) is generated with a stamped paid watermark.
 
 4. **Refund / Adjustment / Credit Note**:
    - Call `convert_document` with `target_type: "credit_note"`.

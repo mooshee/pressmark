@@ -9,4 +9,5 @@
 *.env
 dist/
 publishing/generated/
+publishing/tracking.private.json
 

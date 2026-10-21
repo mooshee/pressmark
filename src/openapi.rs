@@ -209,7 +209,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                     "properties": {
                         "doc_type": {
                             "type": "string",
-                            "enum": ["invoice", "estimate", "receipt", "agreement", "nda", "purchase_order", "certificate"],
+                            "enum": crate::mcp::McpHandler::document_type_enum(),
                             "description": "The category of document to synthesize"
                         },
                         "title": { "type": "string", "description": "Custom document title (e.g. 'INVOICE')" },
