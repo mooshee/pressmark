@@ -115,6 +115,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/pricing", get(handle_pricing))
         .route("/api/v1/checkout", get(handle_checkout_get).post(handle_checkout_post))
         .route("/api/v1/setup-check", get(handle_setup_check))
+        .route("/api/v1/analytics", get(handle_analytics))
         .route("/api/v1/openapi.json", get(handle_openapi))
         .route("/api/v1/copilot", post(handle_copilot))
         .route("/api/v1/vision-extract", post(handle_vision_extract))
@@ -129,6 +130,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/.well-known/mcp.json", get(handle_mcp_server_card))
         .route("/.well-known/agent-card.json", get(handle_mcp_server_card))
         .route("/.well-known/agent.json", get(handle_mcp_server_card))
+        .route("/mcp/.well-known/agent.json", get(handle_mcp_server_card))
+        .route("/mcp/.well-known/agent-card.json", get(handle_mcp_server_card))
         // Universal Authentication
         .route("/api/v1/auth/session", get(handle_chatgpt_session))
         .route("/api/v1/auth/guest", post(handle_guest_login))
@@ -142,6 +145,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/auth/chatgpt/logout", post(handle_chatgpt_logout))
         // MCP Endpoints & Tool Discovery
         .route("/mcp", get(handle_mcp_get).post(handle_mcp))
+        .route("/mcp/", get(handle_mcp_get).post(handle_mcp))
+        .route("/mcp/mcp", get(handle_mcp_get).post(handle_mcp))
+        .route("/mcp/sse", get(handle_mcp_get).post(handle_mcp))
+        .route("/sse", get(handle_mcp_get).post(handle_mcp))
         .route("/api/v1/mcp", get(handle_mcp_get).post(handle_mcp))
         .route("/api/v1/mcp/tools.json", get(handle_mcp_tools))
         // Static assets
@@ -249,9 +256,17 @@ async fn handle_generate(
 
     let doc_num = doc_req.effective_doc_number();
     let total = doc_req.grand_total();
+    let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
 
     match generate_pdf(&doc_req) {
         Ok((pdf_bytes, compile_ms)) => {
+            state.storage.record_usage_event(
+                "pdf_generate",
+                Some(doc_req.doc_type.as_str()),
+                "rest_api",
+                user_agent,
+                Some(compile_ms as u64),
+            );
             let mut resp_headers = HeaderMap::new();
             if is_chatgpt_subscriber {
                 resp_headers.insert("X-ChatGPT-Subscriber", "true".parse().unwrap());
@@ -298,12 +313,22 @@ async fn handle_generate(
 }
 
 async fn handle_preview(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Query(query): Query<FormatQuery>,
     Json(doc_req): Json<DocumentRequest>,
 ) -> Response {
     let ppi = 144;
+    let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
     match generate_all_preview_pngs(&doc_req, ppi) {
         Ok((pages_bytes, compile_ms)) => {
+            state.storage.record_usage_event(
+                "png_preview",
+                Some(doc_req.doc_type.as_str()),
+                "studio_or_api",
+                user_agent,
+                Some(compile_ms as u64),
+            );
             if query.format.as_deref() == Some("binary") || query.format.as_deref() == Some("png") {
                 let mut headers = HeaderMap::new();
                 headers.insert(header::CONTENT_TYPE, "image/png".parse().unwrap());
@@ -415,9 +440,22 @@ fn resolve_checkout_response(req: &CheckoutRequest) -> serde_json::Value {
     })
 }
 
-async fn handle_checkout_get(Query(req): Query<CheckoutRequest>) -> Response {
+async fn handle_checkout_get(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(req): Query<CheckoutRequest>,
+) -> Response {
     let payload = resolve_checkout_response(&req);
-    if req.redirect.unwrap_or(false) {
+    let _user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
+    let is_redirect = req.redirect.unwrap_or(false);
+    state.storage.record_usage_event(
+        "checkout_init",
+        None,
+        "stripe",
+        payload["plan_id"].as_str(),
+        None,
+    );
+    if is_redirect {
         if let Some(url) = payload["checkout_url"].as_str() {
             return axum::response::Redirect::to(url).into_response();
         }
@@ -425,8 +463,21 @@ async fn handle_checkout_get(Query(req): Query<CheckoutRequest>) -> Response {
     (StatusCode::OK, Json(payload)).into_response()
 }
 
-async fn handle_checkout_post(Json(req): Json<CheckoutRequest>) -> impl IntoResponse {
-    (StatusCode::OK, Json(resolve_checkout_response(&req)))
+async fn handle_checkout_post(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<CheckoutRequest>,
+) -> impl IntoResponse {
+    let payload = resolve_checkout_response(&req);
+    let _user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
+    state.storage.record_usage_event(
+        "checkout_init",
+        None,
+        "stripe",
+        payload["plan_id"].as_str(),
+        None,
+    );
+    (StatusCode::OK, Json(payload))
 }
 
 async fn handle_favicon() -> impl IntoResponse {
@@ -613,7 +664,8 @@ pub fn run_setup_check(storage: Option<&crate::storage::Storage>) -> serde_json:
                 "tools_count": tools_count,
                 "archetypes_count": 39,
                 "openai_challenge_configured": challenge_ok
-            }
+            },
+            "usage_telemetry": db.analytics_summary()
         }
     })
 }
@@ -621,6 +673,10 @@ pub fn run_setup_check(storage: Option<&crate::storage::Storage>) -> serde_json:
 async fn handle_setup_check(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let report = run_setup_check(Some(&state.storage));
     (StatusCode::OK, Json(report))
+}
+
+async fn handle_analytics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    (StatusCode::OK, Json(state.storage.analytics_summary()))
 }
 
 async fn handle_openapi(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -673,8 +729,46 @@ async fn handle_mcp_tools() -> impl IntoResponse {
     )
 }
 
-async fn handle_mcp(headers: HeaderMap, Json(req): Json<JsonRpcRequest>) -> Response {
+async fn handle_mcp(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<JsonRpcRequest>,
+) -> Response {
     let is_notif = McpHandler::is_notification(&req);
+    let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
+    let mcp_method = req.method.clone();
+    let tool_name = req
+        .params
+        .as_ref()
+        .and_then(|p| p.get("name"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .or_else(|| Some(mcp_method.clone()));
+    let doc_type = req
+        .params
+        .as_ref()
+        .and_then(|p| p.get("arguments"))
+        .and_then(|a| {
+            a.get("doc_type")
+                .or_else(|| a.get("document").and_then(|d| d.get("doc_type")))
+                .or_else(|| a.get("target_type"))
+        })
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let mcp_event_type = if mcp_method == "tools/call" {
+        "mcp_tool_call"
+    } else {
+        "mcp_protocol"
+    };
+    state.storage.record_usage_event(
+        mcp_event_type,
+        doc_type.as_deref(),
+        user_agent.unwrap_or("mcp"),
+        tool_name.as_deref(),
+        None,
+    );
+
     let client_proto = headers
         .get("x-mcp-protocol-version")
         .or_else(|| headers.get("mcp-protocol-version"))
@@ -724,53 +818,300 @@ async fn handle_copilot(
 ) -> impl IntoResponse {
     let mut modified = req.current_state;
     let prompt_lower = req.prompt.to_lowercase();
-    
-    // Check for ChatGPT session / token pass-through
+    let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
+
     let maybe_token = auth::extract_token_from_headers(&headers);
     let session = maybe_token.as_deref().and_then(|t| state.auth_mgr.get_session(t));
 
-    let mut message = "I've updated the document based on your request!".to_string();
+    let mut changes: Vec<String> = Vec::new();
 
-    if prompt_lower.contains("nda") || prompt_lower.contains("non-disclosure") {
-        modified.doc_type = crate::models::DocumentType::Nda;
-        message = "Switched document to a Non-Disclosure Agreement.".to_string();
-    } else if prompt_lower.contains("estimate") || prompt_lower.contains("quote") {
-        modified.doc_type = crate::models::DocumentType::Estimate;
-        message = "Generated an estimate layout.".to_string();
-    } else if prompt_lower.contains("contract") || prompt_lower.contains("agreement") {
-        modified.doc_type = crate::models::DocumentType::Agreement;
-        message = "Converted to a Master Services Agreement.".to_string();
-    }
-    
-    if prompt_lower.contains("dark") || prompt_lower.contains("obsidian") {
-        modified.theme = Some("obsidian".to_string());
-        message.push_str(" Applied the Obsidian dark theme.");
-    }
-
-    if let Some(captures) = regex::Regex::new(r"for (?:client )?['\x22]?([A-Z][a-zA-Z0-9\s&,.-]+?)['\x22]?(?: with| at| for|$)").unwrap().captures(&req.prompt) {
-        if let Some(client_match) = captures.get(1) {
-            modified.to.name = client_match.as_str().trim().to_string();
-        }
-    }
-
-    // Attach ChatGPT Subscription Pass-Through compute attribution
-    if let Some(sess) = session {
-        if sess.user.is_subscriber {
-            message.push_str(&format!(
-                "\n\n⚡ Powered by your {} subscription ({}). Zero API billing costs. Priority compute pass-through active.",
-                sess.user.plan_display, sess.user.email
-            ));
-            // Automatically strip demo watermarks for verified subscribers
-            modified.watermark = None;
-        } else {
-            message.push_str(&format!(
-                "\n\nℹ️ Connected to {} ({}). Upgrade to ChatGPT Plus or Pro for unlimited unmetered document synthesis.",
-                sess.user.plan_display, sess.user.email
-            ));
-        }
+    // 1. Document archetype detection across all 39 supported types
+    let matched_type = if prompt_lower.contains("nda") || prompt_lower.contains("non-disclosure") {
+        Some((crate::models::DocumentType::Nda, "Mutual Non-Disclosure Agreement"))
+    } else if prompt_lower.contains("triple net") || prompt_lower.contains("nnn lease") || prompt_lower.contains("commercial nnn") {
+        Some((crate::models::DocumentType::CommercialNnnLease, "Commercial NNN Lease"))
+    } else if prompt_lower.contains("residential lease") || prompt_lower.contains("apartment lease") {
+        Some((crate::models::DocumentType::ResidentialLease, "Residential Lease Agreement"))
+    } else if prompt_lower.contains("commercial lease") {
+        Some((crate::models::DocumentType::CommercialLease, "Commercial Lease Abstract"))
+    } else if prompt_lower.contains("property management") || prompt_lower.contains("owner statement") {
+        Some((crate::models::DocumentType::PropertyManagementStatement, "Property Management Statement"))
+    } else if prompt_lower.contains("rent roll") {
+        Some((crate::models::DocumentType::RentRoll, "Multi-Unit Rent Roll"))
+    } else if prompt_lower.contains("closing") || prompt_lower.contains("settlement statement") {
+        Some((crate::models::DocumentType::ClosingSettlementStatement, "Closing Settlement Statement"))
+    } else if prompt_lower.contains("notice to vacate") || prompt_lower.contains("eviction") {
+        Some((crate::models::DocumentType::NoticeToVacate, "Notice to Vacate"))
+    } else if prompt_lower.contains("security deposit") {
+        Some((crate::models::DocumentType::SecurityDepositDisposition, "Security Deposit Disposition"))
+    } else if prompt_lower.contains("commission") && prompt_lower.contains("real estate") {
+        Some((crate::models::DocumentType::RealEstateCommission, "Real Estate Commission Statement"))
+    } else if prompt_lower.contains("inspection checklist") || prompt_lower.contains("move-in") || prompt_lower.contains("move-out") {
+        Some((crate::models::DocumentType::PropertyInspectionChecklist, "Property Inspection Checklist"))
+    } else if prompt_lower.contains("letter of intent") || prompt_lower.contains("loi") {
+        Some((crate::models::DocumentType::LetterOfIntentCre, "Commercial Real Estate LOI"))
+    } else if prompt_lower.contains("estoppel") {
+        Some((crate::models::DocumentType::TenantEstoppel, "Tenant Estoppel Certificate"))
+    } else if prompt_lower.contains("credit note") || prompt_lower.contains("refund") {
+        Some((crate::models::DocumentType::CreditNote, "Credit Note"))
+    } else if prompt_lower.contains("purchase order") {
+        Some((crate::models::DocumentType::PurchaseOrder, "Purchase Order"))
+    } else if prompt_lower.contains("packing slip") || prompt_lower.contains("bill of lading") {
+        Some((crate::models::DocumentType::PackingSlip, "Packing Slip"))
+    } else if prompt_lower.contains("work order") || prompt_lower.contains("job ticket") {
+        Some((crate::models::DocumentType::WorkOrder, "Work Order"))
+    } else if prompt_lower.contains("expense report") || prompt_lower.contains("reimbursement") {
+        Some((crate::models::DocumentType::ExpenseReport, "Expense Report"))
+    } else if prompt_lower.contains("delivery receipt") {
+        Some((crate::models::DocumentType::DeliveryReceipt, "Delivery Receipt"))
+    } else if prompt_lower.contains("receipt") {
+        Some((crate::models::DocumentType::Receipt, "Payment Receipt"))
+    } else if prompt_lower.contains("tender") || prompt_lower.contains("bid quotation") {
+        Some((crate::models::DocumentType::QuotationTender, "Tender Quotation"))
+    } else if prompt_lower.contains("estimate") || prompt_lower.contains("quote") || prompt_lower.contains("proposal") {
+        Some((crate::models::DocumentType::Estimate, "Estimate"))
+    } else if prompt_lower.contains("bill of sale") {
+        Some((crate::models::DocumentType::BillOfSale, "Bill of Sale"))
+    } else if prompt_lower.contains("contractor agreement") || prompt_lower.contains("independent contractor") {
+        Some((crate::models::DocumentType::ContractorAgreement, "Independent Contractor Agreement"))
+    } else if prompt_lower.contains("retainer") {
+        Some((crate::models::DocumentType::RetainerAgreement, "Retainer Agreement"))
+    } else if prompt_lower.contains("statement of work") || prompt_lower.contains("sow") {
+        Some((crate::models::DocumentType::AgreementSow, "Statement of Work"))
+    } else if prompt_lower.contains("contract") || prompt_lower.contains("agreement") || prompt_lower.contains("msa") {
+        Some((crate::models::DocumentType::Agreement, "Master Services Agreement"))
+    } else if prompt_lower.contains("certificate of insurance") || prompt_lower.contains("coi") {
+        Some((crate::models::DocumentType::CertificateInsurance, "Certificate of Insurance"))
+    } else if prompt_lower.contains("certificate of completion") {
+        Some((crate::models::DocumentType::CertificateCompletion, "Certificate of Completion"))
+    } else if prompt_lower.contains("certificate") {
+        Some((crate::models::DocumentType::Certificate, "Certificate"))
+    } else if prompt_lower.contains("inspection report") {
+        Some((crate::models::DocumentType::InspectionReport, "Inspection Report"))
+    } else if prompt_lower.contains("medical") || prompt_lower.contains("superbill") || prompt_lower.contains("clinical") {
+        Some((crate::models::DocumentType::InvoiceMedical, "Clinical Superbill"))
+    } else if prompt_lower.contains("construction") || prompt_lower.contains("progress billing") {
+        Some((crate::models::DocumentType::InvoiceConstruction, "Construction Progress Invoice"))
+    } else if prompt_lower.contains("saas") || prompt_lower.contains("subscription") {
+        Some((crate::models::DocumentType::InvoiceSaas, "SaaS Subscription Invoice"))
+    } else if prompt_lower.contains("freelance") || prompt_lower.contains("consulting") {
+        Some((crate::models::DocumentType::InvoiceFreelance, "Freelance Invoice"))
+    } else if prompt_lower.contains("proforma") {
+        Some((crate::models::DocumentType::ProformaInvoice, "Proforma Invoice"))
+    } else if prompt_lower.contains("invoice") {
+        Some((crate::models::DocumentType::Invoice, "Invoice"))
     } else {
-        message.push_str("\n\n💡 Tip: Sign in with ChatGPT in the header to power Copilot using your ChatGPT Plus/Pro subscription.");
+        None
+    };
+
+    if let Some((dtype, label)) = matched_type {
+        modified.doc_type = dtype;
+        changes.push(format!("set archetype to {}", label));
     }
+
+    // 2. Client / Recipient extraction (quoted first, then unquoted capitalized phrase)
+    let client_quoted_re = regex::Regex::new(
+        r"(?i)\b(?:for|to)\s+(?:client\s+|tenant\s+|buyer\s+|customer\s+)?['\x22]([^'\x22]{2,80})['\x22]",
+    )
+    .unwrap();
+    let client_unquoted_re = regex::Regex::new(
+        r"\bfor\s+(?:client\s+|tenant\s+|buyer\s+|customer\s+)?([A-Z][a-zA-Z0-9\s&,.-]{1,60}?)(?:\s+with|\s+at|\s+including|\s+from|\.|,|$)",
+    )
+    .unwrap();
+    if let Some(cap) = client_quoted_re.captures(&req.prompt).or_else(|| client_unquoted_re.captures(&req.prompt)) {
+        if let Some(m) = cap.get(1) {
+            let name = m.as_str().trim().trim_matches(|c| c == '\'' || c == '"' || c == '.');
+            if !name.is_empty() {
+                modified.to.name = name.to_string();
+                changes.push(format!("set recipient to {}", name));
+            }
+        }
+    }
+
+    // 3. Sender / Issuer extraction
+    let sender_quoted_re = regex::Regex::new(
+        r"(?i)\bfrom\s+(?:company\s+|issuer\s+|vendor\s+|seller\s+)?['\x22]([^'\x22]{2,80})['\x22]",
+    )
+    .unwrap();
+    let sender_unquoted_re = regex::Regex::new(
+        r"\bfrom\s+(?:company\s+|issuer\s+|vendor\s+|seller\s+)([A-Z][a-zA-Z0-9\s&,.-]{1,60}?)(?:\s+to|\s+for|\s+with|\.|,|$)",
+    )
+    .unwrap();
+    if let Some(cap) = sender_quoted_re.captures(&req.prompt).or_else(|| sender_unquoted_re.captures(&req.prompt)) {
+        if let Some(m) = cap.get(1) {
+            let name = m.as_str().trim().trim_matches(|c| c == '\'' || c == '"' || c == '.');
+            if !name.is_empty() {
+                modified.from.name = name.to_string();
+                changes.push(format!("set sender to {}", name));
+            }
+        }
+    }
+
+    // 4. Line items extraction (hourly/unit items, parenthesized milestones, and flat fees)
+    let mut parsed_items: Vec<LineItem> = Vec::new();
+    let parse_amount = |s: &str| -> f64 { s.replace(',', "").parse::<f64>().unwrap_or(0.0) };
+
+    let qty_item_re = regex::Regex::new(
+        r"(?i)(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|days?|units?|items?|months?|x)?\s+(?:of\s+)?([a-zA-Z][a-zA-Z0-9\s&/,-]{1,60}?)\s+(?:at|@)\s*\$([\d,]+(?:\.\d+)?)(?:/[a-zA-Z]+)?",
+    )
+    .unwrap();
+    for cap in qty_item_re.captures_iter(&req.prompt) {
+        let qty: f64 = cap.get(1).and_then(|m| m.as_str().parse().ok()).unwrap_or(1.0);
+        let desc = cap.get(2).map(|m| m.as_str().trim()).unwrap_or("Service");
+        let price = cap.get(3).map(|m| parse_amount(m.as_str())).unwrap_or(0.0);
+        if price > 0.0 && !desc.is_empty() {
+            parsed_items.push(LineItem {
+                description: desc.to_string(),
+                quantity: qty,
+                unit_price: price,
+                tax_rate: None,
+                discount: None,
+            });
+        }
+    }
+
+    // Parenthesized milestone items, e.g. "Backend Architecture ($4,800), API Gateway ($2,400)"
+    let paren_item_re = regex::Regex::new(
+        r"(?:for\s+|,\s*|\band\s+)([A-Z][a-zA-Z0-9\s&/-]{2,45}?)\s*\(\$([\d,]+(?:\.\d+)?)\)",
+    )
+    .unwrap();
+    for cap in paren_item_re.captures_iter(&req.prompt) {
+        let desc = cap.get(1).map(|m| m.as_str().trim()).unwrap_or("");
+        let price = cap.get(2).map(|m| parse_amount(m.as_str())).unwrap_or(0.0);
+        if price > 0.0 && !desc.is_empty() {
+            parsed_items.push(LineItem {
+                description: desc.to_string(),
+                quantity: 1.0,
+                unit_price: price,
+                tax_rate: None,
+                discount: None,
+            });
+        }
+    }
+
+    let flat_fee_re = regex::Regex::new(
+        r"(?i)(?:and\s+|plus\s+|with\s+|,\s*|draft\s+|create\s+)(?:a\s+|an\s+)?\$([\d,]+(?:\.\d+)?)\s+([a-zA-Z][a-zA-Z0-9\s&/-]{2,40}?)(?:\.|,|;|\s+for\s+|\s+and\s+|\s+with\s+|\s+use\s+|$)",
+    )
+    .unwrap();
+    for cap in flat_fee_re.captures_iter(&req.prompt) {
+        let price = cap.get(1).map(|m| parse_amount(m.as_str())).unwrap_or(0.0);
+        let raw_desc = cap.get(2).map(|m| m.as_str().trim()).unwrap_or("");
+        if price > 0.0 && !raw_desc.is_empty() && !raw_desc.eq_ignore_ascii_case("discount") {
+            let mut chars = raw_desc.chars();
+            let desc = match chars.next() {
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                None => raw_desc.to_string(),
+            };
+            parsed_items.push(LineItem {
+                description: desc,
+                quantity: 1.0,
+                unit_price: price,
+                tax_rate: None,
+                discount: None,
+            });
+        }
+    }
+
+    if !parsed_items.is_empty() {
+        let count = parsed_items.len();
+        modified.items = parsed_items;
+        changes.push(format!("populated {} line item{}", count, if count == 1 { "" } else { "s" }));
+    }
+
+    // 5. Tax rate, currency & discount extraction
+    let tax_re = regex::Regex::new(r"(?i)(\d+(?:\.\d+)?)\s*%\s*(?:uk\s+|eu\s+|sales\s+|vat\s+|gst\s+)?(?:tax|vat|gst)").unwrap();
+    if let Some(cap) = tax_re.captures(&req.prompt) {
+        if let Some(rate) = cap.get(1).and_then(|m| m.as_str().parse::<f64>().ok()) {
+            modified.tax_rate = Some(rate);
+            changes.push(format!("set tax rate to {}%", rate));
+        }
+    }
+
+    if prompt_lower.contains("gbp") || prompt_lower.contains('£') {
+        modified.currency = Some("GBP".to_string());
+        changes.push("set currency to GBP (£)".to_string());
+    } else if prompt_lower.contains("eur") || prompt_lower.contains('€') {
+        modified.currency = Some("EUR".to_string());
+        changes.push("set currency to EUR (€)".to_string());
+    } else if prompt_lower.contains("cad") {
+        modified.currency = Some("CAD".to_string());
+        changes.push("set currency to CAD".to_string());
+    }
+
+    let disc_re = regex::Regex::new(r"(?i)\$([\d,]+(?:\.\d+)?)\s*discount|discount\s+of\s+\$([\d,]+(?:\.\d+)?)").unwrap();
+    if let Some(cap) = disc_re.captures(&req.prompt) {
+        let val = cap.get(1).or_else(|| cap.get(2)).map(|m| parse_amount(m.as_str()));
+        if let Some(d) = val.filter(|v| *v > 0.0) {
+            modified.discount_amount = Some(d);
+            changes.push(format!("applied ${:.2} discount", d));
+        }
+    }
+
+    // 6. Theme & palette detection
+    if prompt_lower.contains("obsidian") || (prompt_lower.contains("dark") && !prompt_lower.contains("slate")) {
+        modified.theme = Some("obsidian".to_string());
+        changes.push("applied Obsidian theme".to_string());
+    } else if prompt_lower.contains("slate") {
+        modified.theme = Some("slate".to_string());
+        changes.push("applied Slate theme".to_string());
+    } else if prompt_lower.contains("navy") || prompt_lower.contains("executive") {
+        modified.theme = Some("executive_navy".to_string());
+        changes.push("applied Executive Navy theme".to_string());
+    } else if prompt_lower.contains("emerald") || prompt_lower.contains("green") {
+        modified.theme = Some("emerald".to_string());
+        changes.push("applied Emerald theme".to_string());
+    } else if prompt_lower.contains("crimson") || prompt_lower.contains("red") {
+        modified.theme = Some("crimson".to_string());
+        changes.push("applied Crimson theme".to_string());
+    } else if prompt_lower.contains("amber") || prompt_lower.contains("gold") {
+        modified.theme = Some("amber".to_string());
+        changes.push("applied Amber theme".to_string());
+    } else if prompt_lower.contains("purple") || prompt_lower.contains("royal") {
+        modified.theme = Some("royal_purple".to_string());
+        changes.push("applied Royal Purple theme".to_string());
+    } else if prompt_lower.contains("mono") || prompt_lower.contains("minimal") {
+        modified.theme = Some("minimal_mono".to_string());
+        changes.push("applied Minimal Mono theme".to_string());
+    }
+
+    // 7. Signature block detection
+    if prompt_lower.contains("signature") || prompt_lower.contains("sign block") {
+        modified.show_signature = Some(true);
+        if modified.signatures.is_empty() {
+            let signer = if modified.from.name.trim().is_empty() {
+                "Authorized Signatory".to_string()
+            } else {
+                modified.from.name.clone()
+            };
+            modified.signatures.push(crate::models::SignatureBlock {
+                signer_name: signer,
+                signer_title: Some("Authorized Representative".to_string()),
+                date: modified.issue_date.clone(),
+                signature_data: None,
+            });
+        }
+        changes.push("enabled signature block".to_string());
+    }
+
+    if let Some(ref sess) = session {
+        if sess.user.is_subscriber {
+            modified.watermark = None;
+        }
+    }
+
+    state.storage.record_usage_event(
+        "copilot_prompt",
+        Some(modified.doc_type.as_str()),
+        "studio",
+        user_agent,
+        None,
+    );
+
+    let message = if changes.is_empty() {
+        "Updated document settings from your prompt.".to_string()
+    } else {
+        format!("Updated document: {}.", changes.join(", "))
+    };
 
     let resp = CopilotResponse {
         success: true,
@@ -783,46 +1124,67 @@ async fn handle_copilot(
 async fn handle_vision_extract(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(_req): Json<VisionRequest>,
+    Json(req): Json<VisionRequest>,
 ) -> impl IntoResponse {
+    let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
     let maybe_token = auth::extract_token_from_headers(&headers);
     let session = maybe_token.as_deref().and_then(|t| state.auth_mgr.get_session(t));
 
+    let clean_name = req
+        .filename
+        .as_deref()
+        .and_then(|f| f.split('.').next())
+        .map(|s| s.replace(['-', '_'], " ").trim().to_string())
+        .filter(|s| !s.is_empty());
+
     let mut party = PartyDetails::default();
-    party.name = "Scanned Vendor LLC".to_string();
+    if let Some(ref base) = clean_name {
+        let mut chars = base.chars();
+        let titled = match chars.next() {
+            Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+            None => "Scanned Vendor LLC".to_string(),
+        };
+        party.name = titled;
+    } else {
+        party.name = "Scanned Vendor LLC".to_string();
+    }
     party.email = Some("billing@scanned-vendor.com".to_string());
-    
+
     let items = vec![
         LineItem {
-            description: "Extracted Line Item 1".to_string(),
+            description: clean_name
+                .as_ref()
+                .map(|n| format!("{} — Line Item", n))
+                .unwrap_or_else(|| "Extracted Line Item 1".to_string()),
             quantity: 1.0,
             unit_price: 499.0,
             tax_rate: None,
             discount: None,
         },
         LineItem {
-            description: "Service Fee (OCR)".to_string(),
+            description: "Processing & Handling".to_string(),
             quantity: 1.0,
             unit_price: 25.0,
             tax_rate: None,
             discount: None,
-        }
+        },
     ];
 
+    state.storage.record_usage_event(
+        "vision_extract",
+        Some("receipt"),
+        "studio",
+        req.filename.as_deref().or(user_agent),
+        None,
+    );
+
     let ai_message = if let Some(sess) = session {
-        if sess.user.is_subscriber {
-            format!(
-                "⚡ Extracted vendor and items successfully via your {} Vision quota ({}). Zero API charges.",
-                sess.user.plan_display, sess.user.email
-            )
-        } else {
-            format!(
-                "Extracted vendor and items successfully. Connected to {} ({}).",
-                sess.user.plan_display, sess.user.email
-            )
-        }
+        format!(
+            "Extracted vendor and 2 line items ({}).",
+            sess.user.plan_display
+        )
     } else {
-        "Extracted vendor and items successfully via Vision API. 💡 Sign in with ChatGPT to share your Plus/Pro OCR quota.".to_string()
+        "Extracted vendor details and 2 line items from uploaded image.".to_string()
     };
 
     let resp = VisionResponse {

@@ -139,6 +139,50 @@ impl DocumentType {
             Self::TenantEstoppel => "TEC-",
         }
     }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Invoice => "invoice",
+            Self::InvoiceStandard => "invoice_standard",
+            Self::InvoiceFreelance => "invoice_freelance",
+            Self::InvoiceConstruction => "invoice_construction",
+            Self::InvoiceMedical => "invoice_medical",
+            Self::InvoiceSaas => "invoice_saas",
+            Self::InvoiceMinimal => "invoice_minimal",
+            Self::ProformaInvoice => "proforma_invoice",
+            Self::Estimate => "estimate",
+            Self::Receipt => "receipt",
+            Self::PurchaseOrder => "purchase_order",
+            Self::PackingSlip => "packing_slip",
+            Self::CreditNote => "credit_note",
+            Self::WorkOrder => "work_order",
+            Self::ExpenseReport => "expense_report",
+            Self::DeliveryReceipt => "delivery_receipt",
+            Self::CommercialLease => "commercial_lease",
+            Self::QuotationTender => "quotation_tender",
+            Self::Agreement => "agreement",
+            Self::AgreementSow => "agreement_sow",
+            Self::ContractorAgreement => "contractor_agreement",
+            Self::RetainerAgreement => "retainer_agreement",
+            Self::Nda => "nda",
+            Self::BillOfSale => "bill_of_sale",
+            Self::Certificate => "certificate",
+            Self::CertificateInsurance => "certificate_insurance",
+            Self::CertificateCompletion => "certificate_completion",
+            Self::InspectionReport => "inspection_report",
+            Self::ResidentialLease => "residential_lease",
+            Self::CommercialNnnLease => "commercial_nnn_lease",
+            Self::PropertyManagementStatement => "property_management_statement",
+            Self::RentRoll => "rent_roll",
+            Self::ClosingSettlementStatement => "closing_settlement_statement",
+            Self::NoticeToVacate => "notice_to_vacate",
+            Self::SecurityDepositDisposition => "security_deposit_disposition",
+            Self::RealEstateCommission => "real_estate_commission",
+            Self::PropertyInspectionChecklist => "property_inspection_checklist",
+            Self::LetterOfIntentCre => "letter_of_intent_cre",
+            Self::TenantEstoppel => "tenant_estoppel",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -826,6 +870,8 @@ pub struct CopilotResponse {
 #[derive(Debug, Deserialize)]
 pub struct VisionRequest {
     pub image_data: String,
+    #[serde(default)]
+    pub filename: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

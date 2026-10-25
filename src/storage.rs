@@ -108,7 +108,19 @@ impl Storage {
                 stripe_session_id TEXT,
                 amount_cents INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL
-            );",
+            );
+
+            CREATE TABLE IF NOT EXISTS usage_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                archetype TEXT,
+                channel TEXT NOT NULL,
+                detail TEXT,
+                compile_ms INTEGER,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_usage_events_type ON usage_events(event_type);
+            CREATE INDEX IF NOT EXISTS idx_usage_events_created ON usage_events(created_at);",
         )?;
 
         Ok(())
@@ -340,6 +352,103 @@ impl Storage {
             .query_row("SELECT count(*) FROM customer_entitlements;", [], |r| r.get(0))
             .unwrap_or(0);
         (sessions as usize, stripe_events as usize, entitlements as usize)
+    }
+
+    pub fn record_usage_event(
+        &self,
+        event_type: &str,
+        archetype: Option<&str>,
+        channel: &str,
+        detail: Option<&str>,
+        compile_ms: Option<u64>,
+    ) {
+        let now = Utc::now().to_rfc3339();
+        if let Ok(lock) = self.conn.lock() {
+            let _ = lock.execute(
+                "INSERT INTO usage_events (event_type, archetype, channel, detail, compile_ms, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6);",
+                params![
+                    event_type,
+                    archetype,
+                    channel,
+                    detail,
+                    compile_ms.map(|v| v as i64),
+                    now
+                ],
+            );
+        }
+    }
+
+    pub fn analytics_summary(&self) -> serde_json::Value {
+        let lock = self.conn.lock().unwrap();
+        let total_events: i64 = lock
+            .query_row("SELECT count(*) FROM usage_events;", [], |r| r.get(0))
+            .unwrap_or(0);
+
+        let mut by_type = serde_json::Map::new();
+        if let Ok(mut stmt) = lock.prepare(
+            "SELECT event_type, count(*) FROM usage_events GROUP BY event_type ORDER BY count(*) DESC;",
+        ) {
+            if let Ok(mut rows) = stmt.query([]) {
+                while let Ok(Some(row)) = rows.next() {
+                    if let (Ok(k), Ok(v)) = (row.get::<_, String>(0), row.get::<_, i64>(1)) {
+                        by_type.insert(k, serde_json::json!(v));
+                    }
+                }
+            }
+        }
+
+        let mut by_archetype = serde_json::Map::new();
+        if let Ok(mut stmt) = lock.prepare(
+            "SELECT archetype, count(*) FROM usage_events WHERE archetype IS NOT NULL GROUP BY archetype ORDER BY count(*) DESC LIMIT 20;",
+        ) {
+            if let Ok(mut rows) = stmt.query([]) {
+                while let Ok(Some(row)) = rows.next() {
+                    if let (Ok(k), Ok(v)) = (row.get::<_, String>(0), row.get::<_, i64>(1)) {
+                        by_archetype.insert(k, serde_json::json!(v));
+                    }
+                }
+            }
+        }
+
+        let mut by_mcp_tool = serde_json::Map::new();
+        if let Ok(mut stmt) = lock.prepare(
+            "SELECT detail, count(*) FROM usage_events WHERE event_type = 'mcp_tool_call' AND detail IS NOT NULL GROUP BY detail ORDER BY count(*) DESC;",
+        ) {
+            if let Ok(mut rows) = stmt.query([]) {
+                while let Ok(Some(row)) = rows.next() {
+                    if let (Ok(k), Ok(v)) = (row.get::<_, String>(0), row.get::<_, i64>(1)) {
+                        by_mcp_tool.insert(k, serde_json::json!(v));
+                    }
+                }
+            }
+        }
+
+        let avg_compile_ms: f64 = lock
+            .query_row(
+                "SELECT COALESCE(AVG(compile_ms), 0.0) FROM usage_events WHERE compile_ms IS NOT NULL;",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0.0);
+
+        let (sessions_count, stripe_events_count, entitlements_count) = {
+            let s: i64 = lock.query_row("SELECT count(*) FROM sessions;", [], |r| r.get(0)).unwrap_or(0);
+            let st: i64 = lock.query_row("SELECT count(*) FROM processed_stripe_events;", [], |r| r.get(0)).unwrap_or(0);
+            let e: i64 = lock.query_row("SELECT count(*) FROM customer_entitlements;", [], |r| r.get(0)).unwrap_or(0);
+            (s, st, e)
+        };
+
+        serde_json::json!({
+            "total_usage_events": total_events,
+            "events_by_type": by_type,
+            "top_archetypes": by_archetype,
+            "mcp_tool_calls": by_mcp_tool,
+            "avg_compile_ms": (avg_compile_ms * 10.0).round() / 10.0,
+            "sessions_count": sessions_count,
+            "stripe_events_count": stripe_events_count,
+            "paid_entitlements_count": entitlements_count
+        })
     }
 
     /// Prune expired sessions, stale pending auths (>1h), and old Stripe events (>N days)

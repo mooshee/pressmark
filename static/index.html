@@ -149,7 +149,7 @@
             <span class="dropdown-icon">📷</span>
             <div class="dropdown-item-info">
               <span class="dropdown-item-title">Scan Receipt / Photo</span>
-              <span class="dropdown-item-desc">Extract data with Neural OCR</span>
+              <span class="dropdown-item-desc">Extract vendor and line items from an image</span>
             </div>
           </button>
           <button class="dropdown-item" id="btnClone">
@@ -221,7 +221,7 @@
           <div class="dropdown-menu dropdown-menu-right">
             <div class="dropdown-header">
               <div class="dropdown-user-name" id="dropdownUserName">Daniel Hallman</div>
-              <div class="dropdown-user-subtext" id="dropdownUserSubtext">⚡ Subscription Compute Sharing Active</div>
+              <div class="dropdown-user-subtext" id="dropdownUserSubtext">Connected Workspace Active</div>
             </div>
             <div class="dropdown-divider"></div>
             <div class="dropdown-status-row">
@@ -1259,12 +1259,12 @@
                 <svg class="chatgpt-mark-svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.5045 4.5045 0 0 1-4.4945 4.4947zm-9.66-4.509a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1401-2.0298zm-1.0456-10.96a4.4755 4.4755 0 0 1 2.3419-1.9729v.1657l-.0047 5.5164a.7854.7854 0 0 0 .3927.6813l5.838 3.3685-2.02 1.1683a.0757.0757 0 0 1-.071 0l-4.8303-2.7913a4.4944 4.4944 0 0 1-1.6466-6.136zm14.2868 4.4996l-5.8428-3.3685 2.02-1.1683a.0757.0757 0 0 1 .071 0l4.8304 2.7913a4.4944 4.4944 0 0 1-.6861 8.1189v-5.6908a.7901.7901 0 0 0-.3925-.6826zm3.3857-3.4116a4.4708 4.4708 0 0 1 .5346 3.0137l-.142-.0852-4.783-2.7582a.7712.7712 0 0 0-.7806 0l-5.8428 3.3685v-2.3324a.0804.0804 0 0 1 .0332-.0615l4.8804-2.8155a4.4992 4.4992 0 0 1 6.1401 2.0298zM8.3077 12.8718l-2.02-1.1683a.0804.0804 0 0 1-.038-.052V6.0689a4.5045 4.5045 0 0 1 7.371-3.4539l-.142.0804-4.7783 2.7582a.7948.7948 0 0 0-.3927.6813v6.7369zm1.7458-1.5039l2.951-1.7037 2.951 1.7037v3.4074l-2.951 1.7037-2.951-1.7037z"/>
                 </svg>
-                <span class="chatgpt-banner-title" id="bannerComputeTitle">ChatGPT Subscription Pass-Through</span>
+                <span class="chatgpt-banner-title" id="bannerComputeTitle">Connect Your ChatGPT Account</span>
               </div>
               <span class="badge-subscriber" id="bannerSubscriberBadge">Ready to Connect</span>
             </div>
             <p class="chatgpt-banner-desc" id="bannerComputeDesc">
-              Sign in with ChatGPT to power AI Copilot and OCR extraction via your personal ChatGPT Plus or Pro plan quota with zero developer API costs.
+              Sign in with ChatGPT Plus, Pro, or Team to unlock unwatermarked exports, natural-language document drafting, and receipt extraction.
             </p>
             <div class="chatgpt-banner-action" id="bannerActionContainer">
               <a href="/api/v1/auth/chatgpt/login" class="btn btn-chatgpt-auth btn-sm" id="btnBannerConnect">
@@ -1389,11 +1389,11 @@
   </main>
 
   <!-- PRICING & COMMERCIAL MODAL -->
-  <div class="modal-overlay" id="pricingModal">
+  <div class="modal-overlay" id="pricingModal" role="dialog" aria-modal="true" aria-labelledby="pricingModalTitle">
     <div class="modal-content">
       <div class="modal-header">
-        <div class="modal-title">Commercial Pricing & Instant Unlock Tiers</div>
-        <button class="modal-close" id="btnClosePricing">×</button>
+        <div class="modal-title" id="pricingModalTitle">Commercial Pricing & Instant Unlock Tiers</div>
+        <button class="modal-close" id="btnClosePricing" aria-label="Close modal">×</button>
       </div>
       <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
         Instant unwatermarked vector PDFs, custom brand palettes, and canvas digital signatures.
@@ -1425,8 +1425,8 @@
             <li>Crisp Vector PDF Export</li>
             <li>Zero Subscription Obligation</li>
           </ul>
-          <a href="https://buy.stripe.com/28E28qbvw6XA2lvfFN7wA03" target="_blank" class="btn btn-primary btn-sm" style="margin-top: auto; text-decoration: none;">1-Tap $2.99 Pass</a>
-          <a href="https://buy.stripe.com/6oU00i2Z081Ed09gJR7wA01" target="_blank" style="font-size: 11px; color: var(--accent-primary); text-align: center; margin-top: 6px; text-decoration: none;">or 5-Doc Pack ($9.99) →</a>
+          <a href="/api/v1/checkout?plan=pass_single_unlock&redirect=true" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="margin-top: auto; text-decoration: none;">1-Tap $2.99 Pass</a>
+          <a href="/api/v1/checkout?plan=pass_starter_pack&redirect=true" target="_blank" rel="noopener" style="font-size: 11px; color: var(--accent-primary); text-align: center; margin-top: 6px; text-decoration: none;">or 5-Doc Pack ($9.99) →</a>
         </div>
 
         <!-- SOLO PRO -->
@@ -1442,7 +1442,7 @@
             <li>Canvas Signature Capture</li>
             <li>ChatGPT Action & Plugin</li>
           </ul>
-          <a href="https://buy.stripe.com/4gM3cu8jk4Psd095197wA04" target="_blank" class="btn btn-primary btn-sm" style="margin-top: auto; text-decoration: none;">Upgrade to Pro</a>
+          <a href="/api/v1/checkout?plan=plan_solo&redirect=true" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="margin-top: auto; text-decoration: none;">Upgrade to Pro</a>
         </div>
 
         <!-- BUSINESS -->
@@ -1457,19 +1457,19 @@
             <li>Direct REST API Key</li>
             <li>Priority Queue SLA</li>
           </ul>
-          <a href="https://buy.stripe.com/4gM7sK6bcgya7FPdxF7wA00" target="_blank" class="btn btn-secondary btn-sm" style="margin-top: auto; text-decoration: none;">Choose Business</a>
-          <a href="https://buy.stripe.com/fZu9ASeHIbdQ0dn1OX7wA02" target="_blank" style="font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: 6px; text-decoration: none;">Need 2,000/mo? Agency ($149) →</a>
+          <a href="/api/v1/checkout?plan=plan_business&redirect=true" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="margin-top: auto; text-decoration: none;">Choose Business</a>
+          <a href="/api/v1/checkout?plan=plan_agency&redirect=true" target="_blank" rel="noopener" style="font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: 6px; text-decoration: none;">Need 2,000/mo? Agency ($149) →</a>
         </div>
       </div>
     </div>
   </div>
 
   <!-- CHATGPT ACTION MODAL -->
-  <div class="modal-overlay" id="gptModal">
+  <div class="modal-overlay" id="gptModal" role="dialog" aria-modal="true" aria-labelledby="gptModalTitle">
     <div class="modal-content">
       <div class="modal-header">
-        <div class="modal-title">Connect Pressmark to ChatGPT</div>
-        <button class="modal-close" id="btnCloseGpt">×</button>
+        <div class="modal-title" id="gptModalTitle">Connect Pressmark to ChatGPT</div>
+        <button class="modal-close" id="btnCloseGpt" aria-label="Close modal">×</button>
       </div>
       <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
         Pressmark is ready to connect directly to ChatGPT as a Custom GPT Action or Plugin via OpenAPI 3.1:
@@ -1495,14 +1495,14 @@
   </div>
 
   <!-- SCAN PHOTO / RECEIPT MODAL -->
-  <div class="modal-overlay" id="scanModal">
+  <div class="modal-overlay" id="scanModal" role="dialog" aria-modal="true" aria-labelledby="scanModalTitle">
     <div class="modal-content">
       <div class="modal-header">
-        <div class="modal-title">📷 Scan & Extract from Receipt or Photo</div>
-        <button class="modal-close" id="btnCloseScan">×</button>
+        <div class="modal-title" id="scanModalTitle">📷 Scan & Extract from Receipt or Photo</div>
+        <button class="modal-close" id="btnCloseScan" aria-label="Close modal">×</button>
       </div>
       <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
-        Upload or drop an image of an invoice, receipt, or quote. The intelligent neural extractor automatically maps line items, entities, and totals into your studio document.
+        Upload or drop an image of an invoice, receipt, or quote to populate vendor details, line items, and totals in your document.
       </p>
       <div class="dropzone" id="photoDropzone">
         <div style="font-size: 28px; margin-bottom: 8px;">📷</div>
@@ -1514,11 +1514,11 @@
   </div>
 
   <!-- JSON IMPORT / EXPORT MODAL -->
-  <div class="modal-overlay" id="jsonModal">
+  <div class="modal-overlay" id="jsonModal" role="dialog" aria-modal="true" aria-labelledby="jsonModalTitle">
     <div class="modal-content">
       <div class="modal-header">
-        <div class="modal-title">📋 Document JSON State (Import / Export)</div>
-        <button class="modal-close" id="btnCloseJson">×</button>
+        <div class="modal-title" id="jsonModalTitle">📋 Document JSON State (Import / Export)</div>
+        <button class="modal-close" id="btnCloseJson" aria-label="Close modal">×</button>
       </div>
       <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
         Copy the full vector document schema or paste a JSON configuration to instantly load state into the studio.
@@ -1538,7 +1538,7 @@
       <div class="modal-header">
         <div class="modal-title-group">
           <h2 class="modal-title" id="modalAuthTitle">Sign In to Pressmark</h2>
-          <p class="modal-subtitle">Choose how you'd like to access your workspace, sync documents, or share compute</p>
+          <p class="modal-subtitle">Choose how you'd like to access your workspace and saved templates</p>
         </div>
         <button class="modal-close" id="btnCloseAuth" aria-label="Close modal">&times;</button>
       </div>
@@ -1570,9 +1570,9 @@
           </div>
         </div>
 
-        <!-- 3. ChatGPT Subscription Pass-Through -->
+        <!-- 3. ChatGPT Account -->
         <div class="auth-option-card auth-card-chatgpt">
-          <div class="auth-card-badge auth-badge-chatgpt">Compute Sharing</div>
+          <div class="auth-card-badge auth-badge-chatgpt">Plus &amp; Pro</div>
           <div class="auth-card-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="#10a37f">
               <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.5045 4.5045 0 0 1-4.4945 4.4947zm-9.66-4.509a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1401-2.0298zm-1.0456-10.96a4.4755 4.4755 0 0 1 2.3419-1.9729v.1657l-.0047 5.5164a.7854.7854 0 0 0 .3927.6813l5.838 3.3685-2.02 1.1683a.0757.0757 0 0 1-.071 0l-4.8303-2.7913a4.4944 4.4944 0 0 1-1.6466-6.136zm14.2868 4.4996l-5.8428-3.3685 2.02-1.1683a.0757.0757 0 0 1 .071 0l4.8304 2.7913a4.4944 4.4944 0 0 1-.6861 8.1189v-5.6908a.7901.7901 0 0 0-.3925-.6826zm3.3857-3.4116a4.4708 4.4708 0 0 1 .5346 3.0137l-.142-.0852-4.783-2.7582a.7712.7712 0 0 0-.7806 0l-5.8428 3.3685v-2.3324a.0804.0804 0 0 1 .0332-.0615l4.8804-2.8155a4.4992 4.4992 0 0 1 6.1401 2.0298zM8.3077 12.8718l-2.02-1.1683a.0804.0804 0 0 1-.038-.052V6.0689a4.5045 4.5045 0 0 1 7.371-3.4539l-.142.0804-4.7783 2.7582a.7948.7948 0 0 0-.3927.6813v6.7369zm1.7458-1.5039l2.951-1.7037 2.951 1.7037v3.4074l-2.951 1.7037-2.951-1.7037z"/>
@@ -1580,21 +1580,21 @@
           </div>
           <div class="auth-card-body">
             <h3 class="auth-card-title">Sign in with ChatGPT</h3>
-            <p class="auth-card-desc">Have ChatGPT Plus, Pro, or Team? Delegate AI Copilot prompts directly to your OpenAI subscription quota with zero API fees.</p>
+            <p class="auth-card-desc">Connect your ChatGPT Plus, Pro, or Team account for unwatermarked exports and natural-language document drafting.</p>
           </div>
-          <a href="/api/v1/auth/chatgpt/login" class="btn btn-chatgpt-auth btn-block" id="btnModalChatGptLogin">Connect ChatGPT Subscription</a>
+          <a href="/api/v1/auth/chatgpt/login" class="btn btn-chatgpt-auth btn-block" id="btnModalChatGptLogin">Connect ChatGPT Account</a>
         </div>
 
-        <!-- 4. Developer / Agent Token -->
+        <!-- 4. Developer / API Key -->
         <div class="auth-option-card auth-card-dev">
-          <div class="auth-card-badge">Headless & Agents</div>
+          <div class="auth-card-badge">REST &amp; MCP API</div>
           <div class="auth-card-icon">🔑</div>
           <div class="auth-card-body">
-            <h3 class="auth-card-title">Developer API / Agent Key</h3>
-            <p class="auth-card-desc">Connect autonomous agents (Codex, AGY, Claude Code) or pass a Pressmark API key for headless PDF synthesis.</p>
+            <h3 class="auth-card-title">Developer API Key</h3>
+            <p class="auth-card-desc">Enter your Pressmark API key for direct REST API and MCP document generation.</p>
             <form id="formApiKeyAuth" onsubmit="return false;" class="auth-apikey-form">
               <input type="password" id="inputAuthApiKey" class="form-input" placeholder="prsm_live_..." autocomplete="off">
-              <button type="submit" class="btn btn-secondary btn-block" id="btnSubmitApiKeyAuth" style="margin-top: 8px;">Connect Agent Key</button>
+              <button type="submit" class="btn btn-secondary btn-block" id="btnSubmitApiKeyAuth" style="margin-top: 8px;">Connect API Key</button>
             </form>
           </div>
         </div>

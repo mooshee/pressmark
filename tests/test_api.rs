@@ -1246,4 +1246,145 @@ async fn test_setup_check_checkout_entitlement_and_discovery_routes() {
     );
 }
 
+#[tokio::test]
+async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use pressmark::server::{create_router, AppState};
+    use pressmark::storage::Storage;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let storage = Arc::new(Storage::new(":memory:").unwrap());
+    let app_state = Arc::new(AppState::default().with_storage(storage.clone()));
+    let router = create_router(app_state);
+
+    // 1. Verify MCP & A2A scanner route aliases return 200
+    for route in [
+        "/mcp/",
+        "/mcp/mcp",
+        "/mcp/sse",
+        "/sse",
+        "/mcp/.well-known/agent.json",
+        "/mcp/.well-known/agent-card.json",
+    ] {
+        let req = Request::builder()
+            .uri(route)
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+        let res = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK, "Alias route {} failed", route);
+    }
+
+    // 2. Call POST /mcp/ with calculate_totals and verify usage telemetry records tool + doc_type
+    let mcp_body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 42,
+        "method": "tools/call",
+        "params": {
+            "name": "calculate_totals",
+            "arguments": {
+                "document": {
+                    "doc_type": "residential_lease",
+                    "from": { "name": "Apex Property Mgmt" },
+                    "to": { "name": "Jane Tenant" },
+                    "items": [{ "description": "Monthly Base Rent", "quantity": 1.0, "unit_price": 2400.0 }]
+                }
+            }
+        }
+    });
+    let req_mcp = Request::builder()
+        .uri("/mcp/")
+        .method("POST")
+        .header("content-type", "application/json")
+        .header("user-agent", "MCP-Test-Agent/2.0")
+        .body(Body::from(mcp_body.to_string()))
+        .unwrap();
+    let res_mcp = router.clone().oneshot(req_mcp).await.unwrap();
+    assert_eq!(res_mcp.status(), StatusCode::OK);
+
+    // 3. Test natural-language /api/v1/copilot parsing (entities, line items, tax rate, theme, signature)
+    let copilot_payload = serde_json::json!({
+        "prompt": "Create a professional invoice for client \"Vance Dynamics\" from \"Pressmark Studio\" for 32 hours of Rust backend engineering at $185/hr and a $500 setup fee, plus 8.25% tax. Apply the Modern Slate theme and include a signature block.",
+        "current_state": {
+            "doc_type": "estimate",
+            "from": { "name": "Old Sender" },
+            "to": { "name": "Old Client" },
+            "items": []
+        }
+    });
+    let req_copilot = Request::builder()
+        .uri("/api/v1/copilot")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(copilot_payload.to_string()))
+        .unwrap();
+    let res_copilot = router.clone().oneshot(req_copilot).await.unwrap();
+    assert_eq!(res_copilot.status(), StatusCode::OK);
+    let copilot_bytes = axum::body::to_bytes(res_copilot.into_body(), 1024 * 1024).await.unwrap();
+    let copilot_json: serde_json::Value = serde_json::from_slice(&copilot_bytes).unwrap();
+    assert_eq!(copilot_json["success"], true);
+    assert_eq!(copilot_json["modified_state"]["doc_type"], "invoice");
+    assert_eq!(copilot_json["modified_state"]["to"]["name"], "Vance Dynamics");
+    assert_eq!(copilot_json["modified_state"]["from"]["name"], "Pressmark Studio");
+    assert_eq!(copilot_json["modified_state"]["tax_rate"], 8.25);
+    assert_eq!(copilot_json["modified_state"]["theme"], "slate");
+    assert_eq!(copilot_json["modified_state"]["show_signature"], true);
+    let items = copilot_json["modified_state"]["items"].as_array().unwrap();
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["quantity"], 32.0);
+    assert_eq!(items[0]["unit_price"], 185.0);
+    assert_eq!(items[1]["unit_price"], 500.0);
+
+    // 4. Test parenthesized milestone items preset in /api/v1/copilot
+    let milestone_payload = serde_json::json!({
+        "prompt": "Add 3 milestone line items for Backend Architecture ($4,800), API Gateway ($2,400), and CI/CD Pipeline ($1,600)",
+        "current_state": {
+            "doc_type": "invoice",
+            "from": { "name": "Pressmark Studio" },
+            "to": { "name": "Vance Dynamics" },
+            "items": []
+        }
+    });
+    let req_ms = Request::builder()
+        .uri("/api/v1/copilot")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(milestone_payload.to_string()))
+        .unwrap();
+    let res_ms = router.clone().oneshot(req_ms).await.unwrap();
+    assert_eq!(res_ms.status(), StatusCode::OK);
+    let ms_bytes = axum::body::to_bytes(res_ms.into_body(), 1024 * 1024).await.unwrap();
+    let ms_json: serde_json::Value = serde_json::from_slice(&ms_bytes).unwrap();
+    let ms_items = ms_json["modified_state"]["items"].as_array().unwrap();
+    assert_eq!(ms_items.len(), 3);
+    assert_eq!(ms_items[0]["unit_price"], 4800.0);
+    assert_eq!(ms_items[1]["unit_price"], 2400.0);
+    assert_eq!(ms_items[2]["unit_price"], 1600.0);
+
+    // 5. Query /api/v1/analytics and verify recorded usage events
+    let req_analytics = Request::builder()
+        .uri("/api/v1/analytics")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_analytics = router.clone().oneshot(req_analytics).await.unwrap();
+    assert_eq!(res_analytics.status(), StatusCode::OK);
+    let analytics_bytes = axum::body::to_bytes(res_analytics.into_body(), 1024 * 1024).await.unwrap();
+    let analytics_json: serde_json::Value = serde_json::from_slice(&analytics_bytes).unwrap();
+    assert!(analytics_json["total_usage_events"].as_i64().unwrap() >= 3);
+    assert_eq!(analytics_json["mcp_tool_calls"]["calculate_totals"], 1);
+    assert_eq!(analytics_json["top_archetypes"]["residential_lease"], 1);
+
+    // 6. Verify static/index.html uses tracked /api/v1/checkout links and dialog ARIA attributes
+    let html = std::fs::read_to_string("static/index.html").unwrap();
+    assert!(html.contains("/api/v1/checkout?plan=pass_single_unlock&redirect=true"));
+    assert!(html.contains("/api/v1/checkout?plan=plan_solo&redirect=true"));
+    assert!(html.contains("/api/v1/checkout?plan=plan_business&redirect=true"));
+    assert!(html.contains("id=\"pricingModal\" role=\"dialog\" aria-modal=\"true\""));
+    assert!(html.contains("id=\"scanModal\" role=\"dialog\" aria-modal=\"true\""));
+}
+
+
 

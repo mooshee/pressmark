@@ -3943,27 +3943,6 @@
     setTimeout(() => t.classList.remove('show'), 3000);
   }
 
-  // Update UI inputs from state
-  function updateUIFromState() {
-    document.getElementById('docTypeSelect').value = state.doc_type;
-    document.getElementById('toName').value = state.to.name;
-    document.getElementById('headerSubtitle').value = state.header_subtitle || '';
-    
-    // Typing animation effect on description
-    if (state.items.length > 0) {
-      const field = document.getElementById('item1Desc');
-      if (field) {
-         field.value = state.items[0].description;
-         field.classList.add('ai-typing');
-         setTimeout(() => field.classList.remove('ai-typing'), 1000);
-      }
-    }
-    
-    // Sync palette controls
-    syncPaletteControlsFromState();
-  }
-
-
   // 🎲 Randomize Scene
   let sceneIndex = 0;
   function randomizeScene() {
@@ -5347,6 +5326,17 @@
       if (e.target === jsonModal) jsonModal.style.display = 'none';
     });
 
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (pricingModal && pricingModal.style.display === 'flex') pricingModal.style.display = 'none';
+        if (gptModal && gptModal.style.display === 'flex') gptModal.style.display = 'none';
+        if (scanModal && scanModal.style.display === 'flex') scanModal.style.display = 'none';
+        if (jsonModal && jsonModal.style.display === 'flex') jsonModal.style.display = 'none';
+        const authModal = document.getElementById('modalAuth');
+        if (authModal && authModal.style.display === 'flex') authModal.style.display = 'none';
+      }
+    });
+
     // Copy Prompt Button
     document.getElementById('btnCopyPrompt').addEventListener('click', () => {
       const promptText = `Please generate an invoice for client "${state.to.name}" from "${state.from.name}" with total ${totalDisplay.innerText} using the Pressmark plugin.`;
@@ -5371,60 +5361,66 @@
     });
   }
 
-  // Handle Scanned Photo / Receipt
+  // Handle Scanned Photo / Receipt via /api/v1/vision-extract
   function handleScannedFile(file) {
     const dropzone = document.getElementById('photoDropzone');
     dropzone.innerHTML = `<div style="font-size: 13px; font-weight: bold; color: #818cf8;">🔍 Scanning document structure & extracting items...</div>`;
 
-    setTimeout(() => {
-      state.from = {
-        name: 'The Modern Bistro & Roastery',
-        company: 'Modern Hospitality Partners',
-        address: '142 Mercer Street\nNew York, NY 10012',
-        email: 'receipts@modernbistro.nyc',
-        phone: '+1 212-555-8910',
-        tax_id: 'US-13-9081290'
-      };
-      state.to = {
-        name: 'Guest Customer',
-        company: 'Corporate Expense Account',
-        address: 'One World Trade Center\nNew York, NY 10007',
-        email: 'expenses@corporate.com',
-        phone: '+1 212-555-0100',
-        tax_id: ''
-      };
-      state.doc_type = 'receipt';
-      state.title = 'OFFICIAL ITEMIZED RECEIPT';
-      state.header_subtitle = 'Point of Sale & Hospitality Ledger';
-      state.doc_number = `RCT-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-      state.is_paid = true;
-      state.items = [
-        { description: 'Artisan Espresso & Single-Origin Drip', quantity: 4.0, unit_price: 6.50, discount: 0 },
-        { description: 'Executive Table Luncheon Service (4 Guests)', quantity: 4.0, unit_price: 48.00, discount: 0 },
-        { description: 'Sparkling Mineral Reserve & Service Gratuity', quantity: 1.0, unit_price: 42.00, discount: 0 }
-      ];
-      state.tax_rate = 8.875;
-      state.discount_amount = 0;
-      state.show_qr_seal = true;
-
-      pushUndo('Photo Scan Extraction');
-      syncFormFromState();
-      renderLineItemsTable();
-      renderSectionsList();
-      renderSignaturesList();
-      renderCustomFieldsList();
-      updateCalculations();
-      renderInteractiveOverlay();
-      schedulePreview();
-
+    const resetDropzone = () => {
       document.getElementById('scanModal').style.display = 'none';
       dropzone.innerHTML = `
         <div style="font-size: 28px; margin-bottom: 8px;">📷</div>
         <div style="font-size: 13px; font-weight: 600;">Drop any receipt, invoice photo, or document image here</div>
         <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Supports PNG, JPG, HEIC, WebP</div>
       `;
-      showUndoToast('Photo extracted into Itemized Receipt · [↩ Undo]');
-    }, 900);
+    };
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const res = await fetch('/api/v1/vision-extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image_data: ev.target.result || '',
+            filename: file ? file.name : undefined
+          })
+        });
+        const data = await res.json();
+        pushUndo('Photo Scan Extraction');
+        if (data && data.extracted_from) {
+          state.from = Object.assign({}, state.from, data.extracted_from);
+        }
+        if (data && Array.isArray(data.extracted_items) && data.extracted_items.length > 0) {
+          state.items = data.extracted_items.map(it => ({
+            description: it.description || 'Extracted Item',
+            quantity: Number(it.quantity) || 1,
+            unit_price: Number(it.unit_price) || 0,
+            discount: Number(it.discount) || 0
+          }));
+        }
+        state.doc_type = 'receipt';
+        state.title = 'OFFICIAL ITEMIZED RECEIPT';
+        state.doc_number = `RCT-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+        state.is_paid = true;
+        state.show_qr_seal = true;
+
+        syncFormFromState();
+        renderLineItemsTable();
+        renderSectionsList();
+        renderSignaturesList();
+        renderCustomFieldsList();
+        updateCalculations();
+        renderInteractiveOverlay();
+        schedulePreview();
+        resetDropzone();
+        showUndoToast((data && data.ai_message ? data.ai_message : 'Photo extracted into Itemized Receipt') + ' · [↩ Undo]');
+      } catch (_err) {
+        resetDropzone();
+        showAiToast('Could not extract image details. Please try another file.');
+      }
+    };
+    reader.readAsDataURL(file);
   }
 
   // Run on page ready

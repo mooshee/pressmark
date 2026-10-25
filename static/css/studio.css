@@ -3679,6 +3679,14 @@ button:not(:disabled):active,
   .brand-pill {
     display: none;
   }
+
+  .selection-floating-dock {
+    max-width: calc(100vw - 24px);
+    flex-wrap: wrap;
+    justify-content: center;
+    bottom: 12px;
+    padding: 8px 10px;
+  }
 }
 
 
