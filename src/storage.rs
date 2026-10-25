@@ -120,7 +120,8 @@ impl Storage {
                 created_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_usage_events_type ON usage_events(event_type);
-            CREATE INDEX IF NOT EXISTS idx_usage_events_created ON usage_events(created_at);",
+            CREATE INDEX IF NOT EXISTS idx_usage_events_created ON usage_events(created_at);
+            CREATE INDEX IF NOT EXISTS idx_usage_events_created_at ON usage_events(created_at);",
         )?;
 
         Ok(())
@@ -451,13 +452,14 @@ impl Storage {
         })
     }
 
-    /// Prune expired sessions, stale pending auths (>1h), and old Stripe events (>N days)
+    /// Prune expired sessions, stale pending auths (>1h), old Stripe events (>N days), and usage_events (>90 days)
     pub fn prune_stale_data(&self, max_stripe_event_age_days: u32) -> Result<usize> {
         let lock = self.conn.lock().unwrap();
         let now = Utc::now();
         let now_rfc3339 = now.to_rfc3339();
         let one_hour_ago = (now - chrono::Duration::hours(1)).to_rfc3339();
         let stripe_cutoff = (now - chrono::Duration::days(max_stripe_event_age_days as i64)).to_rfc3339();
+        let usage_cutoff = (now - chrono::Duration::days(90)).to_rfc3339();
 
         let expired_sessions = lock.execute(
             "DELETE FROM sessions WHERE expires_at < ?1;",
@@ -474,11 +476,16 @@ impl Storage {
             params![stripe_cutoff],
         )?;
 
-        let total = expired_sessions + stale_auths + old_events;
+        let old_usage = lock.execute(
+            "DELETE FROM usage_events WHERE created_at < ?1;",
+            params![usage_cutoff],
+        )?;
+
+        let total = expired_sessions + stale_auths + old_events + old_usage;
         if total > 0 {
             tracing::info!(
-                "Pruned stale DB records: {} sessions, {} auths, {} stripe events",
-                expired_sessions, stale_auths, old_events
+                "Pruned stale DB records: {} sessions, {} auths, {} stripe events, {} usage events",
+                expired_sessions, stale_auths, old_events, old_usage
             );
         }
         Ok(total)

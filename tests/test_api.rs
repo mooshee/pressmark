@@ -1386,5 +1386,200 @@ async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
     assert!(html.contains("id=\"scanModal\" role=\"dialog\" aria-modal=\"true\""));
 }
 
+#[tokio::test]
+async fn test_all_copilot_quick_presets_auth_redirect_and_storage_pruning() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use pressmark::auth::sanitize_return_to;
+    use pressmark::server::{create_router, AppState};
+    use pressmark::storage::Storage;
+    use std::sync::Arc;
+    use tower::ServiceExt;
 
+    let storage = Arc::new(Storage::new(":memory:").unwrap());
+    let state = Arc::new(AppState::new("http://localhost:3842".to_string()).with_storage(storage.clone()));
+    let router = create_router(state.clone());
 
+    let send_copilot = |prompt: &str, current_state: serde_json::Value| {
+        let r = router.clone();
+        let payload = serde_json::json!({
+            "prompt": prompt,
+            "current_state": current_state
+        });
+        async move {
+            let req = Request::builder()
+                .uri("/api/v1/copilot")
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(payload.to_string()))
+                .unwrap();
+            let res = r.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::OK);
+            let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+            serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()
+        }
+    };
+
+    let base_state = serde_json::json!({
+        "doc_type": "estimate",
+        "issue_date": "2026-10-01",
+        "from": { "name": "Pressmark Studio" },
+        "to": { "name": "Old Client" },
+        "items": [{ "description": "Initial Consulting", "quantity": 1.0, "unit_price": 1000.0 }]
+    });
+
+    // Preset 1: "Draft a $4,500 strategic retainer invoice for Acme Corp with EU VAT reverse charge notice"
+    let p1 = send_copilot(
+        "Draft a $4,500 strategic retainer invoice for Acme Corp with EU VAT reverse charge notice",
+        base_state.clone(),
+    )
+    .await;
+    assert_eq!(p1["modified_state"]["doc_type"], "invoice");
+    assert_eq!(p1["modified_state"]["to"]["name"], "Acme Corp");
+    assert_eq!(p1["modified_state"]["compliance_mode"], "eu_vat");
+    assert_eq!(p1["modified_state"]["items"][0]["unit_price"], 4500.0);
+
+    // Preset 2: "Add 3 milestone line items for Backend Architecture ($4,800), API Gateway ($2,400), and CI/CD Pipeline ($1,600)"
+    let p2 = send_copilot(
+        "Add 3 milestone line items for Backend Architecture ($4,800), API Gateway ($2,400), and CI/CD Pipeline ($1,600)",
+        base_state.clone(),
+    )
+    .await;
+    assert_eq!(p2["modified_state"]["items"].as_array().unwrap().len(), 3);
+    assert_eq!(p2["modified_state"]["to"]["name"], "Old Client");
+
+    // Preset 3: "Apply UK 20% VAT rate, change currency to GBP (£), and format dates in Military style"
+    let p3 = send_copilot(
+        "Apply UK 20% VAT rate, change currency to GBP (£), and format dates in Military style",
+        base_state.clone(),
+    )
+    .await;
+    assert_eq!(p3["modified_state"]["tax_rate"], 20.0);
+    assert_eq!(p3["modified_state"]["currency"], "GBP");
+    assert_eq!(p3["modified_state"]["date_format"], "short_abbrev");
+
+    // Preset 4: "Convert document into Independent Contractor Agreement with dispute arbitration clause"
+    let p4 = send_copilot(
+        "Convert document into Independent Contractor Agreement with dispute arbitration clause",
+        base_state.clone(),
+    )
+    .await;
+    assert_eq!(p4["modified_state"]["doc_type"], "contractor_agreement");
+    assert!(
+        p4["modified_state"]["terms"]
+            .as_str()
+            .unwrap_or("")
+            .to_lowercase()
+            .contains("arbitration")
+    );
+
+    // Preset 5: "Add IRS W-9 certification with taxpayer identification number attestation"
+    let p5 = send_copilot(
+        "Add IRS W-9 certification with taxpayer identification number attestation",
+        base_state.clone(),
+    )
+    .await;
+    assert_eq!(p5["modified_state"]["compliance_mode"], "irs_w9");
+
+    // Preset 6: "Apply 15% promotional discount with 14-day payment settlement terms"
+    let p6 = send_copilot(
+        "Apply 15% promotional discount with 14-day payment settlement terms",
+        base_state.clone(),
+    )
+    .await;
+    assert_eq!(p6["modified_state"]["discount_amount"], 150.0);
+    assert_eq!(p6["modified_state"]["due_date"], "2026-10-15");
+    assert!(
+        p6["modified_state"]["terms"]
+            .as_str()
+            .unwrap_or("")
+            .contains("Net 14")
+    );
+
+    // Verify theme change updates primary_color/secondary_color/accent_color/surface_color even when current_state has stale primary_color,
+    // and verify words like "credit", "European date", "audit", "Decade" do not trigger false-positive theme/currency changes
+    let mut state_with_colors = base_state.clone();
+    state_with_colors["primary_color"] = serde_json::json!("#4f46e5");
+    state_with_colors["currency"] = serde_json::json!("USD");
+    state_with_colors["theme"] = serde_json::json!("modern_slate");
+
+    let p_theme = send_copilot(
+        "Switch to Emerald theme and format dates in European date style",
+        state_with_colors.clone(),
+    )
+    .await;
+    assert_eq!(p_theme["modified_state"]["theme"], "emerald");
+    assert_eq!(p_theme["modified_state"]["primary_color"], "#059669");
+    assert_eq!(p_theme["modified_state"]["date_format"], "euro");
+    assert_eq!(p_theme["modified_state"]["currency"], "USD");
+
+    let p_no_false_pos = send_copilot(
+        "Create a credit note for client \"Decade Motors\" for 10 hours of security audit at $200/hr",
+        state_with_colors.clone(),
+    )
+    .await;
+    assert_eq!(p_no_false_pos["modified_state"]["doc_type"], "credit_note");
+    assert_eq!(p_no_false_pos["modified_state"]["to"]["name"], "Decade Motors");
+    assert_eq!(p_no_false_pos["modified_state"]["theme"], "modern_slate");
+    assert_eq!(p_no_false_pos["modified_state"]["currency"], "USD");
+
+    // Verify sanitize_return_to and /api/v1/auth/chatgpt/login + callback open-redirect protection
+    assert_eq!(sanitize_return_to(Some("https://evil.example/phish"), "/?auth=success"), "/?auth=success");
+    assert_eq!(sanitize_return_to(Some("//evil.example/phish"), "/?auth=success"), "/?auth=success");
+    assert_eq!(sanitize_return_to(Some("/\\evil.example"), "/?auth=success"), "/?auth=success");
+    assert_eq!(sanitize_return_to(Some("/valid/path?tab=1"), "/?auth=success"), "/valid/path?tab=1");
+
+    let req_login = Request::builder()
+        .uri("/api/v1/auth/chatgpt/login?demo=plus&return_to=https://evil.example/steal")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_login = router.clone().oneshot(req_login).await.unwrap();
+    assert_eq!(res_login.status(), StatusCode::FOUND);
+    assert_eq!(res_login.headers().get("location").unwrap(), "/?auth=success");
+
+    let (_auth_url, oauth_state) = state.auth_mgr.start_auth(
+        "pressmark-client",
+        "https://pressmark.dev/api/v1/auth/chatgpt/callback",
+        Some("/studio?tab=billing".to_string()),
+    );
+    let req_cb = Request::builder()
+        .uri(format!("/api/v1/auth/chatgpt/callback?code=abc&state={}", oauth_state))
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_cb = router.clone().oneshot(req_cb).await.unwrap();
+    assert_eq!(res_cb.status(), StatusCode::FOUND);
+    assert_eq!(res_cb.headers().get("location").unwrap(), "/studio?tab=billing");
+
+    // Verify Content-Disposition filename sanitization on /api/v1/generate?format=pdf
+    let req_pdf = Request::builder()
+        .uri("/api/v1/generate?format=pdf")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "doc_type": "invoice",
+                "doc_number": "INV-\"2026\"/..\\99",
+                "from": { "name": "Sender" },
+                "to": { "name": "Client" },
+                "items": []
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let res_pdf = router.clone().oneshot(req_pdf).await.unwrap();
+    assert_eq!(res_pdf.status(), StatusCode::OK);
+    let cd = res_pdf.headers().get("content-disposition").unwrap().to_str().unwrap();
+    assert_eq!(cd, "attachment; filename=\"INV-2026..99.pdf\"");
+
+    // Verify static/index.html has 39 template-pill buttons and updated copy
+    let html = std::fs::read_to_string("static/index.html").unwrap();
+    assert_eq!(html.matches("class=\"template-pill").count(), 39);
+    assert!(html.contains("Switch Archetype (39)"));
+    assert!(!html.contains("Neural Receipt"));
+
+    // Verify storage prune_stale_data runs cleanly with usage_events retention
+    let pruned = storage.prune_stale_data(30).unwrap();
+    assert_eq!(pruned, 0);
+}

@@ -357,6 +357,8 @@ impl DocumentRequest {
             Some("JPY") | Some("CNY") | Some("¥") => "¥",
             Some("CAD") => "CA$",
             Some("AUD") => "A$",
+            Some("NZD") => "NZ$",
+            Some("SGD") => "S$",
             Some("CHF") => "CHF",
             Some("INR") | Some("₹") => "₹",
             Some("BRL") | Some("R$") => "R$",
@@ -543,7 +545,7 @@ impl DocumentRequest {
 
     pub fn effective_primary_color(&self) -> &str {
         if let Some(ref hex) = self.primary_color {
-            if hex.starts_with('#') && hex.len() == 7 {
+            if hex.starts_with('#') && hex.len() == 7 && hex[1..].chars().all(|c| c.is_ascii_hexdigit()) {
                 return hex.as_str();
             }
         }
@@ -571,7 +573,7 @@ impl DocumentRequest {
 
     pub fn effective_secondary_color(&self) -> &str {
         if let Some(ref hex) = self.secondary_color {
-            if hex.starts_with('#') && hex.len() == 7 {
+            if hex.starts_with('#') && hex.len() == 7 && hex[1..].chars().all(|c| c.is_ascii_hexdigit()) {
                 return hex.as_str();
             }
         }
@@ -599,7 +601,7 @@ impl DocumentRequest {
 
     pub fn effective_accent_color(&self) -> &str {
         if let Some(ref hex) = self.accent_color {
-            if hex.starts_with('#') && hex.len() == 7 {
+            if hex.starts_with('#') && hex.len() == 7 && hex[1..].chars().all(|c| c.is_ascii_hexdigit()) {
                 return hex.as_str();
             }
         }
@@ -627,7 +629,7 @@ impl DocumentRequest {
 
     pub fn effective_surface_color(&self) -> &str {
         if let Some(ref hex) = self.surface_color {
-            if hex.starts_with('#') && hex.len() == 7 {
+            if hex.starts_with('#') && hex.len() == 7 && hex[1..].chars().all(|c| c.is_ascii_hexdigit()) {
                 return hex.as_str();
             }
         }
@@ -655,7 +657,7 @@ impl DocumentRequest {
 
     pub fn effective_text_color(&self) -> &str {
         if let Some(ref hex) = self.text_color {
-            if hex.starts_with('#') && hex.len() == 7 {
+            if hex.starts_with('#') && hex.len() == 7 && hex[1..].chars().all(|c| c.is_ascii_hexdigit()) {
                 return hex.as_str();
             }
         }
@@ -739,14 +741,16 @@ impl DocumentRequest {
 
     pub fn format_amount(&self, val: f64) -> String {
         let decimals = self.number_decimals.unwrap_or(2);
-        let thousands_sep = match self.currency_separators.as_deref() {
-            Some("dot_comma") => '.',
-            Some("space_comma") => ' ',
-            Some("apostrophe_dot") => '\'',
-            _ => ',',
+        let sep_mode = self.currency_separators.as_deref();
+        let thousands_sep: Option<char> = match sep_mode {
+            Some("dot_comma") | Some("euro") => Some('.'),
+            Some("space_comma") | Some("space") => Some(' '),
+            Some("apostrophe_dot") => Some('\''),
+            Some("plain") => None,
+            _ => Some(','),
         };
-        let decimal_sep = match self.currency_separators.as_deref() {
-            Some("dot_comma") | Some("space_comma") => ',',
+        let decimal_sep = match sep_mode {
+            Some("dot_comma") | Some("euro") | Some("space_comma") | Some("space") => ',',
             _ => '.',
         };
 
@@ -766,7 +770,9 @@ impl DocumentRequest {
         let num_digits = int_str.len();
         for (i, ch) in int_str.chars().enumerate() {
             if i > 0 && (num_digits - i) % 3 == 0 {
-                formatted_int.push(thousands_sep);
+                if let Some(sep) = thousands_sep {
+                    formatted_int.push(sep);
+                }
             }
             formatted_int.push(ch);
         }
@@ -795,7 +801,7 @@ impl DocumentRequest {
     }
 
     pub fn format_amount_typst(&self, val: f64) -> String {
-        self.format_amount(val).replace('$', "\\$")
+        crate::engine::escape_typst_text(&self.format_amount(val))
     }
 
     pub fn format_date(&self, date_str: &str) -> String {
@@ -820,10 +826,10 @@ impl DocumentRequest {
             };
 
             match self.date_format.as_deref() {
-                Some("us_slash") => format!("{}/{}/{}", m, d, y),
-                Some("euro") => format!("{}/{}/{}", d, m, y),
-                Some("formal_prose") => format!("{} {}, {}", month_name, d, y),
-                Some("short_abbrev") => format!("{}-{}-{}", d, short_month, y),
+                Some("us_slash") | Some("us") => format!("{}/{}/{}", m, d, y),
+                Some("euro") | Some("eu") => format!("{}/{}/{}", d, m, y),
+                Some("formal_prose") | Some("long") | Some("formal") => format!("{} {}, {}", month_name, d, y),
+                Some("short_abbrev") | Some("short") => format!("{}-{}-{}", d, short_month, y),
                 Some("short_dot") => format!("{}.{}.{}", d, m, y),
                 _ => date_str.to_string(), // default ISO
             }

@@ -59,21 +59,66 @@ pub fn get_cache_dir() -> PathBuf {
 }
 
 /// Save Base64 data URI to a fast disk cache so Typst's `#image(...)` function can load it.
+/// Returns a root-relative path (`"/filename.ext"`) scoped to `get_cache_dir()`.
 pub fn stage_image_asset(prefix: &str, data_uri: &str) -> Option<String> {
     if data_uri.is_empty() {
         return None;
     }
 
     let cache_dir = get_cache_dir();
+    let _ = fs::create_dir_all(&cache_dir);
+
+    let candidate_path = if let Some(rest) = data_uri.strip_prefix("/assets/") {
+        std::path::PathBuf::from("static/assets").join(rest)
+    } else if let Some(rest) = data_uri.strip_prefix("assets/") {
+        std::path::PathBuf::from("static/assets").join(rest)
+    } else {
+        std::path::PathBuf::from(data_uri)
+    };
 
     // Only allow pre-existing file paths if strictly within cache directory or static/assets
-    if let Ok(canon) = std::fs::canonicalize(data_uri) {
-        let is_cache = canon.starts_with(&cache_dir) || canon.starts_with("/tmp/pressmark_cache");
+    if let Ok(canon) = std::fs::canonicalize(&candidate_path) {
+        let canon_cache = std::fs::canonicalize(&cache_dir).unwrap_or_else(|_| cache_dir.clone());
+        let is_cache = canon.starts_with(&canon_cache)
+            || canon.starts_with(&cache_dir)
+            || canon.starts_with("/tmp/pressmark_cache");
         let current_dir = std::env::current_dir().unwrap_or_default();
-        let is_assets = canon.starts_with(current_dir.join("static/assets"));
-        if is_cache || is_assets {
-            return Some(canon.to_string_lossy().to_string());
+        let canon_assets = std::fs::canonicalize(current_dir.join("static/assets"))
+            .unwrap_or_else(|_| current_dir.join("static/assets"));
+        let is_assets = canon.starts_with(&canon_assets) || canon.starts_with(current_dir.join("static/assets"));
+        let sanitize_fname = |raw: &str| -> String {
+            raw.chars()
+                .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-' || *c == '.')
+                .collect()
+        };
+        if is_cache {
+            if let Some(fname) = canon.file_name().and_then(|f| f.to_str()) {
+                let safe_name = sanitize_fname(fname);
+                if !safe_name.is_empty() {
+                    let dst = cache_dir.join(&safe_name);
+                    if !dst.exists() {
+                        let _ = fs::copy(&canon, &dst);
+                    }
+                    return Some(format!("/{}", safe_name));
+                }
+            }
+        } else if is_assets {
+            if let Some(fname) = canon.file_name().and_then(|f| f.to_str()) {
+                let safe_name = sanitize_fname(&format!("{}_{}", prefix, fname));
+                if !safe_name.is_empty() {
+                    let dst = cache_dir.join(&safe_name);
+                    if !dst.exists() {
+                        let _ = fs::copy(&canon, &dst);
+                    }
+                    return Some(format!("/{}", safe_name));
+                }
+            }
         }
+        return None;
+    }
+
+    if !data_uri.starts_with("data:") && (data_uri.starts_with('/') || data_uri.starts_with('.')) {
+        return None;
     }
 
     // Extract base64 payload
@@ -81,8 +126,6 @@ pub fn stage_image_asset(prefix: &str, data_uri: &str) -> Option<String> {
     let b64_str = if parts.len() == 2 { parts[1] } else { data_uri };
 
     let decoded = BASE64.decode(b64_str.trim()).ok()?;
-
-    let _ = fs::create_dir_all(&cache_dir);
 
     // Compute hash for deduplication
     use std::collections::hash_map::DefaultHasher;
@@ -100,16 +143,16 @@ pub fn stage_image_asset(prefix: &str, data_uri: &str) -> Option<String> {
     };
 
     let filename = format!("{}_{:x}.{}", prefix, hash_val, ext);
-    let file_path = cache_dir.join(filename);
+    let file_path = cache_dir.join(&filename);
 
     if !file_path.exists() {
         let _ = fs::write(&file_path, &decoded);
     }
 
-    Some(file_path.to_string_lossy().to_string())
+    Some(format!("/{}", filename))
 }
 
-/// Save raw SVG XML string directly into the disk cache.
+/// Save raw SVG XML string directly into the disk cache and return a root-relative path.
 pub fn stage_svg_content(prefix: &str, svg_content: &str) -> Option<String> {
     if svg_content.is_empty() {
         return None;
@@ -125,13 +168,13 @@ pub fn stage_svg_content(prefix: &str, svg_content: &str) -> Option<String> {
     let hash_val = hasher.finish();
 
     let filename = format!("{}_{:x}.svg", prefix, hash_val);
-    let file_path = cache_dir.join(filename);
+    let file_path = cache_dir.join(&filename);
 
     if !file_path.exists() {
         let _ = fs::write(&file_path, svg_content.as_bytes());
     }
 
-    Some(file_path.to_string_lossy().to_string())
+    Some(format!("/{}", filename))
 }
 
 /// Prune temporary files in a specific directory that are older than `max_age_secs`.
@@ -214,10 +257,13 @@ pub fn compile_pdf_bytes(typst_markup: &str) -> Result<Vec<u8>, String> {
     let typst_bin = find_typst_executable()
         .ok_or_else(|| "Pressmark vector compiler executable not found on system.".to_string())?;
 
+    let cache_dir = get_cache_dir();
+    let _ = std::fs::create_dir_all(&cache_dir);
+
     let mut child = Command::new(&typst_bin)
         .arg("compile")
         .arg("--root")
-        .arg("/")
+        .arg(&cache_dir)
         .arg("-") // stdin
         .arg("-") // stdout
         .stdin(std::process::Stdio::piped())
@@ -250,6 +296,9 @@ pub fn compile_all_png_pages(typst_markup: &str, ppi: u32) -> Result<Vec<Vec<u8>
     let typst_bin = find_typst_executable()
         .ok_or_else(|| "Pressmark vector compiler executable not found on system.".to_string())?;
 
+    let cache_dir = get_cache_dir();
+    let _ = std::fs::create_dir_all(&cache_dir);
+
     let session_id = uuid::Uuid::new_v4().to_string();
     let temp_dir = std::env::temp_dir().join(format!("pressmark_pages_{}", session_id));
     std::fs::create_dir_all(&temp_dir)
@@ -260,7 +309,7 @@ pub fn compile_all_png_pages(typst_markup: &str, ppi: u32) -> Result<Vec<Vec<u8>
     let mut child = Command::new(&typst_bin)
         .arg("compile")
         .arg("--root")
-        .arg("/")
+        .arg(&cache_dir)
         .arg("--format")
         .arg("png")
         .arg("--ppi")
@@ -331,7 +380,7 @@ pub fn compile_png_bytes(typst_markup: &str, ppi: u32) -> Result<Vec<u8>, String
         .ok_or_else(|| "Failed to extract page 1 from compiled vector pages.".to_string())
 }
 
-/// Escape special characters in text so Typst doesn't interpret @ as labels, $ as math, or [ ] # \ as markup.
+/// Escape special characters in text so Typst doesn't interpret @ as labels, $ as math, or [ ] # \ * _ ` < > ~ = as markup.
 pub fn escape_typst_text(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 16);
     for c in text.chars() {
@@ -342,6 +391,13 @@ pub fn escape_typst_text(text: &str) -> String {
             '[' => out.push_str("\\["),
             ']' => out.push_str("\\]"),
             '#' => out.push_str("\\#"),
+            '*' => out.push_str("\\*"),
+            '_' => out.push_str("\\_"),
+            '`' => out.push_str("\\`"),
+            '<' => out.push_str("\\<"),
+            '>' => out.push_str("\\>"),
+            '~' => out.push_str("\\~"),
+            '=' => out.push_str("\\="),
             _ => out.push(c),
         }
     }
@@ -433,14 +489,31 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
     }
 
     // 2. Vector Payment QR Code & Checkout Block (if payment_link or payment_qr_code is enabled and document is NOT fully paid or credit note)
-    if !req.is_paid_state() && req.doc_type != DocumentType::CreditNote && (req.payment_qr_code == Some(true) || req.payment_link.is_some()) {
-        let payment_url = req.payment_link.as_deref().unwrap_or("https://buy.stripe.com/demo_checkout");
-        let qr_path = match generate_qr_code_svg(payment_url, primary_hex) {
+    let non_empty_payment_link = req
+        .payment_link
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    if !req.is_paid_state()
+        && req.doc_type != DocumentType::CreditNote
+        && (req.payment_qr_code == Some(true) || non_empty_payment_link.is_some())
+    {
+        let raw_url = non_empty_payment_link.unwrap_or("https://buy.stripe.com/demo_checkout");
+        let payment_url = if raw_url.starts_with("https://")
+            || raw_url.starts_with("http://")
+            || raw_url.starts_with("mailto:")
+            || raw_url.starts_with("tel:")
+        {
+            raw_url.to_string()
+        } else {
+            format!("https://{}", raw_url)
+        };
+        let qr_path = match generate_qr_code_svg(&payment_url, primary_hex) {
             Ok(svg) => stage_svg_content("payment_qr", &svg),
             Err(_) => None,
         };
         let qr_arg = match qr_path {
-            Some(p) => format!("\"{}\"", p),
+            Some(p) => format!("\"{}\"", escape_typst_string_literal(&p)),
             None => "none".to_string(),
         };
         let payment_status = req.effective_payment_status();
@@ -454,7 +527,7 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
         markup.push_str(&format!(
             "#payment-qr-block(\n  qr-path: {},\n  payment-url: \"{}\",\n  payment-status: \"{}\",\n  amount-due: \"{}\",\n  due-date: {},\n  payment-method: \"{}\",\n  primary-color: rgb(\"{}\"),\n  accent-color: rgb(\"{}\"),\n  surface-color: rgb(\"{}\")\n)\n\n",
             qr_arg,
-            escape_typst_string_literal(payment_url),
+            escape_typst_string_literal(&payment_url),
             escape_typst_string_literal(payment_status),
             escape_typst_string_literal(&effective_amount_due),
             due_date_arg,
@@ -550,7 +623,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         escape_typst_text(&doc_title),
         font_family,
         escape_typst_text(&doc_num),
-        req.format_date(issue_date),
+        escape_typst_text(&req.format_date(issue_date)),
         footer_rule,
         footer_text,
         page_numbers_snippet,
@@ -570,11 +643,11 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
 
     // 4. Header block
     let logo_typst_arg = match logo_path {
-        Some(ref p) => format!("\"{}\"", p),
+        Some(ref p) => format!("\"{}\"", escape_typst_string_literal(p)),
         None => "none".to_string(),
     };
     let due_date_typst_arg = match req.due_date {
-        Some(ref d) if !d.is_empty() => format!("\"{}\"", req.format_date(d)),
+        Some(ref d) if !d.is_empty() => format!("\"{}\"", escape_typst_string_literal(&req.format_date(d))),
         _ => "none".to_string(),
     };
     let subtitle_typst_arg = match req.header_subtitle {
@@ -715,9 +788,9 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             markup.push_str("#v(8pt)\n");
             markup.push_str(&format!(
                 "= Recitals & Operative Provisions\n\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n\n",
-                req.terms.as_deref().unwrap_or(
+                escape_typst_text(req.terms.as_deref().unwrap_or(
                     "1. PURPOSE & SCOPE: The parties agree to collaborate in good faith according to the parameters specified herein.\n\n2. CONFIDENTIALITY: Each party agrees to safeguard proprietary technical, business, and financial information disclosed during the term.\n\n3. INTELLECTUAL PROPERTY: All custom deliverables, code, designs, and work product vest exclusively with the client upon receipt of full payment.\n\n4. GOVERNING LAW & ARBITRATION: This agreement is governed by applicable commercial laws, and disputes shall be resolved through expedited binding arbitration."
-                )
+                ))
             ));
 
             if !req.items.is_empty() {
@@ -884,7 +957,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     let qty_str = if unit_label.is_empty() {
                         format!("{:.1}", item.quantity)
                     } else {
-                        format!("{:.1} {}", item.quantity, unit_label)
+                        format!("{:.1} {}", item.quantity, escape_typst_text(unit_label))
                     };
                     markup.push_str(&format!(
                         "  [{}], [{}], [{}], [{}], [{}],\n",
@@ -917,7 +990,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     let qty_str = if unit_label.is_empty() {
                         format!("{:.1}", item.quantity)
                     } else {
-                        format!("{:.1} {}", item.quantity, unit_label)
+                        format!("{:.1} {}", item.quantity, escape_typst_text(unit_label))
                     };
                     markup.push_str(&format!(
                         "  [{}], [{}], [{}], [{}],\n",
@@ -950,7 +1023,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
     }
 
     if let Some(ref terms) = req.terms {
-        if !terms.is_empty() && req.doc_type != DocumentType::Agreement && req.doc_type != DocumentType::Nda {
+        if !terms.is_empty() && !matches!(req.doc_type, DocumentType::Agreement | DocumentType::Nda | DocumentType::ContractorAgreement) {
             markup.push_str(&format!(
                 "#v(2pt)\n#text(size: 7.5pt, fill: color-slate-400)[\n  *TERMS & CONDITIONS:* {}\n]\n\n",
                 escape_typst_text(terms)
@@ -963,11 +1036,11 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         let remittance_due_date = req.due_date.as_deref().unwrap_or("2026-10-15");
         markup.push_str(&format!(
             "#remittance-stub(\n  doc-number: \"{}\",\n  client-name: \"{}\",\n  amount-due: \"{}\",\n  due-date: \"{}\",\n  issuer-name: \"{}\"\n)\n\n",
-            req.effective_doc_number(),
-            escape_typst_text(&req.to.name),
-            req.format_amount(req.grand_total()).replace('"', "\\\""),
-            req.format_date(remittance_due_date),
-            escape_typst_text(company_name)
+            escape_typst_string_literal(&req.effective_doc_number()),
+            escape_typst_string_literal(&req.to.name),
+            escape_typst_string_literal(&req.format_amount(req.grand_total())),
+            escape_typst_string_literal(&req.format_date(remittance_due_date)),
+            escape_typst_string_literal(company_name)
         ));
     }
 
@@ -976,7 +1049,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         if !section.title.is_empty() || !section.content.is_empty() {
             markup.push_str(&format!(
                 "#custom-section(\"{}\", [{}])\n\n",
-                escape_typst_text(&section.title),
+                escape_typst_string_literal(&section.title),
                 escape_typst_text(&section.content).replace('\n', "\\\n")
             ));
         }
@@ -994,7 +1067,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     .and_then(|data| stage_image_asset(&format!("sig_{}", idx), data));
 
                 let sig_arg = match sig_asset {
-                    Some(ref p) => format!("\"{}\"", p),
+                    Some(ref p) => format!("\"{}\"", escape_typst_string_literal(p)),
                     None => "none".to_string(),
                 };
                 let date_str = sig.date.as_deref().unwrap_or(req.issue_date.as_deref().unwrap_or("2026-10-01"));
@@ -1004,9 +1077,9 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 markup.push_str(&format!(
                     "  signature-item(signature-path: {}, signer-name: \"{}\", signer-title: \"{}\", date: \"{}\", primary-color: rgb(\"{}\")),\n",
                     sig_arg,
-                    escape_typst_text(&sig.signer_name),
-                    escape_typst_text(title_str),
-                    formatted_date,
+                    escape_typst_string_literal(&sig.signer_name),
+                    escape_typst_string_literal(title_str),
+                    escape_typst_string_literal(&formatted_date),
                     primary_hex
                 ));
             }
@@ -1024,18 +1097,18 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         let sig_img = first_sig.and_then(|s| s.signature_data.as_deref())
             .and_then(|data| stage_image_asset("jurat_sig", data));
         let sig_img_str = match sig_img {
-            Some(ref p) => format!("\"{}\"", p),
+            Some(ref p) => format!("\"{}\"", escape_typst_string_literal(p)),
             None => "none".to_string(),
         };
         let include_clerk = req.include_clerk_stamp.unwrap_or(false);
 
         markup.push_str(&format!(
             "\n#v(8pt)\n#jurat-box(\n  signature-type: \"{}\",\n  signer-name: \"{}\",\n  signer-title: \"{}\",\n  signature-img: {},\n  execution-date: \"{}\",\n  esign-audit-id: \"PRESSMARK-ESIGN-8492-7A1B\",\n  esign-timestamp: \"2026-10-01T02:00:00Z\",\n  esign-ip: \"192.0.2.14\",\n  include-clerk-stamp: {}\n)\n",
-            em,
-            escape_typst_text(signer_name),
-            escape_typst_text(signer_title),
+            escape_typst_string_literal(em),
+            escape_typst_string_literal(signer_name),
+            escape_typst_string_literal(signer_title),
             sig_img_str,
-            req.format_date(date_str),
+            escape_typst_string_literal(&req.format_date(date_str)),
             include_clerk
         ));
     }

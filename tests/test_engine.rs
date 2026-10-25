@@ -243,3 +243,113 @@ fn test_advanced_formatters_and_new_layouts() {
     assert_eq!(&pdf_bytes[0..4], b"%PDF");
     println!("Compiled swiss_grid generous proforma invoice in {}ms (Size: {} bytes)", ms, pdf_bytes.len());
 }
+
+#[test]
+fn test_typst_root_sandbox_and_hostile_input_escaping() {
+    use pressmark::engine::{compile_pdf_bytes, generate_typst_markup};
+    use pressmark::models::{DocumentSection, SignatureBlock};
+
+    // 1. Direct Typst compilation must reject reading files outside get_cache_dir() (--root sandbox)
+    let lfi_markup = "#read(\"/etc/hosts\")";
+    let lfi_res = compile_pdf_bytes(lfi_markup);
+    assert!(
+        lfi_res.is_err(),
+        "Typst --root sandbox must prevent reading /etc/hosts outside get_cache_dir()"
+    );
+
+    // 2. Hostile Typst markup & string-escape payloads in terms, remittance, sections, signatures, jurat, hex colors
+    let mut req = create_sample_invoice();
+    req.doc_type = DocumentType::ContractorAgreement;
+    req.primary_color = Some("#\");]//".to_string()); // invalid hex color injection attempt
+    req.secondary_color = Some("#zzzzzz".to_string());
+    req.accent_color = Some("#12345g".to_string());
+    req.surface_color = Some("#!@#$%^".to_string());
+    req.text_color = Some("#\"quoted".to_string());
+    assert_eq!(req.effective_primary_color(), "#4f46e5");
+    assert_eq!(req.effective_secondary_color(), "#475569");
+    assert_eq!(req.effective_accent_color(), "#06b6d4");
+    assert_eq!(req.effective_surface_color(), "#f8fafc");
+    assert_eq!(req.effective_text_color(), "#0f172a");
+
+    req.terms = Some("1. Hostile terms: #read(\"/etc/hosts\") *unclosed bold _unclosed italic `backtick <label> ~ = $math @ref [bracket]".to_string());
+    req.to.name = "Acme @ Corp $100 #1 \"Quoted\" \\Backslash *Star*".to_string();
+    req.from.company = Some("Issuer @ Co $50 #2 \"Quote\"".to_string());
+    req.doc_number = Some("CA-2026-\"99\"-@-$".to_string());
+    req.due_date = Some("2026-10-15 \"due\" @ref".to_string());
+    req.issue_date = Some("2026-10-01 *issue* #1".to_string());
+    req.unit_measure = Some("hrs *bold* #1 $2".to_string());
+    req.currency = Some("US$*#".to_string());
+    req.compliance_mode = Some("soc2_badge".to_string());
+    req.show_remittance_stub = Some(true);
+    req.execution_mode = Some("notary \"sworn\" @1".to_string());
+    req.sections = vec![DocumentSection {
+        title: "Section @1 $2 #3 \"Title\"".to_string(),
+        content: "Body with *unclosed bold _italic `code <tag> ~ = #sys.inputs".to_string(),
+    }];
+    req.signatures = vec![SignatureBlock {
+        signer_name: "Dr. Jane @ Doe $1 #2 \"MD\"".to_string(),
+        signer_title: Some("VP *Engineering* @ Corp \"Title\"".to_string()),
+        date: Some("2026-10-01 \"Date\" @ref".to_string()),
+        signature_data: None,
+    }];
+
+    let markup = generate_typst_markup(&req);
+    // Verify ContractorAgreement does not duplicate req.terms in bottom TERMS & CONDITIONS block
+    assert!(
+        !markup.contains("*TERMS & CONDITIONS:*"),
+        "ContractorAgreement should not duplicate terms in the bottom invoice terms block"
+    );
+
+    let (pdf_bytes, _) = generate_pdf(&req).expect("Hostile input payload must compile cleanly into PDF");
+    assert!(pdf_bytes.starts_with(b"%PDF-"));
+
+    // 3. Localization aliases (euro, space, plain separators; us, eu, long, short date formats; NZD, SGD, CNY)
+    let mut loc_req = create_sample_invoice();
+    loc_req.currency = Some("NZD".to_string());
+    loc_req.currency_separators = Some("euro".to_string());
+    assert_eq!(loc_req.format_amount(1234.56), "NZ$1.234,56");
+    loc_req.currency = Some("SGD".to_string());
+    loc_req.currency_separators = Some("space".to_string());
+    assert_eq!(loc_req.format_amount(1234.56), "S$1 234,56");
+    loc_req.currency = Some("CNY".to_string());
+    loc_req.currency_separators = Some("plain".to_string());
+    assert_eq!(loc_req.format_amount(1234.56), "¥1234.56");
+
+    loc_req.date_format = Some("us".to_string());
+    assert_eq!(loc_req.format_date("2026-10-05"), "10/05/2026");
+    loc_req.date_format = Some("eu".to_string());
+    assert_eq!(loc_req.format_date("2026-10-05"), "05/10/2026");
+    loc_req.date_format = Some("long".to_string());
+    assert_eq!(loc_req.format_date("2026-10-05"), "October 05, 2026");
+    loc_req.date_format = Some("short".to_string());
+    assert_eq!(loc_req.format_date("2026-10-05"), "05-Oct-2026");
+
+    // 4. Web-root /assets/... staging and path traversal rejection
+    let staged_logo = pressmark::engine::stage_image_asset("logo", "/assets/logo.jpg");
+    assert_eq!(staged_logo.as_deref(), Some("/logo_logo.jpg"));
+    assert!(pressmark::engine::stage_image_asset("logo", "/etc/hosts").is_none());
+    assert!(pressmark::engine::stage_image_asset("logo", "/assets/../../Cargo.toml").is_none());
+
+    // 5. Empty payment_link vs schemeless payment_link compilation
+    let mut pay_req = create_sample_invoice();
+    pay_req.payment_qr_code = Some(false);
+    pay_req.payment_link = Some("   ".to_string());
+    let empty_pay_markup = generate_typst_markup(&pay_req);
+    assert!(!empty_pay_markup.contains("#payment-qr-block("));
+
+    pay_req.payment_link = Some("buy.stripe.com/schemeless_checkout".to_string());
+    let schemeless_markup = generate_typst_markup(&pay_req);
+    assert!(schemeless_markup.contains("https://buy.stripe.com/schemeless_checkout"));
+    let (pay_pdf, _) = generate_pdf(&pay_req).expect("Schemeless payment_link must compile cleanly");
+    assert!(pay_pdf.starts_with(b"%PDF-"));
+
+    // 6. PressmarkDocumentBuilder full content escaping and hex color sanitization
+    let mut bad_branding = pressmark::branding::DocumentBrandingConfig::default();
+    bad_branding.accent_primary = "#\");]//".to_string();
+    let built_pdf = pressmark::builder::PressmarkDocumentBuilder::new()
+        .branding(bad_branding)
+        .add_statutory_box("26 U.S.C. § 1", "Strict", "Unclosed *bold _italic `code <tag> ~ = #read(\"/etc/hosts\")")
+        .compile_pdf_bytes()
+        .expect("PressmarkDocumentBuilder must escape hostile content and sanitize invalid hex color");
+    assert!(built_pdf.starts_with(b"%PDF-"));
+}

@@ -122,7 +122,7 @@
       bg: rgb("#faf5ff"),
       border: rgb("#d8b4fe")
     )
-  } else if compliance-type == "soc2" {
+  } else if compliance-type == "soc2" or compliance-type == "soc2_badge" or compliance-type == "iso27001" {
     card-box(
       grid(
         columns: (auto, 1fr),

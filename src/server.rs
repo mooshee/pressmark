@@ -275,12 +275,16 @@ async fn handle_generate(
 
             // Check if caller wants binary stream or JSON
             if query.format.as_deref() == Some("binary") || query.format.as_deref() == Some("pdf") {
-                let filename = format!("{}.pdf", doc_num);
+                let safe_doc_num: String = doc_num
+                    .chars()
+                    .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_' || *c == '.')
+                    .collect();
+                let safe_base = if safe_doc_num.is_empty() { "document" } else { &safe_doc_num };
+                let filename = format!("{}.pdf", safe_base);
                 resp_headers.insert(header::CONTENT_TYPE, "application/pdf".parse().unwrap());
-                resp_headers.insert(
-                    header::CONTENT_DISPOSITION,
-                    format!("attachment; filename=\"{}\"", filename).parse().unwrap(),
-                );
+                if let Ok(cd) = format!("attachment; filename=\"{}\"", filename).parse() {
+                    resp_headers.insert(header::CONTENT_DISPOSITION, cd);
+                }
                 resp_headers.insert("X-Compile-Time-Ms", compile_ms.to_string().parse().unwrap());
                 (StatusCode::OK, resp_headers, pdf_bytes).into_response()
             } else {
@@ -874,7 +878,7 @@ async fn handle_copilot(
         Some((crate::models::DocumentType::BillOfSale, "Bill of Sale"))
     } else if prompt_lower.contains("contractor agreement") || prompt_lower.contains("independent contractor") {
         Some((crate::models::DocumentType::ContractorAgreement, "Independent Contractor Agreement"))
-    } else if prompt_lower.contains("retainer") {
+    } else if prompt_lower.contains("retainer") && !prompt_lower.contains("invoice") {
         Some((crate::models::DocumentType::RetainerAgreement, "Retainer Agreement"))
     } else if prompt_lower.contains("statement of work") || prompt_lower.contains("sow") {
         Some((crate::models::DocumentType::AgreementSow, "Statement of Work"))
@@ -884,7 +888,7 @@ async fn handle_copilot(
         Some((crate::models::DocumentType::CertificateInsurance, "Certificate of Insurance"))
     } else if prompt_lower.contains("certificate of completion") {
         Some((crate::models::DocumentType::CertificateCompletion, "Certificate of Completion"))
-    } else if prompt_lower.contains("certificate") {
+    } else if prompt_lower.contains("certificate") && !prompt_lower.contains("w-9") && !prompt_lower.contains("w9") {
         Some((crate::models::DocumentType::Certificate, "Certificate"))
     } else if prompt_lower.contains("inspection report") {
         Some((crate::models::DocumentType::InspectionReport, "Inspection Report"))
@@ -909,21 +913,48 @@ async fn handle_copilot(
         changes.push(format!("set archetype to {}", label));
     }
 
+    let has_word = |haystack: &str, needle: &str| -> bool {
+        let pattern = format!(r"(?i)\b{}\b", regex::escape(needle));
+        regex::Regex::new(&pattern)
+            .map(|re| re.is_match(haystack))
+            .unwrap_or(false)
+    };
+
     // 2. Client / Recipient extraction (quoted first, then unquoted capitalized phrase)
     let client_quoted_re = regex::Regex::new(
         r"(?i)\b(?:for|to)\s+(?:client\s+|tenant\s+|buyer\s+|customer\s+)?['\x22]([^'\x22]{2,80})['\x22]",
     )
     .unwrap();
     let client_unquoted_re = regex::Regex::new(
-        r"\bfor\s+(?:client\s+|tenant\s+|buyer\s+|customer\s+)?([A-Z][a-zA-Z0-9\s&,.-]{1,60}?)(?:\s+with|\s+at|\s+including|\s+from|\.|,|$)",
+        r"\bfor\s+(?:client\s+|tenant\s+|buyer\s+|customer\s+)?([A-Z][a-zA-Z0-9\s&,.-]{1,60}?)(?:\s+for\b|\s+with\b|\s+at\b|\s+including\b|\s+from\b|\.|,|$)",
     )
     .unwrap();
-    if let Some(cap) = client_quoted_re.captures(&req.prompt).or_else(|| client_unquoted_re.captures(&req.prompt)) {
+    let item_for_prefix_re = regex::Regex::new(
+        r"(?i)\b(?:items?|services?|hours?|hrs?|milestones?|work|charges?|fees?)\s+for\s+$",
+    )
+    .unwrap();
+    if let Some(cap) = client_quoted_re.captures(&req.prompt) {
         if let Some(m) = cap.get(1) {
             let name = m.as_str().trim().trim_matches(|c| c == '\'' || c == '"' || c == '.');
             if !name.is_empty() {
                 modified.to.name = name.to_string();
                 changes.push(format!("set recipient to {}", name));
+            }
+        }
+    } else if let Some(cap) = client_unquoted_re.captures(&req.prompt) {
+        let full_match = cap.get(0).map(|m| m.start()).unwrap_or(0);
+        let prefix = &req.prompt[..full_match + 4.min(req.prompt.len().saturating_sub(full_match))];
+        if !item_for_prefix_re.is_match(&req.prompt[..full_match]) && !prefix.is_empty() {
+            if let Some(m) = cap.get(1) {
+                let name = m.as_str().trim().trim_matches(|c| c == '\'' || c == '"' || c == '.');
+                let lower_name = name.to_lowercase();
+                if !name.is_empty()
+                    && !lower_name.contains("hours of")
+                    && !lower_name.contains("hrs of")
+                {
+                    modified.to.name = name.to_string();
+                    changes.push(format!("set recipient to {}", name));
+                }
             }
         }
     }
@@ -1019,7 +1050,7 @@ async fn handle_copilot(
     }
 
     // 5. Tax rate, currency & discount extraction
-    let tax_re = regex::Regex::new(r"(?i)(\d+(?:\.\d+)?)\s*%\s*(?:uk\s+|eu\s+|sales\s+|vat\s+|gst\s+)?(?:tax|vat|gst)").unwrap();
+    let tax_re = regex::Regex::new(r"(?i)(?:uk\s+|eu\s+|us\s+)?(\d+(?:\.\d+)?)\s*%\s*(?:uk\s+|eu\s+|sales\s+|vat\s+|gst\s+)?(?:tax|vat|gst)").unwrap();
     if let Some(cap) = tax_re.captures(&req.prompt) {
         if let Some(rate) = cap.get(1).and_then(|m| m.as_str().parse::<f64>().ok()) {
             modified.tax_rate = Some(rate);
@@ -1027,51 +1058,249 @@ async fn handle_copilot(
         }
     }
 
-    if prompt_lower.contains("gbp") || prompt_lower.contains('£') {
+    if has_word(&prompt_lower, "gbp") || prompt_lower.contains('£') || prompt_lower.contains("pounds sterling") {
         modified.currency = Some("GBP".to_string());
         changes.push("set currency to GBP (£)".to_string());
-    } else if prompt_lower.contains("eur") || prompt_lower.contains('€') {
+    } else if has_word(&prompt_lower, "eur") || has_word(&prompt_lower, "euro") || has_word(&prompt_lower, "euros") || prompt_lower.contains('€') {
         modified.currency = Some("EUR".to_string());
         changes.push("set currency to EUR (€)".to_string());
-    } else if prompt_lower.contains("cad") {
+    } else if has_word(&prompt_lower, "cad") || prompt_lower.contains("canadian dollar") {
         modified.currency = Some("CAD".to_string());
         changes.push("set currency to CAD".to_string());
+    } else if has_word(&prompt_lower, "aud") || prompt_lower.contains("australian dollar") {
+        modified.currency = Some("AUD".to_string());
+        changes.push("set currency to AUD".to_string());
+    } else if has_word(&prompt_lower, "nzd") || prompt_lower.contains("new zealand dollar") {
+        modified.currency = Some("NZD".to_string());
+        changes.push("set currency to NZD".to_string());
+    } else if has_word(&prompt_lower, "sgd") || prompt_lower.contains("singapore dollar") {
+        modified.currency = Some("SGD".to_string());
+        changes.push("set currency to SGD".to_string());
+    } else if has_word(&prompt_lower, "chf") || prompt_lower.contains("swiss franc") {
+        modified.currency = Some("CHF".to_string());
+        changes.push("set currency to CHF".to_string());
+    } else if has_word(&prompt_lower, "jpy") || has_word(&prompt_lower, "yen") {
+        modified.currency = Some("JPY".to_string());
+        changes.push("set currency to JPY (¥)".to_string());
+    } else if has_word(&prompt_lower, "cny") || has_word(&prompt_lower, "rmb") || has_word(&prompt_lower, "yuan") {
+        modified.currency = Some("CNY".to_string());
+        changes.push("set currency to CNY (¥)".to_string());
+    } else if has_word(&prompt_lower, "usd") {
+        modified.currency = Some("USD".to_string());
+        changes.push("set currency to USD ($)".to_string());
     }
 
     let disc_re = regex::Regex::new(r"(?i)\$([\d,]+(?:\.\d+)?)\s*discount|discount\s+of\s+\$([\d,]+(?:\.\d+)?)").unwrap();
+    let pct_disc_re = regex::Regex::new(
+        r"(?i)(\d+(?:\.\d+)?)\s*%\s*(?:promotional\s+|early\s+|volume\s+|loyalty\s+|trade\s+)?discount|discount\s+of\s+(\d+(?:\.\d+)?)\s*%",
+    )
+    .unwrap();
     if let Some(cap) = disc_re.captures(&req.prompt) {
         let val = cap.get(1).or_else(|| cap.get(2)).map(|m| parse_amount(m.as_str()));
         if let Some(d) = val.filter(|v| *v > 0.0) {
             modified.discount_amount = Some(d);
             changes.push(format!("applied ${:.2} discount", d));
         }
+    } else if let Some(cap) = pct_disc_re.captures(&req.prompt) {
+        let pct_val = cap
+            .get(1)
+            .or_else(|| cap.get(2))
+            .and_then(|m| m.as_str().parse::<f64>().ok());
+        if let Some(pct) = pct_val.filter(|v| *v > 0.0 && *v <= 100.0) {
+            let base_subtotal = if modified.subtotal() > 0.0 {
+                modified.subtotal()
+            } else {
+                500.0
+            };
+            let disc = ((base_subtotal * (pct / 100.0)) * 100.0).round() / 100.0;
+            modified.discount_amount = Some(disc);
+            changes.push(format!("applied {}% discount (${:.2})", pct, disc));
+        }
     }
 
-    // 6. Theme & palette detection
-    if prompt_lower.contains("obsidian") || (prompt_lower.contains("dark") && !prompt_lower.contains("slate")) {
-        modified.theme = Some("obsidian".to_string());
-        changes.push("applied Obsidian theme".to_string());
-    } else if prompt_lower.contains("slate") {
-        modified.theme = Some("slate".to_string());
-        changes.push("applied Slate theme".to_string());
-    } else if prompt_lower.contains("navy") || prompt_lower.contains("executive") {
-        modified.theme = Some("executive_navy".to_string());
-        changes.push("applied Executive Navy theme".to_string());
-    } else if prompt_lower.contains("emerald") || prompt_lower.contains("green") {
-        modified.theme = Some("emerald".to_string());
-        changes.push("applied Emerald theme".to_string());
-    } else if prompt_lower.contains("crimson") || prompt_lower.contains("red") {
-        modified.theme = Some("crimson".to_string());
-        changes.push("applied Crimson theme".to_string());
-    } else if prompt_lower.contains("amber") || prompt_lower.contains("gold") {
-        modified.theme = Some("amber".to_string());
-        changes.push("applied Amber theme".to_string());
-    } else if prompt_lower.contains("purple") || prompt_lower.contains("royal") {
-        modified.theme = Some("royal_purple".to_string());
-        changes.push("applied Royal Purple theme".to_string());
-    } else if prompt_lower.contains("mono") || prompt_lower.contains("minimal") {
-        modified.theme = Some("minimal_mono".to_string());
-        changes.push("applied Minimal Mono theme".to_string());
+    // 5b. Payment settlement terms / Net days (e.g. "14-day payment settlement terms", "Net 30")
+    let net_days_re = regex::Regex::new(
+        r"(?i)\b(?:net\s+(\d{1,3})|(\d{1,3})(?:\s*-\s*|\s+)day\s+(?:payment|settlement|credit|net))\b",
+    )
+    .unwrap();
+    if let Some(cap) = net_days_re.captures(&req.prompt) {
+        if let Some(days) = cap
+            .get(1)
+            .or_else(|| cap.get(2))
+            .and_then(|m| m.as_str().parse::<u64>().ok())
+        {
+            let base_date = modified
+                .issue_date
+                .as_deref()
+                .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+                .unwrap_or_else(|| chrono::Utc::now().naive_utc().date());
+            let due = base_date + chrono::Days::new(days);
+            let due_str = due.format("%Y-%m-%d").to_string();
+            modified.due_date = Some(due_str.clone());
+            modified.terms = Some(format!(
+                "Payment settlement due within {} days of invoice date (Net {}).",
+                days, days
+            ));
+            changes.push(format!("set {}-day payment settlement terms (due {})", days, due_str));
+        }
+    }
+
+    // 5c. Dispute arbitration clause extraction
+    if prompt_lower.contains("arbitration") {
+        let arb_clause = "1. PURPOSE & SCOPE: Contractor shall perform the independent professional services specified in the schedule.\n\n2. INDEPENDENT CONTRACTOR RELATIONSHIP: Contractor acts solely as an independent contractor and not as an employee, partner, or agent.\n\n3. INTELLECTUAL PROPERTY: All custom deliverables, code, designs, and work product vest exclusively with the client upon receipt of full payment.\n\n4. DISPUTE ARBITRATION CLAUSE: Any dispute, claim, or controversy arising out of or relating to this Agreement shall be resolved exclusively by expedited, final, and binding commercial arbitration.";
+        match modified.terms {
+            Some(ref existing) if !existing.trim().is_empty() && !existing.to_lowercase().contains("arbitration") => {
+                modified.terms = Some(format!(
+                    "{}\n\nDISPUTE ARBITRATION CLAUSE: Any dispute, claim, or controversy arising out of or relating to this Agreement shall be resolved exclusively by expedited, final, and binding commercial arbitration.",
+                    existing.trim()
+                ));
+            }
+            _ => {
+                modified.terms = Some(arb_clause.to_string());
+            }
+        }
+        changes.push("added dispute arbitration clause".to_string());
+    }
+
+    // 5d. Compliance mode detection
+    if prompt_lower.contains("w-9") || prompt_lower.contains("w9") || prompt_lower.contains("taxpayer identification") {
+        modified.compliance_mode = Some("irs_w9".to_string());
+        changes.push("enabled IRS W-9 TIN compliance attestation".to_string());
+    } else if prompt_lower.contains("reverse charge") || prompt_lower.contains("eu vat") || prompt_lower.contains("2006/112") {
+        modified.compliance_mode = Some("eu_vat".to_string());
+        changes.push("enabled EU VAT reverse charge compliance notice".to_string());
+    } else if prompt_lower.contains("pci-dss") || prompt_lower.contains("pci dss") || prompt_lower.contains("pci_dss") {
+        modified.compliance_mode = Some("pci_dss".to_string());
+        changes.push("enabled PCI-DSS compliance notice".to_string());
+    } else if prompt_lower.contains("soc-2") || prompt_lower.contains("soc 2") || prompt_lower.contains("soc2") || prompt_lower.contains("iso 27001") || prompt_lower.contains("iso27001") {
+        modified.compliance_mode = Some("soc2".to_string());
+        changes.push("enabled SOC-2 / ISO 27001 compliance notice".to_string());
+    } else if prompt_lower.contains("statutory sworn") || prompt_lower.contains("sworn declaration") || prompt_lower.contains("perjury") {
+        modified.compliance_mode = Some("statutory_sworn".to_string());
+        changes.push("enabled statutory sworn declaration".to_string());
+    }
+
+    // 5e. Date format detection
+    if prompt_lower.contains("military") || prompt_lower.contains("dd-mmm-yyyy") || prompt_lower.contains("short_abbrev") {
+        modified.date_format = Some("short_abbrev".to_string());
+        changes.push("set date format to Military (DD-MMM-YYYY)".to_string());
+    } else if prompt_lower.contains("formal prose") || prompt_lower.contains("formal_prose") || prompt_lower.contains("long date") {
+        modified.date_format = Some("formal_prose".to_string());
+        changes.push("set date format to Formal Prose".to_string());
+    } else if prompt_lower.contains("european date") || prompt_lower.contains("dd/mm/yyyy") {
+        modified.date_format = Some("euro".to_string());
+        changes.push("set date format to European (DD/MM/YYYY)".to_string());
+    } else if prompt_lower.contains("us date") || prompt_lower.contains("mm/dd/yyyy") {
+        modified.date_format = Some("us_slash".to_string());
+        changes.push("set date format to US (MM/DD/YYYY)".to_string());
+    } else if prompt_lower.contains("german date") || prompt_lower.contains("swiss date") || prompt_lower.contains("dd.mm.yyyy") {
+        modified.date_format = Some("short_dot".to_string());
+        changes.push("set date format to Dot (DD.MM.YYYY)".to_string());
+    } else if prompt_lower.contains("iso date") || prompt_lower.contains("yyyy-mm-dd") {
+        modified.date_format = Some("iso".to_string());
+        changes.push("set date format to ISO (YYYY-MM-DD)".to_string());
+    }
+
+    // 6. Theme & palette detection across all 18 valid themes
+    let mut matched_theme: Option<(&str, &str)> = None;
+    if has_word(&prompt_lower, "obsidian")
+        || prompt_lower.contains("dark obsidian")
+        || (has_word(&prompt_lower, "dark") && !has_word(&prompt_lower, "slate"))
+    {
+        matched_theme = Some(("obsidian", "applied Obsidian theme"));
+    } else if has_word(&prompt_lower, "slate") || prompt_lower.contains("modern_slate") {
+        matched_theme = Some(("slate", "applied Modern Slate theme"));
+    } else if has_word(&prompt_lower, "navy")
+        || prompt_lower.contains("executive navy")
+        || prompt_lower.contains("executive_navy")
+    {
+        matched_theme = Some(("executive_navy", "applied Executive Navy theme"));
+    } else if has_word(&prompt_lower, "monaco")
+        || prompt_lower.contains("monaco_gold")
+        || has_word(&prompt_lower, "gold")
+    {
+        matched_theme = Some(("monaco_gold", "applied Monaco Gold theme"));
+    } else if has_word(&prompt_lower, "crimson")
+        || prompt_lower.contains("crimson_legal")
+        || has_word(&prompt_lower, "red")
+    {
+        matched_theme = Some(("crimson_legal", "applied Crimson Legal theme"));
+    } else if has_word(&prompt_lower, "bordeaux") {
+        matched_theme = Some(("bordeaux", "applied Bordeaux theme"));
+    } else if prompt_lower.contains("warm sand")
+        || prompt_lower.contains("warm_sand")
+        || prompt_lower.contains("warm amber")
+    {
+        matched_theme = Some(("warm_sand", "applied Warm Sand theme"));
+    } else if prompt_lower.contains("desert sand")
+        || prompt_lower.contains("desert_sand")
+        || has_word(&prompt_lower, "mojave")
+        || has_word(&prompt_lower, "amber")
+        || has_word(&prompt_lower, "desert")
+    {
+        matched_theme = Some(("desert_sand", "applied Desert Sand theme"));
+    } else if has_word(&prompt_lower, "cyber")
+        || has_word(&prompt_lower, "neon")
+        || prompt_lower.contains("cyber_neon")
+    {
+        matched_theme = Some(("cyber_neon", "applied Cyber Neon theme"));
+    } else if has_word(&prompt_lower, "emerald") || has_word(&prompt_lower, "green") {
+        matched_theme = Some(("emerald", "applied Emerald theme"));
+    } else if has_word(&prompt_lower, "nordic")
+        || has_word(&prompt_lower, "teal")
+        || prompt_lower.contains("nordic_teal")
+        || prompt_lower.contains("nordic_frost")
+    {
+        matched_theme = Some(("nordic_teal", "applied Nordic Teal theme"));
+    } else if has_word(&prompt_lower, "forest")
+        || has_word(&prompt_lower, "pine")
+        || prompt_lower.contains("forest_pine")
+    {
+        matched_theme = Some(("forest_pine", "applied Forest Pine theme"));
+    } else if has_word(&prompt_lower, "purple")
+        || has_word(&prompt_lower, "violet")
+        || prompt_lower.contains("royal violet")
+        || prompt_lower.contains("royal_violet")
+    {
+        matched_theme = Some(("royal_violet", "applied Royal Violet theme"));
+    } else if has_word(&prompt_lower, "sunset")
+        || has_word(&prompt_lower, "coral")
+        || prompt_lower.contains("sunset_coral")
+    {
+        matched_theme = Some(("sunset_coral", "applied Sunset Coral theme"));
+    } else if prompt_lower.contains("electric indigo")
+        || prompt_lower.contains("electric_indigo")
+        || has_word(&prompt_lower, "indigo")
+    {
+        matched_theme = Some(("electric_indigo", "applied Electric Indigo theme"));
+    } else if has_word(&prompt_lower, "neobrutalist") || has_word(&prompt_lower, "brutalist") {
+        matched_theme = Some(("neobrutalist", "applied Neobrutalist theme"));
+    } else if has_word(&prompt_lower, "bauhaus") || prompt_lower.contains("bauhaus_primary") {
+        matched_theme = Some(("bauhaus_primary", "applied Bauhaus Primary theme"));
+    } else if has_word(&prompt_lower, "swiss")
+        || prompt_lower.contains("swiss_minimal")
+        || has_word(&prompt_lower, "minimal")
+        || has_word(&prompt_lower, "monochrome")
+    {
+        matched_theme = Some(("swiss_minimal", "applied Swiss Minimal theme"));
+    }
+
+    if let Some((theme_id, msg)) = matched_theme {
+        modified.theme = Some(theme_id.to_string());
+        modified.primary_color = None;
+        modified.secondary_color = None;
+        modified.accent_color = None;
+        modified.surface_color = None;
+        modified.text_color = None;
+        let prim = modified.effective_primary_color().to_string();
+        let sec = modified.effective_secondary_color().to_string();
+        let acc = modified.effective_accent_color().to_string();
+        let surf = modified.effective_surface_color().to_string();
+        modified.primary_color = Some(prim);
+        modified.secondary_color = Some(sec);
+        modified.accent_color = Some(acc);
+        modified.surface_color = Some(surf);
+        changes.push(msg.to_string());
     }
 
     // 7. Signature block detection

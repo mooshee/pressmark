@@ -32,10 +32,25 @@ pub fn escape_typst_content(text: &str) -> String {
             '#' => out.push_str("\\#"),
             '$' => out.push_str("\\$"),
             '@' => out.push_str("\\@"),
+            '*' => out.push_str("\\*"),
+            '_' => out.push_str("\\_"),
+            '`' => out.push_str("\\`"),
+            '<' => out.push_str("\\<"),
+            '>' => out.push_str("\\>"),
+            '~' => out.push_str("\\~"),
+            '=' => out.push_str("\\="),
             _ => out.push(c),
         }
     }
     out
+}
+
+fn sanitize_hex_color<'a>(hex: &'a str, fallback: &'a str) -> &'a str {
+    if hex.starts_with('#') && hex.len() == 7 && hex[1..].chars().all(|c| c.is_ascii_hexdigit()) {
+        hex
+    } else {
+        fallback
+    }
 }
 
 /// Three-way execution mode state machine
@@ -318,7 +333,7 @@ impl PressmarkDocumentBuilder {
             escape_typst_string(&config.reference_id),
             escape_typst_string(&config.date_str),
             escape_typst_string(&self.branding.org_name),
-            self.branding.accent_primary
+            sanitize_hex_color(&self.branding.accent_primary, "#1e3a8a")
         );
         self.elements.push(snippet);
         self
@@ -473,7 +488,7 @@ impl PressmarkDocumentBuilder {
             escape_typst_string(self.branding.footer_left.as_deref().unwrap_or("")),
             escape_typst_string(self.branding.footer_center.as_deref().unwrap_or("")),
             escape_typst_string(self.branding.disclaimer.as_deref().unwrap_or("")),
-            self.branding.accent_primary
+            sanitize_hex_color(&self.branding.accent_primary, "#1e3a8a")
         ));
 
         // 3. Append elements

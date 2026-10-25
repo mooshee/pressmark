@@ -241,7 +241,7 @@ impl ChatGptAuthManager {
         let verifier = Self::generate_pkce_verifier();
         let challenge = Self::generate_pkce_challenge(&verifier);
 
-        let final_return = return_to.unwrap_or_else(|| "/".to_string());
+        let final_return = sanitize_return_to(return_to.as_deref(), "/");
 
         let pending = PendingAuth {
             state: state.clone(),
@@ -273,6 +273,21 @@ impl ChatGptAuthManager {
         );
 
         (auth_url, state)
+    }
+
+    pub fn take_pending_auth(&self, state: &str) -> Option<PendingAuth> {
+        let mut found = None;
+        if let Ok(mut map) = self.pending.write() {
+            found = map.remove(state);
+        }
+        if let Some(storage) = &self.storage {
+            if let Some(stored) = storage.take_pending_auth(state) {
+                if found.is_none() {
+                    found = Some(stored);
+                }
+            }
+        }
+        found
     }
 
     /// Create or retrieve verified session for local testing / demo / CI
@@ -623,6 +638,22 @@ pub struct ApiKeyLoginRequest {
     pub api_key: String,
 }
 
+/// Ensure `return_to` is a safe relative path starting with `/` (and not `//` or `/\`).
+pub fn sanitize_return_to(target: Option<&str>, default_target: &str) -> String {
+    if let Some(raw) = target {
+        let trimmed = raw.trim();
+        if trimmed.starts_with('/')
+            && !trimmed.starts_with("//")
+            && !trimmed.starts_with("/\\")
+            && !trimmed.chars().any(|c| c.is_control())
+            && axum::http::HeaderValue::from_str(trimmed).is_ok()
+        {
+            return trimmed.to_string();
+        }
+    }
+    default_target.to_string()
+}
+
 // HTTP Handlers
 
 pub async fn handle_chatgpt_login(
@@ -636,15 +667,20 @@ pub async fn handle_chatgpt_login(
         let plan = ChatGptPlan::from_str_relaxed(plan_str);
         let session = auth_mgr.create_demo_session(plan, None, None);
 
-        let return_target = query.return_to.as_deref().unwrap_or("/?auth=success");
+        let return_target = sanitize_return_to(query.return_to.as_deref(), "/?auth=success");
         let cookie_val = format!(
             "chatgpt_session={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000",
             session.session_id
         );
 
         let mut resp_headers = HeaderMap::new();
-        resp_headers.insert(header::SET_COOKIE, cookie_val.parse().unwrap());
-        resp_headers.insert(header::LOCATION, return_target.parse().unwrap());
+        if let Ok(cookie_hv) = cookie_val.parse() {
+            resp_headers.insert(header::SET_COOKIE, cookie_hv);
+        }
+        let loc_hv = return_target
+            .parse()
+            .unwrap_or_else(|_| axum::http::HeaderValue::from_static("/?auth=success"));
+        resp_headers.insert(header::LOCATION, loc_hv);
 
         return (StatusCode::FOUND, resp_headers).into_response();
     }
@@ -691,17 +727,26 @@ pub async fn handle_chatgpt_callback(
 
     let session = auth_mgr.create_demo_session(plan, None, None);
 
+    let pending_return = query
+        .state
+        .as_deref()
+        .and_then(|st| auth_mgr.take_pending_auth(st))
+        .map(|p| p.return_to);
+    let redirect_to = sanitize_return_to(pending_return.as_deref(), "/?auth=chatgpt_connected");
+
     let cookie_val = format!(
         "chatgpt_session={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000",
         session.session_id
     );
 
     let mut resp_headers = HeaderMap::new();
-    resp_headers.insert(header::SET_COOKIE, cookie_val.parse().unwrap());
-    resp_headers.insert(
-        header::LOCATION,
-        "/?auth=chatgpt_connected".parse().unwrap(),
-    );
+    if let Ok(cookie_hdr) = cookie_val.parse() {
+        resp_headers.insert(header::SET_COOKIE, cookie_hdr);
+    }
+    let location_hdr = redirect_to
+        .parse()
+        .unwrap_or_else(|_| axum::http::HeaderValue::from_static("/?auth=chatgpt_connected"));
+    resp_headers.insert(header::LOCATION, location_hdr);
 
     (StatusCode::FOUND, resp_headers).into_response()
 }

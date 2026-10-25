@@ -3724,6 +3724,7 @@
   }
 
   function syncPaletteControlsFromState() {
+    if (state.theme === 'slate') state.theme = 'modern_slate';
     const pal = THEME_PALETTES[state.theme] || {
       primary: state.primary_color || '#4f46e5',
       secondary: state.secondary_color || '#475569',
@@ -3732,10 +3733,10 @@
     };
 
     if (state.theme !== 'custom' && THEME_PALETTES[state.theme]) {
-      state.primary_color = state.primary_color || pal.primary;
-      state.secondary_color = state.secondary_color || pal.secondary;
-      state.accent_color = state.accent_color || pal.accent;
-      state.surface_color = state.surface_color || pal.surface;
+      state.primary_color = pal.primary;
+      state.secondary_color = pal.secondary;
+      state.accent_color = pal.accent;
+      state.surface_color = pal.surface;
     }
 
     const prim = state.primary_color || pal.primary;
@@ -5066,6 +5067,7 @@
 
     const currMap = {
       'USD': '$', 'EUR': '€', 'GBP': '£', 'CAD': 'CA$', 'AUD': 'A$',
+      'NZD': 'NZ$', 'SGD': 'S$', 'CNY': '¥',
       'JPY': '¥', 'CHF': 'Fr. ', 'INR': '₹', 'BRL': 'R$', 'SEK': 'kr ', 'AED': 'AED '
     };
     let sym = currMap[state.currency] || state.currency || '$';
