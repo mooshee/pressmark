@@ -513,7 +513,9 @@ impl McpHandler {
                                                 "pdf_base64": b64,
                                                 "doc_number": doc_req.effective_doc_number(),
                                                 "grand_total": doc_req.grand_total(),
-                                                "compile_time_ms": ms
+                                                "compile_time_ms": ms,
+                                                "unlock_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true",
+                                                "pro_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
                                             })),
                                             error: None,
                                         }
@@ -561,7 +563,9 @@ impl McpHandler {
                                                     }
                                                 ],
                                                 "image_data_uri": uri,
-                                                "compile_time_ms": ms
+                                                "compile_time_ms": ms,
+                                                "unlock_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true",
+                                                "pro_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
                                             })),
                                             error: None,
                                         }
@@ -666,7 +670,9 @@ impl McpHandler {
                                                 ],
                                                 "document": converted,
                                                 "pdf_base64": b64,
-                                                "compile_time_ms": ms
+                                                "compile_time_ms": ms,
+                                                "unlock_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true",
+                                                "pro_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
                                             })),
                                             error: None,
                                         }
@@ -802,7 +808,9 @@ impl McpHandler {
                                                 ],
                                                 "document": payment_doc,
                                                 "pdf_base64": b64,
-                                                "compile_time_ms": ms
+                                                "compile_time_ms": ms,
+                                                "unlock_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true",
+                                                "pro_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
                                             })),
                                             error: None,
                                         }
@@ -895,6 +903,9 @@ fn format_document_markdown(doc: &DocumentRequest, action_title: &str, compile_m
             md.push_str("\n*Vector SVG QR code embedded in document for 1-scan mobile checkout.*\n");
         }
     }
-    md.push_str(&format!("\n*Rendered in {}ms via Pressmark Vector Engine.*", compile_ms));
+    md.push_str(&format!(
+        "\n*Rendered in {}ms via Pressmark Vector Engine.* | [Unlock Single Export ($2.99)](https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true) · [Solo Pro ($15/mo)](https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true)",
+        compile_ms
+    ));
     md
 }

@@ -1583,3 +1583,160 @@ async fn test_all_copilot_quick_presets_auth_redirect_and_storage_pruning() {
     let pruned = storage.prune_stale_data(30).unwrap();
     assert_eq!(pruned, 0);
 }
+
+#[tokio::test]
+async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use pressmark::auth::{ChatGptAuthManager, ChatGptPlan};
+    use pressmark::mcp::{JsonRpcRequest, McpHandler};
+    use pressmark::rate_limit::RateLimiter;
+    use pressmark::server::{create_router, AppState};
+    use pressmark::storage::Storage;
+    use pressmark::stripe::StripeIdempotencyStore;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let storage = Arc::new(Storage::new(":memory:").unwrap());
+    let auth_mgr = ChatGptAuthManager::in_memory().with_storage(Arc::clone(&storage));
+    let stripe_idempotency = StripeIdempotencyStore::new().with_storage(Arc::clone(&storage));
+    let state = Arc::new(AppState {
+        base_url: "https://pressmark.dev".to_string(),
+        auth_mgr: auth_mgr.clone(),
+        rate_limiter: RateLimiter::new(1000, 60),
+        stripe_idempotency,
+        storage: Arc::clone(&storage),
+    });
+    let router = create_router(Arc::clone(&state));
+
+    // 1. Verify GET /api/v1/templates returns all 39 document archetypes
+    let req_cat = Request::builder()
+        .uri("/api/v1/templates")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_cat = router.clone().oneshot(req_cat).await.unwrap();
+    assert_eq!(res_cat.status(), StatusCode::OK);
+    let body_cat = axum::body::to_bytes(res_cat.into_body(), usize::MAX).await.unwrap();
+    let cat_json: serde_json::Value = serde_json::from_slice(&body_cat).unwrap();
+    assert_eq!(cat_json["count"], 39);
+    assert_eq!(cat_json["templates"].as_array().unwrap().len(), 39);
+
+    // 2. Verify GET /templates/residential-lease and /templates/commercial-nnn-lease customize SEO tags and deep-link archetype
+    let req_lease = Request::builder()
+        .uri("/templates/residential-lease")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_lease = router.clone().oneshot(req_lease).await.unwrap();
+    assert_eq!(res_lease.status(), StatusCode::OK);
+    let html_lease = String::from_utf8(
+        axum::body::to_bytes(res_lease.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(html_lease.contains("<title>Residential Lease Agreement Template & PDF Generator · Pressmark Studio</title>"));
+    assert!(html_lease.contains("<link rel=\"canonical\" href=\"https://pressmark.dev/templates/residential-lease\">"));
+    assert!(html_lease.contains("window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"residential_lease\";"));
+
+    // Verify unknown template slug returns 404
+    let req_404 = Request::builder()
+        .uri("/templates/non-existent-archetype-xyz")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_404 = router.clone().oneshot(req_404).await.unwrap();
+    assert_eq!(res_404.status(), StatusCode::NOT_FOUND);
+
+    // 3. Verify sitemap.xml includes all 39 /templates/<slug> routes
+    let req_sm = Request::builder()
+        .uri("/sitemap.xml")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_sm = router.clone().oneshot(req_sm).await.unwrap();
+    assert_eq!(res_sm.status(), StatusCode::OK);
+    let sm_xml = String::from_utf8(
+        axum::body::to_bytes(res_sm.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert_eq!(sm_xml.matches("https://pressmark.dev/templates/").count(), 39);
+
+    // 4. Verify REST /api/v1/generate and MCP generate_document include 1-click checkout URLs
+    let req_gen = Request::builder()
+        .uri("/api/v1/generate")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "doc_type": "invoice",
+                "from": { "name": "Apex Studio" },
+                "to": { "name": "Client Co" },
+                "items": [{ "description": "Design Sprint", "quantity": 1.0, "unit_price": 1200.0 }]
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let res_gen = router.clone().oneshot(req_gen).await.unwrap();
+    assert_eq!(res_gen.status(), StatusCode::OK);
+    assert_eq!(
+        res_gen.headers().get("x-upgrade-checkout-url").unwrap(),
+        "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true"
+    );
+    let gen_json: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(res_gen.into_body(), usize::MAX).await.unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        gen_json["unlock_checkout_url"],
+        "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true"
+    );
+    assert_eq!(
+        gen_json["pro_checkout_url"],
+        "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
+    );
+
+    let mcp_resp = McpHandler::handle_request(JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(serde_json::json!(77)),
+        method: "tools/call".to_string(),
+        params: Some(serde_json::json!({
+            "name": "generate_document",
+            "arguments": {
+                "doc_type": "invoice",
+                "from": { "name": "Apex Studio" },
+                "to": { "name": "Client Co" },
+                "items": [{ "description": "Design Sprint", "quantity": 1.0, "unit_price": 1200.0 }]
+            }
+        })),
+    });
+    let mcp_res = mcp_resp.result.unwrap();
+    assert_eq!(
+        mcp_res["unlock_checkout_url"],
+        "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true"
+    );
+    assert_eq!(
+        mcp_res["pro_checkout_url"],
+        "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
+    );
+
+    // 5. Verify entitlement upgrade and revocation upon refund
+    auth_mgr.upgrade_user_entitlement("refund.test@example.org", ChatGptPlan::SoloPro, Some("cs_123"), 1500);
+    assert_eq!(
+        storage.get_customer_entitlement("refund.test@example.org").as_deref(),
+        Some("solo_pro")
+    );
+    let sess = auth_mgr.create_email_session("refund.test@example.org", Some("Refund Tester"));
+    assert!(sess.user.is_subscriber);
+
+    auth_mgr.revoke_user_entitlement("refund.test@example.org");
+    assert!(storage.get_customer_entitlement("refund.test@example.org").is_none());
+    let updated_sess = auth_mgr.get_session(&sess.session_id).unwrap();
+    assert!(!updated_sess.user.is_subscriber);
+    assert_eq!(updated_sess.user.plan, ChatGptPlan::Free);
+}

@@ -7,10 +7,10 @@ use crate::auth::{
 };
 use crate::engine::{compile_pdf_bytes, compile_png_bytes, generate_pdf, generate_preview_png, generate_all_preview_pngs};
 use crate::mcp::{JsonRpcRequest, McpHandler};
-use crate::models::{DocumentRequest, GenerateResponse, PreviewResponse, CopilotRequest, CopilotResponse, VisionRequest, VisionResponse, LineItem, PartyDetails};
+use crate::models::{DocumentRequest, DocumentType, GenerateResponse, PreviewResponse, CopilotRequest, CopilotResponse, VisionRequest, VisionResponse, LineItem, PartyDetails};
 use crate::openapi::{get_ai_plugin_manifest, get_openapi_spec};
 use crate::pricing::get_pricing_catalog;
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
@@ -99,6 +99,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/", get(handle_index))
         .route("/pricing", get(handle_index))
         .route("/demo", get(handle_index))
+        .route("/templates", get(handle_index))
+        .route("/templates/:slug", get(handle_template_landing))
         .route("/favicon.ico", get(handle_favicon))
         .route("/favicon.svg", get(handle_favicon))
         .route("/privacy", get(handle_privacy))
@@ -112,6 +114,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/preview", post(handle_preview))
         .route("/api/v1/render-raw", post(handle_render_raw))
         .route("/api/v1/render-vector", post(handle_render_raw))
+        .route("/api/v1/templates", get(handle_templates_catalog))
         .route("/api/v1/pricing", get(handle_pricing))
         .route("/api/v1/checkout", get(handle_checkout_get).post(handle_checkout_post))
         .route("/api/v1/setup-check", get(handle_setup_check))
@@ -183,6 +186,104 @@ async fn handle_index() -> impl IntoResponse {
     }
 }
 
+async fn handle_template_landing(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+) -> Response {
+    let doc_type = match DocumentType::from_slug(&slug) {
+        Some(dt) => dt,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Html("<h1>404 · Template Not Found</h1><p><a href=\"/templates\">Browse all 39 document templates</a></p>".to_string()),
+            )
+                .into_response();
+        }
+    };
+
+    let canonical_slug = doc_type.url_slug();
+    let archetype_key = doc_type.as_str();
+    let (seo_title, seo_desc) = doc_type.seo_metadata();
+    let canonical_url = format!("https://pressmark.dev/templates/{}", canonical_slug);
+
+    state.storage.record_usage_event(
+        "template_landing_view",
+        Some(archetype_key),
+        "web_seo",
+        Some(canonical_slug),
+        None,
+    );
+
+    match tokio::fs::read_to_string("static/index.html").await {
+        Ok(raw_html) => {
+            let mut html = raw_html
+                .replace(
+                    "<title>Pressmark Studio · Sub-Millisecond Vector Invoices, Leases & Documents</title>",
+                    &format!("<title>{}</title>", seo_title),
+                )
+                .replace(
+                    "<meta name=\"description\" content=\"Sub-millisecond Rust-native vector document engine. Generate publication-grade invoices, commercial leases, estimates, and legal agreements with live preview, Stripe QR payment links, and ChatGPT / MCP agent integration.\">",
+                    &format!("<meta name=\"description\" content=\"{}\">", seo_desc),
+                )
+                .replace(
+                    "<link rel=\"canonical\" href=\"https://pressmark.dev/\">",
+                    &format!("<link rel=\"canonical\" href=\"{}\">", canonical_url),
+                )
+                .replace(
+                    "<meta property=\"og:url\" content=\"https://pressmark.dev/\">",
+                    &format!("<meta property=\"og:url\" content=\"{}\">", canonical_url),
+                )
+                .replace(
+                    "<meta property=\"og:title\" content=\"Pressmark Studio · Sub-Millisecond Vector Document Engine\">",
+                    &format!("<meta property=\"og:title\" content=\"{}\">", seo_title),
+                )
+                .replace(
+                    "<meta property=\"og:description\" content=\"Generate crisp, print-ready vector PDF invoices, commercial leases, and legal agreements in under 15ms. 1-scan QR code mobile payments, PEPPOL compliance, and ChatGPT / MCP integration.\">",
+                    &format!("<meta property=\"og:description\" content=\"{}\">", seo_desc),
+                );
+
+            let boot_script = format!(
+                "  <script>window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"{}\";</script>\n</head>",
+                archetype_key
+            );
+            html = html.replacen("</head>", &boot_script, 1);
+
+            (StatusCode::OK, Html(html)).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(format!("<h1>Error loading index.html: {}</h1>", e)),
+        )
+            .into_response(),
+    }
+}
+
+async fn handle_templates_catalog() -> impl IntoResponse {
+    let templates: Vec<serde_json::Value> = DocumentType::all()
+        .iter()
+        .map(|dt| {
+            let (seo_title, seo_description) = dt.seo_metadata();
+            serde_json::json!({
+                "doc_type": dt.as_str(),
+                "slug": dt.url_slug(),
+                "display_title": dt.display_title(),
+                "default_number_prefix": dt.default_number_prefix(),
+                "seo_title": seo_title,
+                "seo_description": seo_description,
+                "url": format!("https://pressmark.dev/templates/{}", dt.url_slug()),
+            })
+        })
+        .collect();
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "count": templates.len(),
+            "templates": templates
+        })),
+    )
+}
+
 async fn handle_privacy() -> impl IntoResponse {
     match tokio::fs::read_to_string("static/privacy.html").await {
         Ok(html) => (StatusCode::OK, Html(html)),
@@ -252,6 +353,12 @@ async fn handle_generate(
                 doc_req.watermark = None;
             }
         }
+    } else if doc_req.watermark.is_none()
+        && std::env::var("PRESSMARK_ENFORCE_FREE_WATERMARK")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
+    {
+        doc_req.watermark = Some("PRESSMARK PREVIEW".to_string());
     }
 
     let doc_num = doc_req.effective_doc_number();
@@ -267,10 +374,41 @@ async fn handle_generate(
                 user_agent,
                 Some(compile_ms as u64),
             );
+
+            // Asynchronously sync active creator lead to HighLevel CRM when configured
+            if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
+                let candidate_email = session
+                    .as_ref()
+                    .map(|s| s.user.email.as_str())
+                    .filter(|e| !e.ends_with("@pressmark.local") && !e.ends_with("@example.com"))
+                    .or_else(|| doc_req.from.email.as_deref())
+                    .or_else(|| doc_req.to.email.as_deref())
+                    .filter(|e| e.contains('@') && !e.ends_with("@example.com"))
+                    .map(|s| s.to_string());
+                if let Some(email_cl) = candidate_email {
+                    let doc_cl = doc_req.clone();
+                    tokio::spawn(async move {
+                        let ghl = crate::ghl::GhlDispatcher::from_env();
+                        if ghl.is_configured() {
+                            let _ = ghl
+                                .dispatch_document_generation(&doc_cl, Some(&email_cl), "rest_api")
+                                .await;
+                        }
+                    });
+                }
+            }
+
             let mut resp_headers = HeaderMap::new();
             if is_chatgpt_subscriber {
                 resp_headers.insert("X-ChatGPT-Subscriber", "true".parse().unwrap());
                 resp_headers.insert("X-Compute-Delegation", "model.request".parse().unwrap());
+            } else {
+                resp_headers.insert(
+                    "X-Upgrade-Checkout-Url",
+                    "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true"
+                        .parse()
+                        .unwrap(),
+                );
             }
 
             // Check if caller wants binary stream or JSON
@@ -294,6 +432,15 @@ async fn handle_generate(
                     .map(|(png, _)| format!("data:image/png;base64,{}", BASE64.encode(&png)))
                     .ok();
 
+                let (unlock_url, pro_url) = if is_chatgpt_subscriber {
+                    (None, None)
+                } else {
+                    (
+                        Some("https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true".to_string()),
+                        Some("https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true".to_string()),
+                    )
+                };
+
                 let resp = GenerateResponse {
                     success: true,
                     pdf_base64: Some(pdf_base64),
@@ -301,6 +448,8 @@ async fn handle_generate(
                     doc_number: doc_num,
                     grand_total: total,
                     compile_time_ms: compile_ms,
+                    unlock_checkout_url: unlock_url,
+                    pro_checkout_url: pro_url,
                 };
                 (StatusCode::OK, resp_headers, Json(resp)).into_response()
             }
@@ -1657,7 +1806,7 @@ async fn handle_stripe_webhook(
                         *amount_total_cents,
                     );
 
-                    if std::env::var("GHL_LOCATION_PIT").is_ok() {
+                    if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
                         let email_cl = customer_email.clone();
                         let doc_cl = document_number
                             .clone()
@@ -1703,7 +1852,7 @@ async fn handle_stripe_webhook(
                         *amount_cents,
                     );
 
-                    if std::env::var("GHL_LOCATION_PIT").is_ok() {
+                    if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
                         let email_cl = customer_email.clone();
                         let doc_cl = document_number
                             .clone()
@@ -1719,6 +1868,21 @@ async fn handle_stripe_webhook(
                                 .await;
                         });
                     }
+                }
+                crate::stripe::FulfillmentAction::ChargeRefunded {
+                    customer_email,
+                    refund_amount_cents,
+                    credit_note_number,
+                    ..
+                } => {
+                    state.auth_mgr.revoke_user_entitlement(customer_email);
+                    state.storage.record_usage_event(
+                        "stripe_refund_revoked",
+                        None,
+                        "stripe_webhook",
+                        Some(credit_note_number),
+                        Some(*refund_amount_cents),
+                    );
                 }
                 _ => {}
             }

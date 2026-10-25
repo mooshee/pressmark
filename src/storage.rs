@@ -341,6 +341,16 @@ impl Storage {
         None
     }
 
+    pub fn revoke_customer_entitlement(&self, email: &str) -> Result<bool> {
+        let clean_email = email.trim().to_lowercase();
+        let lock = self.conn.lock().unwrap();
+        let rows = lock.execute(
+            "DELETE FROM customer_entitlements WHERE email = ?1;",
+            params![clean_email],
+        )?;
+        Ok(rows > 0)
+    }
+
     pub fn stats(&self) -> (usize, usize, usize) {
         let lock = self.conn.lock().unwrap();
         let sessions: i64 = lock

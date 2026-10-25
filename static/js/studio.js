@@ -1904,6 +1904,21 @@
     if (!hasSavedDoc) {
       loadIssuerProfile();
     }
+    const initUrlParams = new URLSearchParams(window.location.search);
+    const requestedTemplate =
+      window.__PRESSMARK_INITIAL_ARCHETYPE__ ||
+      initUrlParams.get('template') ||
+      initUrlParams.get('archetype') ||
+      initUrlParams.get('doc_type');
+    if (requestedTemplate) {
+      const normalizedType = String(requestedTemplate).trim().toLowerCase().replace(/-/g, '_');
+      const targetPill = document.querySelector(`.template-pill[data-type="${normalizedType}"]`);
+      if (targetPill) {
+        document.querySelectorAll('.template-pill').forEach(p => p.classList.remove('active'));
+        targetPill.classList.add('active');
+      }
+      applyDocumentTypeDefaults(normalizedType);
+    }
     setupDynamicInteractions();
     adaptFormToArchetype(state.doc_type);
     syncFormFromState();

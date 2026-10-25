@@ -183,6 +183,157 @@ impl DocumentType {
             Self::TenantEstoppel => "tenant_estoppel",
         }
     }
+
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::Invoice,
+            Self::InvoiceStandard,
+            Self::InvoiceFreelance,
+            Self::InvoiceConstruction,
+            Self::InvoiceMedical,
+            Self::InvoiceSaas,
+            Self::InvoiceMinimal,
+            Self::ProformaInvoice,
+            Self::Estimate,
+            Self::Receipt,
+            Self::PurchaseOrder,
+            Self::PackingSlip,
+            Self::CreditNote,
+            Self::WorkOrder,
+            Self::ExpenseReport,
+            Self::DeliveryReceipt,
+            Self::CommercialLease,
+            Self::QuotationTender,
+            Self::Agreement,
+            Self::AgreementSow,
+            Self::ContractorAgreement,
+            Self::RetainerAgreement,
+            Self::Nda,
+            Self::BillOfSale,
+            Self::Certificate,
+            Self::CertificateInsurance,
+            Self::CertificateCompletion,
+            Self::InspectionReport,
+            Self::ResidentialLease,
+            Self::CommercialNnnLease,
+            Self::PropertyManagementStatement,
+            Self::RentRoll,
+            Self::ClosingSettlementStatement,
+            Self::NoticeToVacate,
+            Self::SecurityDepositDisposition,
+            Self::RealEstateCommission,
+            Self::PropertyInspectionChecklist,
+            Self::LetterOfIntentCre,
+            Self::TenantEstoppel,
+        ]
+    }
+
+    pub fn url_slug(&self) -> &'static str {
+        match self {
+            Self::Invoice => "invoice",
+            Self::InvoiceStandard => "invoice-standard",
+            Self::InvoiceFreelance => "invoice-freelance",
+            Self::InvoiceConstruction => "invoice-construction",
+            Self::InvoiceMedical => "invoice-medical",
+            Self::InvoiceSaas => "invoice-saas",
+            Self::InvoiceMinimal => "invoice-minimal",
+            Self::ProformaInvoice => "proforma-invoice",
+            Self::Estimate => "estimate",
+            Self::Receipt => "receipt",
+            Self::PurchaseOrder => "purchase-order",
+            Self::PackingSlip => "packing-slip",
+            Self::CreditNote => "credit-note",
+            Self::WorkOrder => "work-order",
+            Self::ExpenseReport => "expense-report",
+            Self::DeliveryReceipt => "delivery-receipt",
+            Self::CommercialLease => "commercial-lease",
+            Self::QuotationTender => "quotation-tender",
+            Self::Agreement => "agreement",
+            Self::AgreementSow => "agreement-sow",
+            Self::ContractorAgreement => "contractor-agreement",
+            Self::RetainerAgreement => "retainer-agreement",
+            Self::Nda => "nda",
+            Self::BillOfSale => "bill-of-sale",
+            Self::Certificate => "certificate",
+            Self::CertificateInsurance => "certificate-insurance",
+            Self::CertificateCompletion => "certificate-completion",
+            Self::InspectionReport => "inspection-report",
+            Self::ResidentialLease => "residential-lease",
+            Self::CommercialNnnLease => "commercial-nnn-lease",
+            Self::PropertyManagementStatement => "property-management-statement",
+            Self::RentRoll => "rent-roll",
+            Self::ClosingSettlementStatement => "closing-settlement-statement",
+            Self::NoticeToVacate => "notice-to-vacate",
+            Self::SecurityDepositDisposition => "security-deposit-disposition",
+            Self::RealEstateCommission => "real-estate-commission",
+            Self::PropertyInspectionChecklist => "property-inspection-checklist",
+            Self::LetterOfIntentCre => "letter-of-intent-cre",
+            Self::TenantEstoppel => "tenant-estoppel",
+        }
+    }
+
+    pub fn from_slug(slug: &str) -> Option<Self> {
+        let normalized = slug.trim().to_lowercase().replace('-', "_");
+        for item in Self::all() {
+            if item.as_str() == normalized {
+                return Some(item.clone());
+            }
+        }
+        match normalized.as_str() {
+            "tax_invoice" | "standard_invoice" => Some(Self::InvoiceStandard),
+            "freelance_invoice" | "consulting_invoice" => Some(Self::InvoiceFreelance),
+            "construction_invoice" | "progress_billing" => Some(Self::InvoiceConstruction),
+            "medical_invoice" | "superbill" => Some(Self::InvoiceMedical),
+            "saas_invoice" | "subscription_invoice" => Some(Self::InvoiceSaas),
+            "minimal_invoice" | "commercial_invoice" => Some(Self::InvoiceMinimal),
+            "quote" | "proposal" => Some(Self::Estimate),
+            "payment_receipt" | "paid_receipt" => Some(Self::Receipt),
+            "po" => Some(Self::PurchaseOrder),
+            "bol" | "bill_of_lading" => Some(Self::PackingSlip),
+            "refund" | "credit_memo" => Some(Self::CreditNote),
+            "msa" | "master_services_agreement" => Some(Self::Agreement),
+            "sow" | "statement_of_work" => Some(Self::AgreementSow),
+            "mutual_nda" | "non_disclosure_agreement" => Some(Self::Nda),
+            "coi" | "certificate_of_insurance" => Some(Self::CertificateInsurance),
+            "certificate_of_completion" => Some(Self::CertificateCompletion),
+            "nnn_lease" | "triple_net_lease" => Some(Self::CommercialNnnLease),
+            "owner_statement" | "property_statement" => Some(Self::PropertyManagementStatement),
+            "closing_statement" | "settlement_statement" => Some(Self::ClosingSettlementStatement),
+            "eviction_notice" | "pay_or_quit" => Some(Self::NoticeToVacate),
+            "security_deposit" => Some(Self::SecurityDepositDisposition),
+            "commission_statement" | "brokerage_commission" => Some(Self::RealEstateCommission),
+            "move_in_checklist" | "move_out_checklist" => Some(Self::PropertyInspectionChecklist),
+            "loi" | "letter_of_intent" => Some(Self::LetterOfIntentCre),
+            "estoppel" | "estoppel_certificate" => Some(Self::TenantEstoppel),
+            _ => None,
+        }
+    }
+
+    pub fn seo_metadata(&self) -> (String, String) {
+        let title_case = self
+            .display_title()
+            .split_whitespace()
+            .map(|w| {
+                if w == "NNN" || w == "(NNN)" || w == "LOI" || w == "(LOI)" || w == "NDA" || w == "MSA" || w == "SOW" || w == "COI" {
+                    w.to_string()
+                } else {
+                    let mut chars = w.chars();
+                    match chars.next() {
+                        None => String::new(),
+                        Some(first) => first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase(),
+                    }
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        let page_title = format!("{} Template & PDF Generator · Pressmark Studio", title_case);
+        let description = format!(
+            "Create and download a print-ready {} PDF in milliseconds. Customize line items, clauses, tax rates, and QR payment links with live preview in Pressmark Studio.",
+            title_case
+        );
+        (page_title, description)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -847,6 +998,10 @@ pub struct GenerateResponse {
     pub doc_number: String,
     pub grand_total: f64,
     pub compile_time_ms: u128,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unlock_checkout_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pro_checkout_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

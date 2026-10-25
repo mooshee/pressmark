@@ -83,6 +83,31 @@ impl GhlDispatcher {
         }
     }
 
+    pub fn is_configured(&self) -> bool {
+        !self.token.trim().is_empty()
+    }
+
+    pub fn has_env_or_pit_file() -> bool {
+        if std::env::var("GHL_LOCATION_PIT")
+            .or_else(|_| std::env::var("HIGHLEVEL_API_KEY"))
+            .or_else(|_| std::env::var("PRESSMARK_GHL_PIT"))
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        let location_id = std::env::var("GHL_LOCATION_ID")
+            .or_else(|_| std::env::var("PRESSMARK_GHL_LOCATION_ID"))
+            .or_else(|_| std::env::var("HIGHLEVEL_LOCATION_ID"))
+            .unwrap_or_else(|_| PRESSMARK_LOCATION_ID.to_string());
+        let pit_path = format!(
+            "{}/.config/ghl-agency/contexts/moosh-growth/locations/{}.pit",
+            std::env::var("HOME").unwrap_or_default(),
+            location_id
+        );
+        std::path::Path::new(&pit_path).exists()
+    }
+
     fn resolve_token(location_id: &str) -> Result<String, String> {
         if let Ok(tok) = std::env::var("GHL_LOCATION_PIT")
             .or_else(|_| std::env::var("HIGHLEVEL_API_KEY"))

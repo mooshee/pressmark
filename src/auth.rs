@@ -598,6 +598,37 @@ impl ChatGptAuthManager {
             }
         }
     }
+
+    /// Revoke a customer's paid Stripe entitlement upon full refund and downgrade active sessions to Free
+    pub fn revoke_user_entitlement(&self, email: &str) {
+        let clean_email = email.trim().to_lowercase();
+        if let Some(storage) = &self.storage {
+            let _ = storage.revoke_customer_entitlement(&clean_email);
+        }
+
+        let plan = ChatGptPlan::Free;
+        let mut updated_sessions = Vec::new();
+        if let Ok(mut sessions) = self.sessions.write() {
+            for sess in sessions.values_mut() {
+                if sess.user.email.eq_ignore_ascii_case(&clean_email) {
+                    sess.user.plan = plan;
+                    sess.user.plan_display = plan.display_name().to_string();
+                    sess.user.badge_color = plan.badge_color().to_string();
+                    sess.user.is_subscriber = plan.is_subscriber();
+                    sess.user.compute_allowance = plan.compute_allowance().to_string();
+                    sess.user.watermark_free = plan.watermark_free();
+                    sess.user.priority_compilation = plan.priority_compilation();
+                    updated_sessions.push(sess.clone());
+                }
+            }
+        }
+
+        if let Some(storage) = &self.storage {
+            for sess in updated_sessions {
+                let _ = storage.save_session(&sess);
+            }
+        }
+    }
 }
 
 // Request and Response Structs for Auth endpoints
