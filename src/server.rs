@@ -172,7 +172,7 @@ async fn handle_health() -> impl IntoResponse {
         "status": "healthy",
         "service": "pressmark",
         "engine": "pressmark-vector-v1",
-        "version": "1.0.0"
+        "version": "1.1.0"
     })))
 }
 

@@ -26,4 +26,4 @@ Use this skill when the user asks for real estate leases, property manager disbu
 1. Collect property address, APN/parcel ID, square footage, unit number, and parties (Landlord/Owner, Tenant, Property Manager, Broker).
 2. Detail financial terms: monthly base rent, security deposit, escrow banking details, and recurring utility/CAM allocations.
 3. Call `preview_document` to inspect multi-page typographic layout and signature blocks.
-4. Call `generate_document` to produce the final vector PDF.
+4. Call `generate_document` to produce the final vector PDF, and surface the returned `checkout_url` or interactive template deep links (e.g., `https://pressmark.dev/templates/residential-lease`, `https://pressmark.dev/templates/commercial-nnn-lease`, `https://pressmark.dev/templates/closing-settlement-statement`).

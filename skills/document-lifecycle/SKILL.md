@@ -35,4 +35,4 @@ Use this skill when the user asks to convert an existing estimate or quote into 
 
 4. **Refund / Adjustment / Credit Note**:
    - Call `convert_document` with `target_type: "credit_note"`.
-   - Numbering updates to `CRD-XXXX`, amounts are framed as credit/refund offsets referencing the original invoice number.
+   - Numbering updates to `CRD-XXXX`, amounts are framed as credit/refund offsets referencing the original invoice number, and interactive browser links (`https://pressmark.dev/templates/credit-note`, `https://pressmark.dev/templates/receipt`) allow live visual customization.

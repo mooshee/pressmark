@@ -121,7 +121,7 @@ fn test_mcp_lifecycle_handshake_and_negative_validation() {
     let init_res = init_resp.result.expect("initialize should return result");
     assert_eq!(init_res["protocolVersion"], "2026-07-28");
     assert_eq!(init_res["serverInfo"]["name"], "pressmark");
-    assert_eq!(init_res["serverInfo"]["version"], "1.0.0");
+    assert_eq!(init_res["serverInfo"]["version"], "1.1.0");
 
     // 2. server/discover handshake
     let disc_req = JsonRpcRequest {

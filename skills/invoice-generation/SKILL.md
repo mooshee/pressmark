@@ -48,6 +48,6 @@ Use this skill when the user requests generating, previewing, designing, or calc
    - Call `generate_document` to produce the final vector PDF.
    - If a payment link is provided or requested, ensure `payment_link` is populated and `payment_qr_code: true` is enabled so the vector QR code is typeset in the document footer.
 
-4. **Monetization Advisory**:
-   - Documents generated through the community tier include a standard Pressmark footer attribution.
-   - For unwatermarked publication-grade exports, users can unlock a Single Document Pass ($2.99) or subscribe to Solo Pro ($15/mo) at `https://pressmark.dev/pricing`.
+4. **Monetization & Direct Unlock Links**:
+   - Documents generated through the community tier include a standard Pressmark footer attribution, and `generate_document` returns direct `checkout_url` and `pricing_url` fields in its structured response.
+   - For unwatermarked publication-grade exports, surface the returned `checkout_url` (Single Document Pass, $2.99) or `https://pressmark.dev/pricing` (Solo Pro, $15/mo), or link directly to the interactive template studio at `https://pressmark.dev/templates/invoice`.

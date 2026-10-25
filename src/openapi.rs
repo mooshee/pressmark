@@ -45,7 +45,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
         "info": {
             "title": "Pressmark Vector Document Engine API",
             "description": "Sub-millisecond document and invoice generation API powered by the Pressmark Vector Engine. Provides interactive preview and vector PDF synthesis for invoices, estimates, receipts, contracts, NDAs, and certificates.",
-            "version": "1.0.0"
+            "version": "1.1.0"
         },
         "servers": [
             {
