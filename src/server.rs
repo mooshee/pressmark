@@ -107,6 +107,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/terms", get(handle_terms))
         .route("/robots.txt", get(handle_robots))
         .route("/sitemap.xml", get(handle_sitemap))
+        .route("/llms.txt", get(handle_llms_txt))
+        .route("/llms-full.txt", get(handle_llms_full_txt))
         .route("/health", get(handle_health))
         .route("/healthz", get(handle_health))
         // API v1
@@ -334,6 +336,74 @@ async fn handle_sitemap() -> impl IntoResponse {
         )
             .into_response(),
     }
+}
+
+async fn handle_llms_txt() -> impl IntoResponse {
+    let mut lines = vec![
+        "# Pressmark Studio · Sub-Millisecond Vector Document Engine".to_string(),
+        "".to_string(),
+        "> High-performance Rust vector PDF document synthesis engine, interactive browser studio, and Model Context Protocol (MCP) server at https://pressmark.dev/mcp.".to_string(),
+        "".to_string(),
+        "## Core Endpoints & Agent Integration".to_string(),
+        "- [Interactive Studio](https://pressmark.dev/): Design, preview, and export 39 business, billing, legal, and real estate document archetypes in sub-25ms.".to_string(),
+        "- [Remote MCP Endpoint](https://pressmark.dev/mcp): Streamable HTTP MCP server (`io.github.mooshee/pressmark`) exposing `generate_document`, `preview_document`, `calculate_totals`, `get_pricing`, `convert_document`, and `record_payment`.".to_string(),
+        "- [OpenAPI 3.1 Specification](https://pressmark.dev/api/v1/openapi.json): REST API schema for `/api/v1/generate`, `/api/v1/preview`, `/api/v1/templates`, and `/api/v1/pricing`.".to_string(),
+        "- [Pricing & Single Unlock Passes](https://pressmark.dev/pricing): Free community tier, $2.99 Single Document Pass, and $15/mo Solo Pro unlimited exports.".to_string(),
+        "- [Full LLM Corpus](https://pressmark.dev/llms-full.txt): Complete 39-archetype catalog and MCP tool documentation.".to_string(),
+        "".to_string(),
+        "## Interactive Document Templates (39 Archetypes)".to_string(),
+    ];
+    for dt in DocumentType::all() {
+        let (_, desc) = dt.seo_metadata();
+        lines.push(format!(
+            "- [{}](https://pressmark.dev/templates/{}): {}",
+            dt.display_title(),
+            dt.url_slug(),
+            desc
+        ));
+    }
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        lines.join("\n"),
+    )
+}
+
+async fn handle_llms_full_txt() -> impl IntoResponse {
+    let mut lines = vec![
+        "# Pressmark Studio — Full AI & LLM Reference Corpus".to_string(),
+        "".to_string(),
+        "Website: https://pressmark.dev".to_string(),
+        "MCP Server (Streamable HTTP): https://pressmark.dev/mcp".to_string(),
+        "MCP Registry ID: io.github.mooshee/pressmark".to_string(),
+        "OpenAPI Spec: https://pressmark.dev/api/v1/openapi.json".to_string(),
+        "".to_string(),
+        "## MCP Tools (6 Tools)".to_string(),
+        "1. `generate_document`: Synthesizes a publication-grade vector PDF with embedded 1-scan SVG QR code mobile payments and returns `pdf_base64`, `checkout_url`, and `pricing_url`.".to_string(),
+        "2. `preview_document`: Renders a 144-PPI PNG preview as a Base64 Data URI for immediate visual inspection in chat.".to_string(),
+        "3. `calculate_totals`: Computes line-item subtotals, tax rates, discounts, and currency-specific grand totals.".to_string(),
+        "4. `get_pricing`: Returns subscription tiers ($15/mo Solo Pro, $49/mo Business, $149/mo Enterprise) and microtransaction passes ($2.99 Single Unlock).".to_string(),
+        "5. `convert_document`: Transitions documents across their billing lifecycle (`estimate` -> `invoice` -> `receipt` / `credit_note`).".to_string(),
+        "6. `record_payment`: Records partial or full payments, recalculates `balance_due`, and synthesizes official paid receipts.".to_string(),
+        "".to_string(),
+        "## All 39 Document Archetypes".to_string(),
+    ];
+    for dt in DocumentType::all() {
+        let (title, desc) = dt.seo_metadata();
+        lines.push(format!(
+            "### {} (`{}`)\n- URL: https://pressmark.dev/templates/{}\n- SEO Title: {}\n- Summary: {}\n",
+            dt.display_title(),
+            dt.as_str(),
+            dt.url_slug(),
+            title,
+            desc
+        ));
+    }
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        lines.join("\n"),
+    )
 }
 
 async fn handle_generate(

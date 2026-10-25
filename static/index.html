@@ -29,45 +29,99 @@
   <meta name="theme-color" content="#090d16">
   <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
   <link rel="apple-touch-icon" href="/assets/logo.jpg">
+  <link rel="alternate" type="text/markdown" href="https://pressmark.dev/llms.txt" title="Pressmark LLMs Index">
   <link rel="stylesheet" href="/css/studio.css">
+
+  <!-- Google Analytics 4 (G-4ZM1ZEHH43) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-4ZM1ZEHH43"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-4ZM1ZEHH43');
+  </script>
 
   <!-- Schema.org JSON-LD Structured Data -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "WebApplication",
-    "name": "Pressmark Document Studio",
-    "url": "https://pressmark.dev",
-    "description": "Sub-millisecond vector document and invoice synthesis engine powered by Rust.",
-    "applicationCategory": "BusinessApplication",
-    "operatingSystem": "Any (Web, ChatGPT Action, MCP Protocol, CLI)",
-    "offers": [
+    "@graph": [
       {
-        "@type": "Offer",
-        "name": "Free Tier",
-        "price": "0.00",
-        "priceCurrency": "USD",
-        "description": "Unlimited previews, standard generation with Pressmark watermark"
+        "@type": "WebApplication",
+        "name": "Pressmark Document Studio",
+        "url": "https://pressmark.dev",
+        "description": "Sub-millisecond vector document and invoice synthesis engine powered by Rust.",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Any (Web, ChatGPT Action, MCP Protocol, CLI)",
+        "speakable": {
+          "@type": "SpeakableSpecification",
+          "cssSelector": ["h1", "meta[name='description']"]
+        },
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Free Tier",
+            "price": "0.00",
+            "priceCurrency": "USD",
+            "description": "Unlimited previews, standard generation with Pressmark watermark"
+          },
+          {
+            "@type": "Offer",
+            "name": "Single Document Unlock Pass",
+            "price": "2.99",
+            "priceCurrency": "USD",
+            "description": "1 unwatermarked publication-grade vector export"
+          },
+          {
+            "@type": "Offer",
+            "name": "Solo Pro Subscription",
+            "price": "15.00",
+            "priceCurrency": "USD",
+            "description": "Unlimited unwatermarked exports, custom branding, Stripe QR payments"
+          }
+        ],
+        "author": {
+          "@type": "Person",
+          "name": "Daniel Hallman"
+        }
       },
       {
-        "@type": "Offer",
-        "name": "Single Document Unlock Pass",
-        "price": "2.99",
-        "priceCurrency": "USD",
-        "description": "1 unwatermarked publication-grade vector export"
+        "@type": "ProfessionalService",
+        "name": "Pressmark Studio",
+        "url": "https://pressmark.dev/",
+        "image": "https://pressmark.dev/assets/hero.jpg",
+        "description": "High-performance vector PDF document engine for invoices, estimates, receipts, commercial leases, and legal agreements."
       },
       {
-        "@type": "Offer",
-        "name": "Solo Pro Subscription",
-        "price": "15.00",
-        "priceCurrency": "USD",
-        "description": "Unlimited unwatermarked exports, custom branding, Stripe QR payments"
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How fast does Pressmark generate vector PDF invoices and leases?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Pressmark compiles print-ready vector PDFs and 144-PPI PNG previews in under 25 milliseconds using a stateless Rust engine."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can AI agents generate documents through MCP?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Connect any Model Context Protocol client to https://pressmark.dev/mcp using Streamable HTTP to preview and generate all 39 document archetypes."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I remove watermarks from exported PDFs?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Unlock a Single Document Pass ($2.99) or subscribe to Solo Pro ($15/month) for unlimited unwatermarked exports and custom brand themes."
+            }
+          }
+        ]
       }
-    ],
-    "author": {
-      "@type": "Person",
-      "name": "Daniel Hallman"
-    }
+    ]
   }
   </script>
 </head>
@@ -79,7 +133,7 @@
       <button type="button" class="mobile-nav-toggle" id="btnMobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
       <img src="/assets/logo.jpg" alt="Pressmark Logo" class="nav-logo">
       <div class="brand-text-group">
-        <span class="brand-text">PRESSMARK</span>
+        <h1 class="brand-text" style="margin:0;font-size:inherit;font-weight:inherit;">PRESSMARK</h1>
         <span class="brand-pill">Precision Vector Engine</span>
       </div>
     </div>
