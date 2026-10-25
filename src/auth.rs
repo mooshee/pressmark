@@ -394,7 +394,12 @@ impl ChatGptAuthManager {
                     .to_string()
             });
 
-        let plan = ChatGptPlan::SoloPro;
+        let plan = self
+            .storage
+            .as_ref()
+            .and_then(|s| s.get_customer_entitlement(&clean_email))
+            .map(|p| ChatGptPlan::from_str_relaxed(&p))
+            .unwrap_or(ChatGptPlan::SoloPro);
         let session_id = format!("email_sess_{}", Uuid::new_v4().simple());
         let user = ChatGptUser {
             id: format!("usr_email_{}", Uuid::new_v4().simple()),
@@ -528,6 +533,55 @@ impl ChatGptAuthManager {
             }
         }
         removed
+    }
+
+    /// Persist a paid Stripe entitlement and upgrade any active sessions for the customer
+    pub fn upgrade_user_entitlement(
+        &self,
+        email: &str,
+        plan: ChatGptPlan,
+        stripe_session_id: Option<&str>,
+        amount_cents: u64,
+    ) {
+        let clean_email = email.trim().to_lowercase();
+        let plan_slug = match plan {
+            ChatGptPlan::Agency => "agency",
+            ChatGptPlan::Business => "business",
+            ChatGptPlan::Pro => "pro",
+            ChatGptPlan::Plus => "plus",
+            _ => "solo_pro",
+        };
+
+        if let Some(storage) = &self.storage {
+            let _ = storage.record_customer_entitlement(
+                &clean_email,
+                plan_slug,
+                stripe_session_id,
+                amount_cents,
+            );
+        }
+
+        let mut updated_sessions = Vec::new();
+        if let Ok(mut sessions) = self.sessions.write() {
+            for sess in sessions.values_mut() {
+                if sess.user.email.eq_ignore_ascii_case(&clean_email) {
+                    sess.user.plan = plan;
+                    sess.user.plan_display = plan.display_name().to_string();
+                    sess.user.badge_color = plan.badge_color().to_string();
+                    sess.user.is_subscriber = plan.is_subscriber();
+                    sess.user.compute_allowance = plan.compute_allowance().to_string();
+                    sess.user.watermark_free = plan.watermark_free();
+                    sess.user.priority_compilation = plan.priority_compilation();
+                    updated_sessions.push(sess.clone());
+                }
+            }
+        }
+
+        if let Some(storage) = &self.storage {
+            for sess in updated_sessions {
+                let _ = storage.save_session(&sess);
+            }
+        }
     }
 }
 

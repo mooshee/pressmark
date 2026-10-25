@@ -97,6 +97,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         Router::new()
         // Interactive Dashboard, Legal & SEO
         .route("/", get(handle_index))
+        .route("/pricing", get(handle_index))
+        .route("/demo", get(handle_index))
+        .route("/favicon.ico", get(handle_favicon))
+        .route("/favicon.svg", get(handle_favicon))
         .route("/privacy", get(handle_privacy))
         .route("/terms", get(handle_terms))
         .route("/robots.txt", get(handle_robots))
@@ -109,6 +113,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/render-raw", post(handle_render_raw))
         .route("/api/v1/render-vector", post(handle_render_raw))
         .route("/api/v1/pricing", get(handle_pricing))
+        .route("/api/v1/checkout", get(handle_checkout_get).post(handle_checkout_post))
+        .route("/api/v1/setup-check", get(handle_setup_check))
         .route("/api/v1/openapi.json", get(handle_openapi))
         .route("/api/v1/copilot", post(handle_copilot))
         .route("/api/v1/vision-extract", post(handle_vision_extract))
@@ -117,6 +123,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/webhooks/stripe", post(handle_stripe_webhook))
         .route("/.well-known/ai-plugin.json", get(handle_ai_plugin))
         .route("/.well-known/openai-apps-challenge", get(handle_openai_apps_challenge))
+        .route("/.well-known/oauth-protected-resource", get(handle_oauth_protected_resource))
+        .route("/.well-known/oauth-protected-resource/mcp", get(handle_oauth_protected_resource))
+        .route("/.well-known/mcp/server-card.json", get(handle_mcp_server_card))
+        .route("/.well-known/mcp.json", get(handle_mcp_server_card))
         // Universal Authentication
         .route("/api/v1/auth/session", get(handle_chatgpt_session))
         .route("/api/v1/auth/guest", post(handle_guest_login))
@@ -352,6 +362,263 @@ async fn handle_render_raw(Json(req): Json<RawRenderRequest>) -> Response {
 
 async fn handle_pricing() -> impl IntoResponse {
     Json(get_pricing_catalog())
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct CheckoutRequest {
+    #[serde(alias = "plan")]
+    pub plan_id: Option<String>,
+    pub price_id: Option<String>,
+    #[serde(alias = "user_ref")]
+    pub client_reference_id: Option<String>,
+    pub redirect: Option<bool>,
+}
+
+fn resolve_checkout_response(req: &CheckoutRequest) -> serde_json::Value {
+    let catalog = get_pricing_catalog();
+    let target = req
+        .plan_id
+        .as_deref()
+        .or(req.price_id.as_deref())
+        .unwrap_or("plan_solo");
+
+    let all_plans: Vec<_> = catalog
+        .plans
+        .iter()
+        .chain(catalog.microtransactions.iter())
+        .collect();
+
+    let matched = all_plans
+        .iter()
+        .find(|p| p.id == target || p.stripe_price_id == target || p.id.contains(target))
+        .copied()
+        .or_else(|| catalog.plans.iter().find(|p| p.id == "plan_solo"))
+        .unwrap();
+
+    let checkout_url = crate::pricing::generate_checkout_url(
+        &matched.stripe_price_id,
+        req.client_reference_id.as_deref(),
+    );
+
+    serde_json::json!({
+        "success": true,
+        "plan_id": matched.id,
+        "plan_name": matched.name,
+        "price_display": matched.price_display,
+        "price_cents": matched.price_cents,
+        "interval": matched.interval,
+        "stripe_price_id": matched.stripe_price_id,
+        "checkout_url": checkout_url,
+        "live_mode": crate::stripe::is_live_mode()
+    })
+}
+
+async fn handle_checkout_get(Query(req): Query<CheckoutRequest>) -> Response {
+    let payload = resolve_checkout_response(&req);
+    if req.redirect.unwrap_or(false) {
+        if let Some(url) = payload["checkout_url"].as_str() {
+            return axum::response::Redirect::to(url).into_response();
+        }
+    }
+    (StatusCode::OK, Json(payload)).into_response()
+}
+
+async fn handle_checkout_post(Json(req): Json<CheckoutRequest>) -> impl IntoResponse {
+    (StatusCode::OK, Json(resolve_checkout_response(&req)))
+}
+
+async fn handle_favicon() -> impl IntoResponse {
+    let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><rect width="64" height="64" rx="14" fill="#0f172a"/><path d="M18 16h18c7.732 0 14 6.268 14 14s-6.268 14-14 14H26v8h-8V16zm8 8v12h10c3.314 0 6-2.686 6-6s-2.686-6-6-6H26z" fill="#38bdf8"/></svg>"##;
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "image/svg+xml; charset=utf-8")],
+        svg,
+    )
+}
+
+async fn handle_oauth_protected_resource(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let base = state.base_url.trim_end_matches('/');
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "resource": format!("{}/mcp", base),
+            "authorization_servers": [crate::auth::OPENAI_AUTH_SERVER],
+            "bearer_methods_supported": ["header"],
+            "scopes_supported": ["openid", "profile", "email", "model.request", "agent:mcp", "developer:api"],
+            "resource_documentation": format!("{}/api/v1/openapi.json", base)
+        })),
+    )
+}
+
+async fn handle_mcp_server_card(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let base = state.base_url.trim_end_matches('/');
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "name": "io.github.mooshee/pressmark",
+            "title": "Pressmark Vector Document Engine",
+            "description": "Vector document engine for 39 invoice, receipt, contract, and real estate PDFs with QR payments.",
+            "version": crate::mcp::MCP_SERVER_VERSION,
+            "protocolVersion": "2026-07-28",
+            "supportedProtocols": crate::mcp::SUPPORTED_MCP_PROTOCOLS,
+            "websiteUrl": base,
+            "remotes": [
+                {
+                    "type": "streamable-http",
+                    "url": format!("{}/mcp", base)
+                }
+            ],
+            "tools": McpHandler::get_tools()
+        })),
+    )
+}
+
+pub fn run_setup_check(storage: Option<&crate::storage::Storage>) -> serde_json::Value {
+    let start = std::time::Instant::now();
+    let typst_bin = crate::engine::find_typst_executable();
+    let smoke_res = crate::engine::compile_pdf_bytes("#set page(width: 2in, height: 1in, margin: 4pt)\n*Pressmark Doctor OK*");
+    let smoke_ms = start.elapsed().as_millis() as u64;
+    let smoke_ok = smoke_res.as_ref().map(|b| b.starts_with(b"%PDF-")).unwrap_or(false);
+
+    let default_storage;
+    let db = match storage {
+        Some(s) => s,
+        None => {
+            default_storage = crate::storage::Storage::default_db();
+            &default_storage
+        }
+    };
+    let (sessions_count, stripe_events_count, entitlements_count) = db.stats();
+
+    let required_static = [
+        "static/index.html",
+        "static/js/studio.js",
+        "static/css/studio.css",
+        "static/privacy.html",
+        "static/terms.html",
+    ];
+    let mut static_files = serde_json::Map::new();
+    let mut all_static_present = true;
+    for path in required_static {
+        match std::fs::metadata(path) {
+            Ok(meta) if meta.len() > 0 => {
+                static_files.insert(path.to_string(), serde_json::json!({ "present": true, "bytes": meta.len() }));
+            }
+            _ => {
+                all_static_present = false;
+                static_files.insert(path.to_string(), serde_json::json!({ "present": false, "bytes": 0 }));
+            }
+        }
+    }
+
+    let live_mode = crate::stripe::is_live_mode();
+    let secret_key_ok = crate::stripe::get_stripe_secret_key()
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false);
+    let webhook_secrets = crate::stripe::get_stripe_webhook_secrets();
+    let catalog = get_pricing_catalog();
+    let solo_plan = catalog.plans.iter().find(|p| p.id == "plan_solo");
+    let live_prices_configured = solo_plan
+        .map(|p| p.stripe_price_id.starts_with("price_1"))
+        .unwrap_or(false);
+    let checkout_links_configured = catalog
+        .plans
+        .iter()
+        .filter(|p| p.price_cents > 0)
+        .chain(catalog.microtransactions.iter())
+        .all(|p| {
+            p.checkout_url
+                .as_deref()
+                .map(|u| u.starts_with("https://buy.stripe.com/"))
+                .unwrap_or(false)
+        });
+
+    let ghl_location_id = std::env::var("GHL_LOCATION_ID")
+        .or_else(|_| std::env::var("HIGHLEVEL_LOCATION_ID"))
+        .unwrap_or_else(|_| crate::ghl::PRESSMARK_LOCATION_ID.to_string());
+    let ghl_pit_configured = std::env::var("GHL_LOCATION_PIT")
+        .or_else(|_| std::env::var("HIGHLEVEL_API_KEY"))
+        .or_else(|_| std::env::var("PRESSMARK_GHL_PIT"))
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or_else(|_| {
+            let pit_path = format!(
+                "{}/.config/ghl-agency/contexts/moosh-growth/locations/{}.pit",
+                std::env::var("HOME").unwrap_or_default(),
+                ghl_location_id
+            );
+            std::fs::read_to_string(pit_path)
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false)
+        });
+
+    let challenge_ok = std::env::var("OPENAI_APPS_CHALLENGE_TOKEN")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            std::fs::read_to_string("static/.well-known/openai-apps-challenge")
+                .ok()
+                .filter(|s| !s.trim().is_empty())
+        })
+        .is_some();
+
+    let tools_count = McpHandler::get_tools()
+        .as_array()
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let overall_healthy = smoke_ok && all_static_present && secret_key_ok && !webhook_secrets.is_empty();
+
+    serde_json::json!({
+        "status": if overall_healthy { "healthy" } else { "degraded" },
+        "version": env!("CARGO_PKG_VERSION"),
+        "checks": {
+            "vector_engine": {
+                "status": if smoke_ok { "ok" } else { "error" },
+                "binary_path": typst_bin.map(|p| p.display().to_string()),
+                "pdf_smoke_test": smoke_ok,
+                "compile_ms": smoke_ms
+            },
+            "storage_sqlite": {
+                "status": "ok",
+                "db_path": db.db_path().display().to_string(),
+                "sessions_count": sessions_count,
+                "stripe_events_count": stripe_events_count,
+                "entitlements_count": entitlements_count
+            },
+            "static_assets": {
+                "status": if all_static_present { "ok" } else { "error" },
+                "working_directory": std::env::current_dir().ok().map(|p| p.display().to_string()),
+                "all_present": all_static_present,
+                "files": static_files
+            },
+            "stripe_payments": {
+                "status": if secret_key_ok && !webhook_secrets.is_empty() && checkout_links_configured { "ok" } else { "warning" },
+                "live_mode": live_mode,
+                "account_id": std::env::var("STRIPE_ACCOUNT_ID").ok(),
+                "secret_key_configured": secret_key_ok,
+                "webhook_secrets_count": webhook_secrets.len(),
+                "live_prices_configured": live_prices_configured,
+                "checkout_links_configured": checkout_links_configured
+            },
+            "highlevel_crm": {
+                "status": if ghl_pit_configured { "ok" } else { "warning" },
+                "location_id": ghl_location_id,
+                "pit_configured": ghl_pit_configured
+            },
+            "mcp_and_discovery": {
+                "status": "ok",
+                "mcp_version": crate::mcp::MCP_SERVER_VERSION,
+                "supported_protocols": crate::mcp::SUPPORTED_MCP_PROTOCOLS,
+                "tools_count": tools_count,
+                "archetypes_count": 39,
+                "openai_challenge_configured": challenge_ok
+            }
+        }
+    })
+}
+
+async fn handle_setup_check(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let report = run_setup_check(Some(&state.storage));
+    (StatusCode::OK, Json(report))
 }
 
 async fn handle_openapi(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -775,6 +1042,94 @@ async fn handle_stripe_webhook(
     match crate::stripe::process_stripe_event(event.clone()) {
         Ok(action) => {
             state.stripe_idempotency.record(&event.id).await;
+
+            match &action {
+                crate::stripe::FulfillmentAction::CheckoutCompleted {
+                    customer_email,
+                    session_id,
+                    amount_total_cents,
+                    document_number,
+                } => {
+                    let plan = if *amount_total_cents >= 14900 {
+                        crate::auth::ChatGptPlan::Agency
+                    } else if *amount_total_cents >= 4900 {
+                        crate::auth::ChatGptPlan::Business
+                    } else {
+                        crate::auth::ChatGptPlan::SoloPro
+                    };
+                    state.auth_mgr.upgrade_user_entitlement(
+                        customer_email,
+                        plan,
+                        Some(session_id),
+                        *amount_total_cents,
+                    );
+
+                    if std::env::var("GHL_LOCATION_PIT").is_ok() {
+                        let email_cl = customer_email.clone();
+                        let doc_cl = document_number
+                            .clone()
+                            .unwrap_or_else(|| session_id.clone());
+                        let tier_slug = match plan {
+                            crate::auth::ChatGptPlan::Agency => "sub_agency",
+                            crate::auth::ChatGptPlan::Business => "sub_business",
+                            _ => "sub_solo_pro",
+                        };
+                        let cents = *amount_total_cents as u32;
+                        tokio::spawn(async move {
+                            let ghl = crate::ghl::GhlDispatcher::from_env();
+                            let _ = ghl
+                                .dispatch_payment_unlock(&doc_cl, &email_cl, tier_slug, cents)
+                                .await;
+                        });
+                    }
+                }
+                crate::stripe::FulfillmentAction::PaymentUnlocked {
+                    customer_email,
+                    amount_cents,
+                    document_number,
+                    receipt_number,
+                    unlocked_tier,
+                    ..
+                } => {
+                    let plan = unlocked_tier
+                        .as_deref()
+                        .map(crate::auth::ChatGptPlan::from_str_relaxed)
+                        .unwrap_or_else(|| {
+                            if *amount_cents >= 14900 {
+                                crate::auth::ChatGptPlan::Agency
+                            } else if *amount_cents >= 4900 {
+                                crate::auth::ChatGptPlan::Business
+                            } else {
+                                crate::auth::ChatGptPlan::SoloPro
+                            }
+                        });
+                    state.auth_mgr.upgrade_user_entitlement(
+                        customer_email,
+                        plan,
+                        Some(receipt_number),
+                        *amount_cents,
+                    );
+
+                    if std::env::var("GHL_LOCATION_PIT").is_ok() {
+                        let email_cl = customer_email.clone();
+                        let doc_cl = document_number
+                            .clone()
+                            .unwrap_or_else(|| receipt_number.clone());
+                        let tier_cl = unlocked_tier
+                            .clone()
+                            .unwrap_or_else(|| "single_pass".to_string());
+                        let cents = *amount_cents as u32;
+                        tokio::spawn(async move {
+                            let ghl = crate::ghl::GhlDispatcher::from_env();
+                            let _ = ghl
+                                .dispatch_payment_unlock(&doc_cl, &email_cl, &tier_cl, cents)
+                                .await;
+                        });
+                    }
+                }
+                _ => {}
+            }
+
             (
                 StatusCode::OK,
                 Json(serde_json::json!({

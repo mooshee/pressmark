@@ -1690,7 +1690,7 @@
         if (btnUpg) {
           btnUpg.addEventListener('click', () => {
             const pricingModal = document.getElementById('pricingModal');
-            if (pricingModal) pricingModal.classList.add('active');
+            if (pricingModal) pricingModal.style.display = 'flex';
           });
         }
       }
@@ -5304,6 +5304,9 @@
 
     document.getElementById('btnOpenPricing').addEventListener('click', () => pricingModal.style.display = 'flex');
     document.getElementById('btnClosePricing').addEventListener('click', () => pricingModal.style.display = 'none');
+    if (window.location.pathname === '/pricing' || window.location.search.includes('pricing=1')) {
+      pricingModal.style.display = 'flex';
+    }
 
     document.getElementById('btnOpenGpt').addEventListener('click', () => gptModal.style.display = 'flex');
     document.getElementById('btnCloseGpt').addEventListener('click', () => gptModal.style.display = 'none');

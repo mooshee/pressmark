@@ -1140,3 +1140,108 @@ async fn test_openai_apps_challenge_endpoint() {
     std::env::remove_var("OPENAI_APPS_CHALLENGE_TOKEN");
 }
 
+#[tokio::test]
+async fn test_setup_check_checkout_entitlement_and_discovery_routes() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use hmac::{Hmac, Mac};
+    use pressmark::server::{create_router, AppState};
+    use pressmark::storage::Storage;
+    use sha2::Sha256;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let storage = Arc::new(Storage::new(":memory:").unwrap());
+    let app_state = Arc::new(AppState::default().with_storage(storage.clone()));
+    let router = create_router(app_state);
+
+    // 1. Verify /api/v1/setup-check
+    let req_setup = Request::builder()
+        .uri("/api/v1/setup-check")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_setup = router.clone().oneshot(req_setup).await.unwrap();
+    assert_eq!(res_setup.status(), StatusCode::OK);
+    let setup_bytes = axum::body::to_bytes(res_setup.into_body(), 1024 * 1024).await.unwrap();
+    let setup_json: serde_json::Value = serde_json::from_slice(&setup_bytes).unwrap();
+    assert_eq!(setup_json["checks"]["vector_engine"]["pdf_smoke_test"], true);
+    assert_eq!(setup_json["checks"]["mcp_and_discovery"]["tools_count"], 6);
+    assert_eq!(setup_json["checks"]["mcp_and_discovery"]["archetypes_count"], 39);
+
+    // 2. Verify /api/v1/checkout & /api/v1/pricing checkout_url
+    let req_checkout = Request::builder()
+        .uri("/api/v1/checkout?plan=plan_solo&client_reference_id=usr_checkout_99")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_checkout = router.clone().oneshot(req_checkout).await.unwrap();
+    assert_eq!(res_checkout.status(), StatusCode::OK);
+    let checkout_bytes = axum::body::to_bytes(res_checkout.into_body(), 1024 * 1024).await.unwrap();
+    let checkout_json: serde_json::Value = serde_json::from_slice(&checkout_bytes).unwrap();
+    assert_eq!(checkout_json["success"], true);
+    assert_eq!(checkout_json["plan_id"], "plan_solo");
+    assert!(checkout_json["checkout_url"]
+        .as_str()
+        .unwrap()
+        .contains("client_reference_id=usr_checkout_99"));
+
+    // 3. Verify /pricing, /demo, /favicon.ico, /.well-known/oauth-protected-resource, /.well-known/mcp/server-card.json
+    for route in [
+        "/pricing",
+        "/demo",
+        "/favicon.ico",
+        "/.well-known/oauth-protected-resource",
+        "/.well-known/oauth-protected-resource/mcp",
+        "/.well-known/mcp/server-card.json",
+    ] {
+        let req = Request::builder()
+            .uri(route)
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+        let res = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK, "Route {} failed", route);
+    }
+
+    // 4. Verify Stripe Checkout webhook persists customer entitlement and upgrades email login
+    std::env::set_var("STRIPE_WEBHOOK_SECRET", "whsec_entitlement_test_secret");
+    let now = chrono::Utc::now().timestamp();
+    let webhook_payload = serde_json::json!({
+        "id": "evt_entitlement_business_001",
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": "cs_live_business_001",
+                "amount_total": 4900,
+                "customer_details": {
+                    "email": "billing.upgrade@pressmark.dev"
+                }
+            }
+        }
+    })
+    .to_string();
+
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac = HmacSha256::new_from_slice(b"whsec_entitlement_test_secret").unwrap();
+    mac.update(format!("{}.{}", now, webhook_payload).as_bytes());
+    let sig_hex = hex::encode(mac.finalize().into_bytes());
+    let sig_header = format!("t={},v1={}", now, sig_hex);
+
+    let req_wh = Request::builder()
+        .uri("/api/v1/webhooks/stripe")
+        .method("POST")
+        .header("content-type", "application/json")
+        .header("stripe-signature", sig_header)
+        .body(Body::from(webhook_payload))
+        .unwrap();
+    let res_wh = router.clone().oneshot(req_wh).await.unwrap();
+    assert_eq!(res_wh.status(), StatusCode::OK);
+
+    assert_eq!(
+        storage.get_customer_entitlement("billing.upgrade@pressmark.dev").as_deref(),
+        Some("business")
+    );
+}
+
+

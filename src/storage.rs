@@ -100,7 +100,15 @@ impl Storage {
                 event_id TEXT PRIMARY KEY,
                 processed_at TEXT NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS idx_processed_stripe_at ON processed_stripe_events(processed_at);",
+            CREATE INDEX IF NOT EXISTS idx_processed_stripe_at ON processed_stripe_events(processed_at);
+
+            CREATE TABLE IF NOT EXISTS customer_entitlements (
+                email TEXT PRIMARY KEY,
+                plan TEXT NOT NULL,
+                stripe_session_id TEXT,
+                amount_cents INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            );",
         )?;
 
         Ok(())
@@ -280,6 +288,58 @@ impl Storage {
         )?;
 
         Ok(())
+    }
+
+    pub fn record_customer_entitlement(
+        &self,
+        email: &str,
+        plan: &str,
+        stripe_session_id: Option<&str>,
+        amount_cents: u64,
+    ) -> Result<()> {
+        let clean_email = email.trim().to_lowercase();
+        let lock = self.conn.lock().unwrap();
+        let now = Utc::now().to_rfc3339();
+
+        lock.execute(
+            "INSERT INTO customer_entitlements (email, plan, stripe_session_id, amount_cents, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(email) DO UPDATE SET
+                plan = excluded.plan,
+                stripe_session_id = COALESCE(excluded.stripe_session_id, customer_entitlements.stripe_session_id),
+                amount_cents = excluded.amount_cents,
+                updated_at = excluded.updated_at;",
+            params![clean_email, plan, stripe_session_id, amount_cents as i64, now],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn get_customer_entitlement(&self, email: &str) -> Option<String> {
+        let clean_email = email.trim().to_lowercase();
+        let lock = self.conn.lock().unwrap();
+        let mut stmt = lock
+            .prepare("SELECT plan FROM customer_entitlements WHERE email = ?1 LIMIT 1;")
+            .ok()?;
+        let mut rows = stmt.query(params![clean_email]).ok()?;
+        if let Ok(Some(row)) = rows.next() {
+            return row.get(0).ok();
+        }
+        None
+    }
+
+    pub fn stats(&self) -> (usize, usize, usize) {
+        let lock = self.conn.lock().unwrap();
+        let sessions: i64 = lock
+            .query_row("SELECT count(*) FROM sessions;", [], |r| r.get(0))
+            .unwrap_or(0);
+        let stripe_events: i64 = lock
+            .query_row("SELECT count(*) FROM processed_stripe_events;", [], |r| r.get(0))
+            .unwrap_or(0);
+        let entitlements: i64 = lock
+            .query_row("SELECT count(*) FROM customer_entitlements;", [], |r| r.get(0))
+            .unwrap_or(0);
+        (sessions as usize, stripe_events as usize, entitlements as usize)
     }
 
     /// Prune expired sessions, stale pending auths (>1h), and old Stripe events (>N days)

@@ -19,6 +19,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Options:");
         println!("  -h, --help       Show this help message and exit");
         println!("  -v, --version    Show version information and exit");
+        println!("  --doctor         Run end-to-end setup & readiness checks");
+        println!("  --stdio, --mcp   Run Model Context Protocol (MCP) JSON-RPC over stdio");
         println!();
         println!("Environment Variables:");
         println!("  HOST             Server host (default: 127.0.0.1)");
@@ -28,6 +30,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if args.iter().any(|a| a == "--version" || a == "-v") {
         println!("pressmark {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
+    // Load local environment files if present
+    let _ = dotenvy::from_filename("/etc/pressmark/pressmark.env");
+    let _ = dotenvy::from_filename(".local/operator.env");
+    let _ = dotenvy::dotenv();
+
+    if args.iter().any(|a| a == "--doctor" || a == "doctor" || a == "setup-check") {
+        let report = pressmark::server::run_setup_check(None);
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        if report["status"] != "healthy" {
+            std::process::exit(1);
+        }
         return Ok(());
     }
 
@@ -54,10 +70,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         return Ok(());
     }
-
-    // Load local environment files if present
-    let _ = dotenvy::from_filename(".local/operator.env");
-    let _ = dotenvy::dotenv();
 
     tracing_subscriber::registry()
         .with(
