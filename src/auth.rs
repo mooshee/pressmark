@@ -863,6 +863,23 @@ pub async fn handle_email_login(
     }
 
     let session = auth_mgr.create_email_session(&payload.email, payload.name.as_deref());
+    if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
+        let clean_email = payload.email.trim().to_lowercase();
+        if clean_email.contains('@')
+            && !clean_email.ends_with("@pressmark.local")
+            && !clean_email.ends_with("@example.com")
+        {
+            let name_cl = payload.name.clone();
+            tokio::spawn(async move {
+                let ghl = crate::ghl::GhlDispatcher::from_env();
+                if ghl.is_configured() {
+                    let _ = ghl
+                        .dispatch_workspace_signin(&clean_email, name_cl.as_deref(), "web_studio")
+                        .await;
+                }
+            });
+        }
+    }
     let cookie_val = format!(
         "pressmark_session={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=5184000",
         session.session_id

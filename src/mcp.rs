@@ -499,6 +499,37 @@ impl McpHandler {
                                 }
                                 match generate_pdf(&doc_req) {
                                     Ok((pdf_bytes, ms)) => {
+                                        if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
+                                            let candidate_email = doc_req
+                                                .from
+                                                .email
+                                                .as_deref()
+                                                .or_else(|| doc_req.to.email.as_deref())
+                                                .map(str::trim)
+                                                .filter(|e| {
+                                                    e.contains('@')
+                                                        && !e.ends_with("@pressmark.local")
+                                                        && !e.ends_with("@example.com")
+                                                })
+                                                .map(str::to_string);
+                                            if let Some(email_cl) = candidate_email {
+                                                if let Ok(rt) = tokio::runtime::Handle::try_current() {
+                                                    let doc_cl = doc_req.clone();
+                                                    rt.spawn(async move {
+                                                        let ghl = crate::ghl::GhlDispatcher::from_env();
+                                                        if ghl.is_configured() {
+                                                            let _ = ghl
+                                                                .dispatch_document_generation(
+                                                                    &doc_cl,
+                                                                    Some(&email_cl),
+                                                                    "mcp_agent",
+                                                                )
+                                                                .await;
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                        }
                                         let b64 = BASE64.encode(&pdf_bytes);
                                         JsonRpcResponse {
                                             jsonrpc: "2.0",

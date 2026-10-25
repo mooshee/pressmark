@@ -386,7 +386,10 @@ async fn handle_generate(
                     .filter(|e| e.contains('@') && !e.ends_with("@example.com"))
                     .map(|s| s.to_string());
                 if let Some(email_cl) = candidate_email {
-                    let doc_cl = doc_req.clone();
+                    let mut doc_cl = doc_req.clone();
+                    if !is_chatgpt_subscriber && doc_cl.watermark.is_none() {
+                        doc_cl.watermark = Some("PRESSMARK FREE TIER".to_string());
+                    }
                     tokio::spawn(async move {
                         let ghl = crate::ghl::GhlDispatcher::from_env();
                         if ghl.is_configured() {
@@ -551,7 +554,65 @@ pub struct CheckoutRequest {
     pub price_id: Option<String>,
     #[serde(alias = "user_ref")]
     pub client_reference_id: Option<String>,
+    #[serde(alias = "customer_email")]
+    pub email: Option<String>,
     pub redirect: Option<bool>,
+}
+
+fn dispatch_checkout_to_ghl_if_configured(
+    state: &AppState,
+    headers: &HeaderMap,
+    req: &CheckoutRequest,
+    payload: &serde_json::Value,
+) {
+    if !crate::ghl::GhlDispatcher::has_env_or_pit_file() {
+        return;
+    }
+    let session_email = auth::extract_token_from_headers(headers)
+        .and_then(|t| state.auth_mgr.get_session(&t))
+        .map(|s| s.user.email);
+    let candidate_email = req
+        .email
+        .as_deref()
+        .or_else(|| {
+            req.client_reference_id
+                .as_deref()
+                .filter(|r| r.contains('@'))
+        })
+        .or(session_email.as_deref())
+        .map(str::trim)
+        .filter(|e| {
+            e.contains('@')
+                && !e.ends_with("@pressmark.local")
+                && !e.ends_with("@example.com")
+        })
+        .map(str::to_lowercase);
+
+    if let Some(email_cl) = candidate_email {
+        let plan_id_cl = payload["plan_id"]
+            .as_str()
+            .unwrap_or("plan_solo")
+            .to_string();
+        let stripe_price_id_cl = payload["stripe_price_id"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        let price_cents = payload["price_cents"].as_u64().unwrap_or(0) as u32;
+        tokio::spawn(async move {
+            let ghl = crate::ghl::GhlDispatcher::from_env();
+            if ghl.is_configured() {
+                let _ = ghl
+                    .dispatch_checkout_started(
+                        &email_cl,
+                        &plan_id_cl,
+                        &stripe_price_id_cl,
+                        price_cents,
+                        "web_checkout",
+                    )
+                    .await;
+            }
+        });
+    }
 }
 
 fn resolve_checkout_response(req: &CheckoutRequest) -> serde_json::Value {
@@ -608,6 +669,7 @@ async fn handle_checkout_get(
         payload["plan_id"].as_str(),
         None,
     );
+    dispatch_checkout_to_ghl_if_configured(&state, &headers, &req, &payload);
     if is_redirect {
         if let Some(url) = payload["checkout_url"].as_str() {
             return axum::response::Redirect::to(url).into_response();
@@ -630,6 +692,7 @@ async fn handle_checkout_post(
         payload["plan_id"].as_str(),
         None,
     );
+    dispatch_checkout_to_ghl_if_configured(&state, &headers, &req, &payload);
     (StatusCode::OK, Json(payload))
 }
 
@@ -1883,6 +1946,15 @@ async fn handle_stripe_webhook(
                         Some(credit_note_number),
                         Some(*refund_amount_cents),
                     );
+                    if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
+                        let email_cl = customer_email.clone();
+                        let cn_cl = credit_note_number.clone();
+                        let cents = *refund_amount_cents;
+                        tokio::spawn(async move {
+                            let ghl = crate::ghl::GhlDispatcher::from_env();
+                            let _ = ghl.dispatch_charge_refunded(&email_cl, &cn_cl, cents).await;
+                        });
+                    }
                 }
                 _ => {}
             }

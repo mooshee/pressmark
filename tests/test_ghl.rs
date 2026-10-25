@@ -57,6 +57,7 @@ async fn test_ghl_dispatcher_initialization_and_live_sync() {
     doc.title = Some("Test Contract".to_string());
     doc.doc_number = Some("TEST-DOC-1000".to_string());
     doc.issue_date = Some("2026-10-01".to_string());
+    doc.watermark = Some("PRESSMARK FREE TIER".to_string());
     doc.doc_type = pressmark::models::DocumentType::Agreement;
     doc.from = PartyDetails {
         name: "Pressmark Test Corp".to_string(),
@@ -78,4 +79,32 @@ async fn test_ghl_dispatcher_initialization_and_live_sync() {
 
     let doc_res = dispatcher.dispatch_document_generation(&doc, None, "integration-test").await;
     assert!(doc_res.is_ok(), "Dispatch document failed: {:?}", doc_res.err());
+    let doc_receipt = doc_res.unwrap();
+    assert_eq!(doc_receipt.workflows_enrolled.len(), 2);
+
+    if let Some(ref cid) = doc_receipt.contact_id {
+        let opp_res = dispatcher
+            .upsert_opportunity(
+                cid,
+                pressmark::ghl::STAGE_ACTIVE_CREATOR_FREE,
+                "Pressmark Test Corp — Free Creator",
+                "open",
+                Some(2.99),
+            )
+            .await;
+        assert!(opp_res.is_ok(), "Opportunity upsert failed: {:?}", opp_res.err());
+
+        let wf_res = dispatcher
+            .enroll_in_workflow(cid, pressmark::ghl::WF1_FREE_CREATOR_NURTURE_ID)
+            .await;
+        assert!(wf_res.is_ok(), "Workflow enroll failed: {:?}", wf_res.err());
+
+        // Clean up test contact from active workflows so test runs do not send delayed nurture emails
+        let _ = dispatcher
+            .remove_from_workflow(cid, pressmark::ghl::WF1_FREE_CREATOR_NURTURE_ID)
+            .await;
+        let _ = dispatcher
+            .remove_from_workflow(cid, pressmark::ghl::WF4_HIGH_VALUE_B2B_ID)
+            .await;
+    }
 }
