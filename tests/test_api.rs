@@ -1194,6 +1194,8 @@ async fn test_setup_check_checkout_entitlement_and_discovery_routes() {
         "/.well-known/oauth-protected-resource",
         "/.well-known/oauth-protected-resource/mcp",
         "/.well-known/mcp/server-card.json",
+        "/.well-known/agent-card.json",
+        "/.well-known/agent.json",
     ] {
         let req = Request::builder()
             .uri(route)

@@ -127,6 +127,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/.well-known/oauth-protected-resource/mcp", get(handle_oauth_protected_resource))
         .route("/.well-known/mcp/server-card.json", get(handle_mcp_server_card))
         .route("/.well-known/mcp.json", get(handle_mcp_server_card))
+        .route("/.well-known/agent-card.json", get(handle_mcp_server_card))
+        .route("/.well-known/agent.json", get(handle_mcp_server_card))
         // Universal Authentication
         .route("/api/v1/auth/session", get(handle_chatgpt_session))
         .route("/api/v1/auth/guest", post(handle_guest_login))
