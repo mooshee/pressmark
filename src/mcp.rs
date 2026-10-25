@@ -44,47 +44,12 @@ impl McpHandler {
     }
 
     pub fn document_type_enum() -> Value {
-        json!([
-            "invoice",
-            "invoice_standard",
-            "invoice_freelance",
-            "invoice_construction",
-            "invoice_medical",
-            "invoice_saas",
-            "invoice_minimal",
-            "proforma_invoice",
-            "estimate",
-            "receipt",
-            "purchase_order",
-            "packing_slip",
-            "credit_note",
-            "work_order",
-            "expense_report",
-            "delivery_receipt",
-            "commercial_lease",
-            "quotation_tender",
-            "agreement",
-            "agreement_sow",
-            "contractor_agreement",
-            "retainer_agreement",
-            "nda",
-            "bill_of_sale",
-            "certificate",
-            "certificate_insurance",
-            "certificate_completion",
-            "inspection_report",
-            "residential_lease",
-            "commercial_nnn_lease",
-            "property_management_statement",
-            "rent_roll",
-            "closing_settlement_statement",
-            "notice_to_vacate",
-            "security_deposit_disposition",
-            "real_estate_commission",
-            "property_inspection_checklist",
-            "letter_of_intent_cre",
-            "tenant_estoppel"
-        ])
+        Value::Array(
+            DocumentType::all()
+                .iter()
+                .map(|dt| Value::String(dt.as_str().to_string()))
+                .collect(),
+        )
     }
 
     fn document_input_properties() -> Value {
@@ -92,7 +57,35 @@ impl McpHandler {
             "doc_type": {
                 "type": "string",
                 "enum": Self::document_type_enum(),
-                "description": "The archetype or category of document to synthesize (e.g., invoice, invoice_freelance, estimate, receipt, credit_note, agreement, nda, residential_lease, commercial_nnn_lease)."
+                "description": "The archetype or category of document to synthesize across all 57 supported commercial, legal, and real estate templates (e.g., invoice, residential_lease, room_rental_lease, real_estate_deal_analysis, property_deed)."
+            },
+            "state_code": {
+                "type": "string",
+                "description": "Optional 2-letter US state or DC jurisdiction code (e.g., 'TN', 'CA', 'NY', 'FL', 'TX', 'VA', 'MN', 'WI') to activate the 4-layer 50-state + DC statutory lease & notice engine."
+            },
+            "municipality": {
+                "type": "string",
+                "description": "Optional municipal sub-profile override (supports 'Chicago', 'Cook County', 'New York City', 'San Francisco', 'Seattle', 'Portland')."
+            },
+            "county": {
+                "type": "string",
+                "description": "County name for notarial jurat and County Register of Deeds recording cover headers (e.g., 'Hamilton')."
+            },
+            "recordable": {
+                "type": "boolean",
+                "description": "When true (or on property_deed), applies County Recorder 3.0-inch top margin header and official recording stamp reserve."
+            },
+            "notary_required": {
+                "type": "boolean",
+                "description": "When true, renders a state-specific Notarial Acknowledgment & Jurat block."
+            },
+            "year_built": {
+                "type": "integer",
+                "description": "Property construction year (when < 1978, automatically triggers Federal Lead-Based Paint Disclosure under 42 U.S.C. § 4852d)."
+            },
+            "lease_package_mode": {
+                "type": "boolean",
+                "description": "When true, appends mandatory standalone state attachment sheets (e.g., FL § 83.512 Flood, WI ATCP 134.09 Nonstandard Rental Provisions, NY RPL § 231-c Good Cause Eviction, and Move-In Checklists)."
             },
             "title": {
                 "type": "string",
@@ -145,14 +138,15 @@ impl McpHandler {
                         "description": { "type": "string", "description": "Description of the deliverable, service, or charge." },
                         "quantity": { "type": "number", "description": "Quantity of units, hours, or months (must be non-negative on standard invoices)." },
                         "unit_price": { "type": "number", "description": "Unit rate or price per item (must be non-negative on standard invoices)." },
-                        "discount": { "type": "number", "description": "Optional line-level discount amount." }
+                        "discount": { "type": "number", "description": "Optional line-level discount or deduction amount." }
                     },
                     "required": ["description", "quantity", "unit_price"]
                 }
             },
             "currency": {
                 "type": "string",
-                "description": "Currency symbol or ISO code (default '$', supports 'USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY')."
+                "default": "USD",
+                "description": "ISO 4217 currency code or symbol (default 'USD', supports 'USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CHF', 'INR', 'BRL', 'SGD', 'NZD', 'SEK', 'NOK', 'DKK', 'AED', 'CNY')."
             },
             "tax_rate": {
                 "type": "number",
@@ -190,6 +184,101 @@ impl McpHandler {
             "is_paid": {
                 "type": "boolean",
                 "description": "Whether the document is marked PAID IN FULL."
+            },
+            "state_code": {
+                "type": "string",
+                "description": "2-letter US jurisdiction or state code (e.g. 'TN', 'CA', 'NY', 'TX') for statutory lease and real estate instruments."
+            },
+            "municipality": {
+                "type": "string",
+                "description": "Optional municipal ordinance sub-profile (e.g. 'NYC', 'Chicago', 'San Francisco', 'Los Angeles', 'Seattle', 'Portland')."
+            },
+            "county": {
+                "type": "string",
+                "description": "County name for notarial jurat and recording headers (e.g. 'Hamilton', 'Travis')."
+            },
+            "year_built": {
+                "type": "integer",
+                "description": "Property construction year (triggers 40 CFR Part 745 Lead-Based Paint Addendum when < 1978)."
+            },
+            "execution_mode": {
+                "type": "string",
+                "enum": ["esign", "wet_ink", "wet-ink", "notarized_wet", "ron", "notarized_ron"],
+                "description": "Execution and signature mode."
+            },
+            "compliance_mode": {
+                "type": "string",
+                "enum": ["none", "eu_vat", "factur-x", "peppol_bis", "hipaa_baa", "zatca", "irs_w9", "pci_dss", "soc2_badge", "statutory_sworn"],
+                "description": "Regulatory compliance notice banner."
+            },
+            "include_clerk_stamp": {
+                "type": "boolean",
+                "description": "Whether to reserve a County Clerk recording stamp zone on wet-ink jurats."
+            },
+            "currency_symbol_mode": {
+                "type": "string",
+                "enum": ["symbol", "code"],
+                "description": "Display currency symbol ('$') or ISO code ('USD')."
+            },
+            "currency_placement": {
+                "type": "string",
+                "enum": ["prefix", "suffix"],
+                "description": "Place currency symbol/code before or after amounts."
+            },
+            "currency_separators": {
+                "type": "string",
+                "enum": ["comma_dot", "dot_comma", "space_comma", "apostrophe_dot", "plain"],
+                "description": "Thousands and decimal separator style."
+            },
+            "date_format": {
+                "type": "string",
+                "enum": ["iso", "us_slash", "euro", "formal_prose", "short_abbrev", "short_dot"],
+                "description": "Date rendering format."
+            },
+            "number_decimals": {
+                "type": "integer",
+                "description": "Number of decimal places for formatted amounts (default 2)."
+            },
+            "unit_measure": {
+                "type": "string",
+                "description": "Optional unit suffix for quantities (e.g. 'hrs', 'days', 'mo', 'RSF')."
+            },
+            "custom_fields": {
+                "type": "array",
+                "description": "Custom key-value metadata fields.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "label": { "type": "string" },
+                        "value": { "type": "string" }
+                    },
+                    "required": ["label", "value"]
+                }
+            },
+            "sections": {
+                "type": "array",
+                "description": "Structured legal clauses or terms sections.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": { "type": "string" },
+                        "content": { "type": "string" }
+                    },
+                    "required": ["title", "content"]
+                }
+            },
+            "signatures": {
+                "type": "array",
+                "description": "Multi-party signature blocks.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "signer_name": { "type": "string" },
+                        "signer_title": { "type": "string" },
+                        "date": { "type": "string" }
+                    },
+                    "required": ["signer_name"]
+                }
             }
         })
     }
@@ -319,7 +408,7 @@ impl McpHandler {
                     "type": "object",
                     "properties": {
                         "document": { "type": "object", "description": "The current document payload to convert." },
-                        "target_type": { "type": "string", "enum": ["invoice", "receipt", "estimate", "credit_note"], "description": "Target lifecycle document type (invoice, receipt, estimate, credit_note)." },
+                        "target_type": { "type": "string", "enum": ["invoice", "receipt", "estimate", "credit_note", "refund"], "description": "Target lifecycle document type (invoice, receipt, estimate, credit_note, refund)." },
                         "due_days": { "type": "integer", "description": "Number of days until payment is due (for invoice conversion)." },
                         "payment_link": { "type": "string", "description": "Optional customer checkout/payment URL to embed as vector QR code and clickable link." },
                         "payment_qr_code": { "type": "boolean", "description": "Whether to render an SVG vector QR code for 1-scan mobile payment." },
@@ -371,20 +460,29 @@ impl McpHandler {
         ])
     }
 
-    fn validate_document_request(doc_req: &DocumentRequest) -> Result<(), String> {
+    pub fn validate_document_request(doc_req: &DocumentRequest) -> Result<(), String> {
         if doc_req.from.name.trim().is_empty() || doc_req.to.name.trim().is_empty() {
             return Err("Validation error: both 'from.name' (seller/issuer name) and 'to.name' (buyer/recipient name) are required.".to_string());
         }
-        if doc_req.doc_type != DocumentType::CreditNote {
-            for (idx, item) in doc_req.items.iter().enumerate() {
-                if item.quantity < 0.0 || item.unit_price < 0.0 {
-                    return Err(format!(
-                        "Arithmetic validation error on line item {}: negative quantities ({}) or negative unit rates ({}) cannot be billed on standard documents. Issue a formal 'credit_note' document instead.",
-                        idx + 1,
-                        item.quantity,
-                        item.unit_price
-                    ));
-                }
+        let allows_negative_adjustments = doc_req.doc_type.allows_negative_items()
+            || matches!(
+                doc_req.doc_type,
+                DocumentType::MutualLeaseTermination | DocumentType::LeaseAmendment
+            );
+        for (idx, item) in doc_req.items.iter().enumerate() {
+            if !item.quantity.is_finite() || !item.unit_price.is_finite() {
+                return Err(format!(
+                    "Arithmetic validation error on line item {}: quantity and unit_price must be finite numbers.",
+                    idx + 1
+                ));
+            }
+            if !allows_negative_adjustments && (item.quantity < 0.0 || item.unit_price < 0.0) {
+                return Err(format!(
+                    "Arithmetic validation error on line item {}: negative quantities ({}) or negative unit rates ({}) cannot be billed on standard documents. Issue a formal 'credit_note' document instead.",
+                    idx + 1,
+                    item.quantity,
+                    item.unit_price
+                ));
             }
         }
         Ok(())
@@ -748,8 +846,14 @@ impl McpHandler {
                                             {
                                                 "type": "text",
                                                 "text": format!(
-                                                    "**Document Totals Calculation:**\n- Subtotal: ${:.2}\n- Tax: ${:.2}\n- Discount: ${:.2}\n- **Grand Total:** ${:.2}\n- Amount Paid: ${:.2}\n- **Balance Due:** ${:.2}\n- Status: {}",
-                                                    subtotal, tax_total, discount, grand_total, amount_paid, balance_due, if is_paid { "PAID" } else { "UNPAID" }
+                                                    "**Document Totals Calculation:**\n- Subtotal: {}\n- Tax: {}\n- Discount: {}\n- **Grand Total:** {}\n- Amount Paid: {}\n- **Balance Due:** {}\n- Status: {}",
+                                                    doc_req.format_amount(subtotal),
+                                                    doc_req.format_amount(tax_total),
+                                                    doc_req.format_amount(discount),
+                                                    doc_req.format_amount(grand_total),
+                                                    doc_req.format_amount(amount_paid),
+                                                    doc_req.format_amount(balance_due),
+                                                    if is_paid { "PAID" } else { "UNPAID" }
                                                 )
                                             }
                                         ],
@@ -895,7 +999,11 @@ fn format_document_markdown(doc: &DocumentRequest, action_title: &str, compile_m
         "**PAYMENT PENDING** ⏳"
     };
 
-    let issue_date_str = doc.issue_date.as_deref().unwrap_or("Current");
+    let issue_date_str = doc
+        .issue_date
+        .as_deref()
+        .map(|d| doc.format_date(d))
+        .unwrap_or_else(|| "Current".to_string());
 
     let mut md = format!(
         "### {} {}\n\n**Document #:** `{}` | **Date:** `{}` | **Status:** {}\n\n",
@@ -911,21 +1019,27 @@ fn format_document_markdown(doc: &DocumentRequest, action_title: &str, compile_m
     if !doc.items.is_empty() {
         md.push_str("| Description | Qty | Rate | Amount |\n|---|---:|---:|---:|\n");
         for item in &doc.items {
-            md.push_str(&format!("| {} | {} | ${:.2} | ${:.2} |\n", item.description, item.quantity, item.unit_price, item.amount()));
+            md.push_str(&format!(
+                "| {} | {} | {} | {} |\n",
+                item.description,
+                item.quantity,
+                doc.format_amount(item.unit_price),
+                doc.format_amount(item.amount())
+            ));
         }
         md.push('\n');
     }
 
-    md.push_str(&format!("- **Subtotal:** ${:.2}\n", doc.subtotal()));
+    md.push_str(&format!("- **Subtotal:** {}\n", doc.format_amount(doc.subtotal())));
     if let Some(rate) = doc.tax_rate {
         if rate > 0.0 {
-            md.push_str(&format!("- **Tax ({:.1}%):** ${:.2}\n", rate, doc.tax_total()));
+            md.push_str(&format!("- **Tax ({:.1}%):** {}\n", rate, doc.format_amount(doc.tax_total())));
         }
     }
-    md.push_str(&format!("- **Grand Total:** ${:.2}\n", doc.grand_total()));
+    md.push_str(&format!("- **Grand Total:** {}\n", doc.format_amount(doc.grand_total())));
     if let Some(paid) = doc.amount_paid {
-        md.push_str(&format!("- **Amount Paid:** ${:.2}\n", paid));
-        md.push_str(&format!("- **Balance Due:** ${:.2}\n", doc.balance_due()));
+        md.push_str(&format!("- **Amount Paid:** {}\n", doc.format_amount(paid)));
+        md.push_str(&format!("- **Balance Due:** {}\n", doc.format_amount(doc.balance_due())));
     }
 
     if let Some(link) = &doc.payment_link {

@@ -117,6 +117,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/render-raw", post(handle_render_raw))
         .route("/api/v1/render-vector", post(handle_render_raw))
         .route("/api/v1/templates", get(handle_templates_catalog))
+        .route("/api/v1/states", get(handle_states_catalog))
         .route("/api/v1/pricing", get(handle_pricing))
         .route("/api/v1/checkout", get(handle_checkout_get).post(handle_checkout_post))
         .route("/api/v1/setup-check", get(handle_setup_check))
@@ -192,27 +193,41 @@ async fn handle_template_landing(
     State(state): State<Arc<AppState>>,
     Path(slug): Path<String>,
 ) -> Response {
-    let doc_type = match DocumentType::from_slug(&slug) {
-        Some(dt) => dt,
-        None => {
-            return (
-                StatusCode::NOT_FOUND,
-                Html("<h1>404 · Template Not Found</h1><p><a href=\"/templates\">Browse all 39 document templates</a></p>".to_string()),
-            )
-                .into_response();
-        }
+    let (doc_type, maybe_state_profile) = if let Some(dt) = DocumentType::from_slug(&slug) {
+        (dt, None)
+    } else if let Some((sp, dt)) = DocumentType::parse_state_prefixed_slug(&slug) {
+        (dt, Some(sp))
+    } else {
+        return (
+            StatusCode::NOT_FOUND,
+            Html("<h1>404 · Template Not Found</h1><p><a href=\"/templates\">Browse all 57 document templates</a></p>".to_string()),
+        )
+            .into_response();
     };
 
-    let canonical_slug = doc_type.url_slug();
     let archetype_key = doc_type.as_str();
-    let (seo_title, seo_desc) = doc_type.seo_metadata();
+    let (canonical_slug, seo_title, seo_desc) = if let Some(sp) = maybe_state_profile {
+        let (st_title, st_desc) = doc_type.state_seo_metadata(sp);
+        (
+            format!("{}-{}", sp.slug, doc_type.url_slug()),
+            st_title,
+            st_desc,
+        )
+    } else {
+        let (base_title, base_desc) = doc_type.seo_metadata();
+        (
+            doc_type.url_slug().to_string(),
+            base_title.to_string(),
+            base_desc.to_string(),
+        )
+    };
     let canonical_url = format!("https://pressmark.dev/templates/{}", canonical_slug);
 
     state.storage.record_usage_event(
         "template_landing_view",
         Some(archetype_key),
         "web_seo",
-        Some(canonical_slug),
+        Some(&canonical_slug),
         None,
     );
 
@@ -244,10 +259,17 @@ async fn handle_template_landing(
                     &format!("<meta property=\"og:description\" content=\"{}\">", seo_desc),
                 );
 
-            let boot_script = format!(
-                "  <script>window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"{}\";</script>\n</head>",
-                archetype_key
-            );
+            let boot_script = if let Some(sp) = maybe_state_profile {
+                format!(
+                    "  <script>window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"{}\"; window.__PRESSMARK_INITIAL_STATE__ = \"{}\";</script>\n</head>",
+                    archetype_key, sp.code
+                )
+            } else {
+                format!(
+                    "  <script>window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"{}\";</script>\n</head>",
+                    archetype_key
+                )
+            };
             html = html.replacen("</head>", &boot_script, 1);
 
             (StatusCode::OK, Html(html)).into_response()
@@ -282,6 +304,20 @@ async fn handle_templates_catalog() -> impl IntoResponse {
         Json(serde_json::json!({
             "count": templates.len(),
             "templates": templates
+        })),
+    )
+}
+
+async fn handle_states_catalog() -> impl IntoResponse {
+    let states = crate::state_laws::all_state_lease_profiles();
+    let municipalities = crate::state_laws::all_municipal_sub_profiles();
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "states_count": states.len(),
+            "municipalities_count": municipalities.len(),
+            "states": states,
+            "municipalities": municipalities,
         })),
     )
 }
@@ -323,19 +359,48 @@ async fn handle_robots() -> impl IntoResponse {
 }
 
 async fn handle_sitemap() -> impl IntoResponse {
-    match tokio::fs::read_to_string("static/sitemap.xml").await {
-        Ok(body) => (
-            StatusCode::OK,
-            [(axum::http::header::CONTENT_TYPE, "application/xml; charset=utf-8")],
-            body,
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Error loading sitemap.xml: {}", e),
-        )
-            .into_response(),
+    let mut xml = String::with_capacity(16384);
+    xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
+    xml.push_str("  <url><loc>https://pressmark.dev/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n");
+    xml.push_str("  <url><loc>https://pressmark.dev/pricing</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>\n");
+    xml.push_str("  <url><loc>https://pressmark.dev/privacy</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>\n");
+    xml.push_str("  <url><loc>https://pressmark.dev/terms</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>\n");
+
+    for item in crate::models::DocumentType::all() {
+        xml.push_str(&format!(
+            "  <url><loc>https://pressmark.dev/templates/{}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n",
+            item.url_slug()
+        ));
     }
+
+    for sp in crate::state_laws::all_state_lease_profiles() {
+        xml.push_str(&format!(
+            "  <url><loc>https://pressmark.dev/templates/{}-residential-lease</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n",
+            sp.slug
+        ));
+    }
+
+    for extra_slug in &[
+        "florida-eviction-notice",
+        "texas-quitclaim-deed",
+        "new-york-room-rental-lease",
+        "california-eviction-notice",
+        "tennessee-property-deed",
+    ] {
+        xml.push_str(&format!(
+            "  <url><loc>https://pressmark.dev/templates/{}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n",
+            extra_slug
+        ));
+    }
+
+    xml.push_str("</urlset>\n");
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "application/xml; charset=utf-8")],
+        xml,
+    )
+        .into_response()
 }
 
 async fn handle_llms_txt() -> impl IntoResponse {
@@ -345,13 +410,13 @@ async fn handle_llms_txt() -> impl IntoResponse {
         "> High-performance Rust vector PDF document synthesis engine, interactive browser studio, and Model Context Protocol (MCP) server at https://pressmark.dev/mcp.".to_string(),
         "".to_string(),
         "## Core Endpoints & Agent Integration".to_string(),
-        "- [Interactive Studio](https://pressmark.dev/): Design, preview, and export 39 business, billing, legal, and real estate document archetypes in sub-25ms.".to_string(),
+        "- [Interactive Studio](https://pressmark.dev/): Design, preview, and export 57 business, billing, legal, and real estate document archetypes in sub-25ms.".to_string(),
         "- [Remote MCP Endpoint](https://pressmark.dev/mcp): Streamable HTTP MCP server (`io.github.mooshee/pressmark`) exposing `generate_document`, `preview_document`, `calculate_totals`, `get_pricing`, `convert_document`, and `record_payment`.".to_string(),
-        "- [OpenAPI 3.1 Specification](https://pressmark.dev/api/v1/openapi.json): REST API schema for `/api/v1/generate`, `/api/v1/preview`, `/api/v1/templates`, and `/api/v1/pricing`.".to_string(),
+        "- [OpenAPI 3.1 Specification](https://pressmark.dev/api/v1/openapi.json): REST API schema for `/api/v1/generate`, `/api/v1/preview`, `/api/v1/templates`, `/api/v1/states`, and `/api/v1/pricing`.".to_string(),
         "- [Pricing & Single Unlock Passes](https://pressmark.dev/pricing): Free community tier, $2.99 Single Document Pass, and $15/mo Solo Pro unlimited exports.".to_string(),
-        "- [Full LLM Corpus](https://pressmark.dev/llms-full.txt): Complete 39-archetype catalog and MCP tool documentation.".to_string(),
+        "- [Full LLM Corpus](https://pressmark.dev/llms-full.txt): Complete 57-archetype catalog and MCP tool documentation.".to_string(),
         "".to_string(),
-        "## Interactive Document Templates (39 Archetypes)".to_string(),
+        "## Interactive Document Templates (57 Archetypes)".to_string(),
     ];
     for dt in DocumentType::all() {
         let (_, desc) = dt.seo_metadata();
@@ -386,7 +451,7 @@ async fn handle_llms_full_txt() -> impl IntoResponse {
         "5. `convert_document`: Transitions documents across their billing lifecycle (`estimate` -> `invoice` -> `receipt` / `credit_note`).".to_string(),
         "6. `record_payment`: Records partial or full payments, recalculates `balance_due`, and synthesizes official paid receipts.".to_string(),
         "".to_string(),
-        "## All 39 Document Archetypes".to_string(),
+        "## All 57 Document Archetypes".to_string(),
     ];
     for dt in DocumentType::all() {
         let (title, desc) = dt.seo_metadata();
@@ -796,7 +861,7 @@ async fn handle_mcp_server_card(State(state): State<Arc<AppState>>) -> impl Into
         Json(serde_json::json!({
             "name": "io.github.mooshee/pressmark",
             "title": "Pressmark Vector Document Engine",
-            "description": "Vector document engine for 39 invoice, receipt, contract, and real estate PDFs with QR payments.",
+            "description": "Vector document engine for 57 invoice, receipt, contract, and real estate PDFs with QR payments.",
             "version": crate::mcp::MCP_SERVER_VERSION,
             "protocolVersion": "2026-07-28",
             "supportedProtocols": crate::mcp::SUPPORTED_MCP_PROTOCOLS,
@@ -948,7 +1013,7 @@ pub fn run_setup_check(storage: Option<&crate::storage::Storage>) -> serde_json:
                 "mcp_version": crate::mcp::MCP_SERVER_VERSION,
                 "supported_protocols": crate::mcp::SUPPORTED_MCP_PROTOCOLS,
                 "tools_count": tools_count,
-                "archetypes_count": 39,
+                "archetypes_count": DocumentType::all().len(),
                 "openai_challenge_configured": challenge_ok
             },
             "usage_telemetry": db.analytics_summary()
@@ -1111,9 +1176,45 @@ async fn handle_copilot(
 
     let mut changes: Vec<String> = Vec::new();
 
-    // 1. Document archetype detection across all 39 supported types
+    // 1. Document archetype detection across all 57 supported types
     let matched_type = if prompt_lower.contains("nda") || prompt_lower.contains("non-disclosure") {
         Some((crate::models::DocumentType::Nda, "Mutual Non-Disclosure Agreement"))
+    } else if prompt_lower.contains("room rental") || prompt_lower.contains("co-living") || prompt_lower.contains("coliving") {
+        Some((crate::models::DocumentType::RoomRentalLease, "Room Rental & Co-Living Lease Agreement"))
+    } else if prompt_lower.contains("lease renewal") || prompt_lower.contains("renewal agreement") {
+        Some((crate::models::DocumentType::LeaseRenewalAgreement, "Lease Renewal & Extension Agreement"))
+    } else if prompt_lower.contains("lease amendment") || prompt_lower.contains("pet addendum") || prompt_lower.contains("roommate addendum") {
+        Some((crate::models::DocumentType::LeaseAmendment, "Lease Amendment & Addendum"))
+    } else if prompt_lower.contains("rental application") || prompt_lower.contains("tenant screening") {
+        Some((crate::models::DocumentType::RentalApplication, "Residential Rental Application"))
+    } else if prompt_lower.contains("adverse action") || prompt_lower.contains("fcra") {
+        Some((crate::models::DocumentType::AdverseActionNotice, "FCRA Adverse Action Notice"))
+    } else if prompt_lower.contains("notice of entry") || prompt_lower.contains("right of entry") || prompt_lower.contains("24-hour entry") {
+        Some((crate::models::DocumentType::NoticeOfEntry, "Landlord Notice of Entry"))
+    } else if prompt_lower.contains("rent increase") {
+        Some((crate::models::DocumentType::RentIncreaseNotice, "Statutory Notice of Rent Increase"))
+    } else if prompt_lower.contains("mutual lease termination") || prompt_lower.contains("cash for keys") || prompt_lower.contains("early lease termination") {
+        Some((crate::models::DocumentType::MutualLeaseTermination, "Mutual Lease Termination Agreement"))
+    } else if prompt_lower.contains("rent ledger") || prompt_lower.contains("tenant ledger") {
+        Some((crate::models::DocumentType::TenantRentLedger, "Tenant Rent & Payment Ledger"))
+    } else if prompt_lower.contains("schedule of real estate owned") || prompt_lower.contains("sreo") {
+        Some((crate::models::DocumentType::ScheduleOfRealEstateOwned, "Schedule of Real Estate Owned (SREO)"))
+    } else if prompt_lower.contains("schedule e") || prompt_lower.contains("t12") || prompt_lower.contains("tax worksheet") {
+        Some((crate::models::DocumentType::ScheduleETaxWorksheet, "IRS Schedule E Tax Prep Worksheet"))
+    } else if prompt_lower.contains("deal analysis") || prompt_lower.contains("brrrr") || prompt_lower.contains("fix and flip") || prompt_lower.contains("pro forma") {
+        Some((crate::models::DocumentType::RealEstateDealAnalysis, "Real Estate Investment Deal Analysis"))
+    } else if prompt_lower.contains("sublease") || prompt_lower.contains("sublet") {
+        Some((crate::models::DocumentType::SubleaseAgreement, "Residential Sublease Agreement"))
+    } else if prompt_lower.contains("rent to own") || prompt_lower.contains("rent-to-own") || prompt_lower.contains("lease option") {
+        Some((crate::models::DocumentType::RentToOwnAgreement, "Rent-to-Own (Lease-Option) Agreement"))
+    } else if prompt_lower.contains("property management agreement") {
+        Some((crate::models::DocumentType::PropertyManagementAgreement, "Property Management Agreement"))
+    } else if prompt_lower.contains("real estate purchase") || prompt_lower.contains("purchase and sale") || prompt_lower.contains("psa") || prompt_lower.contains("offer to purchase") {
+        Some((crate::models::DocumentType::RealEstatePurchaseAgreement, "Real Estate Purchase & Sale Agreement"))
+    } else if prompt_lower.contains("quitclaim deed") || prompt_lower.contains("warranty deed") || prompt_lower.contains("property deed") {
+        Some((crate::models::DocumentType::PropertyDeed, "Quitclaim / Warranty Deed"))
+    } else if prompt_lower.contains("lien waiver") || prompt_lower.contains("mechanic's lien") || prompt_lower.contains("mechanics lien") {
+        Some((crate::models::DocumentType::MechanicsLienWaiver, "Mechanic's Lien Waiver & Release"))
     } else if prompt_lower.contains("triple net") || prompt_lower.contains("nnn lease") || prompt_lower.contains("commercial nnn") {
         Some((crate::models::DocumentType::CommercialNnnLease, "Commercial NNN Lease"))
     } else if prompt_lower.contains("residential lease") || prompt_lower.contains("apartment lease") {
@@ -1193,6 +1294,29 @@ async fn handle_copilot(
     if let Some((dtype, label)) = matched_type {
         modified.doc_type = dtype;
         changes.push(format!("set archetype to {}", label));
+    }
+
+    // 1b. State / Jurisdiction detection for statutory lease & real estate packs
+    // Sort by name length descending so "West Virginia" matches before "Virginia"
+    let mut sorted_states: Vec<&'static crate::state_laws::StateLeaseProfile> =
+        crate::state_laws::all_state_lease_profiles().iter().collect();
+    sorted_states.sort_by(|a, b| b.name.len().cmp(&a.name.len()));
+    for sp in sorted_states {
+        let state_name_lower = sp.name.to_lowercase();
+        if prompt_lower.contains(&state_name_lower) {
+            modified.state_code = Some(sp.code.to_string());
+            changes.push(format!("applied {} ({}) statutory profile ({})", sp.name, sp.code, sp.governing_statute));
+            break;
+        }
+    }
+    for mp in crate::state_laws::all_municipal_sub_profiles() {
+        let muni_lower = mp.name.to_lowercase();
+        if prompt_lower.contains(&muni_lower) {
+            modified.municipality = Some(mp.name.to_string());
+            modified.state_code = Some(mp.state_code.to_string());
+            changes.push(format!("applied {} municipal ordinance ({})", mp.name, mp.ordinance_citation));
+            break;
+        }
     }
 
     let has_word = |haystack: &str, needle: &str| -> bool {
@@ -1781,16 +1905,29 @@ pub struct LifecyclePayRequest {
 async fn handle_lifecycle_convert(
     Json(payload): Json<LifecycleConvertRequest>,
 ) -> impl IntoResponse {
-    let mut converted = match payload.target_type.to_lowercase().as_str() {
+    let mut converted = match payload.target_type.trim().to_lowercase().as_str() {
         "invoice" => payload.document.to_invoice(payload.due_days.unwrap_or(15)),
-        "receipt" => payload.document.to_receipt(
+        "receipt" | "payment_receipt" | "paid_receipt" => payload.document.to_receipt(
             "Stripe / Apple Pay",
             &format!("TX-{}", chrono::Utc::now().timestamp()),
             &chrono::Utc::now().format("%Y-%m-%d").to_string(),
         ),
-        "estimate" | "quote" => payload.document.to_estimate(payload.valid_days.unwrap_or(30)),
-        "credit_note" | "credit" => payload.document.to_credit_note(payload.credit_reason.as_deref()),
-        _ => payload.document,
+        "estimate" | "quote" | "proposal" => payload.document.to_estimate(payload.valid_days.unwrap_or(30)),
+        "credit_note" | "credit-note" | "credit" | "refund" | "credit_memo" => {
+            payload.document.to_credit_note(payload.credit_reason.as_deref())
+        }
+        other => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!(
+                        "Unsupported target_type '{}'. Supported lifecycle target types are: invoice, receipt, estimate, credit_note, refund.",
+                        other
+                    )
+                })),
+            );
+        }
     };
 
     if let Some(link) = payload.payment_link {

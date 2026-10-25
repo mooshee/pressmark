@@ -265,7 +265,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                                 }
                             }
                         },
-                        "currency": { "type": "string", "default": "$" },
+                        "currency": { "type": "string", "default": "USD" },
                         "tax_rate": { "type": "number", "description": "Percentage tax rate (e.g. 8.5 for 8.5%)" },
                         "discount_amount": { "type": "number" },
                         "notes": { "type": "string" },
@@ -276,7 +276,57 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                         "payment_method": { "type": "string" },
                         "amount_paid": { "type": "number" },
                         "is_paid": { "type": "boolean" },
-                        "watermark": { "type": "string" }
+                        "watermark": { "type": "string" },
+                        "state_code": { "type": "string", "description": "2-letter US state or DC jurisdiction code (e.g. TN, CA, NY, FL, TX, VA, MN, WI)" },
+                        "municipality": { "type": "string", "description": "Municipal sub-profile override (Chicago, Cook County, New York City, San Francisco, Seattle, Portland)" },
+                        "county": { "type": "string", "description": "County name for notarial jurat and deed recording headers" },
+                        "recordable": { "type": "boolean", "description": "Enable 3.0-inch County Register of Deeds recording cover header" },
+                        "notary_required": { "type": "boolean", "description": "Render state-specific Notarial Acknowledgment & Jurat block" },
+                        "year_built": { "type": "integer", "description": "Property construction year (<1978 triggers Federal Lead-Based Paint disclosure)" },
+                        "lease_package_mode": { "type": "boolean", "description": "Append mandatory standalone state attachment sheets and move-in checklists" },
+                        "execution_mode": { "type": "string", "enum": ["esign", "wet_ink", "wet-ink", "notarized_wet", "ron", "notarized_ron"] },
+                        "compliance_mode": { "type": "string", "enum": ["none", "eu_vat", "factur-x", "peppol_bis", "hipaa_baa", "zatca", "irs_w9", "pci_dss", "soc2_badge", "statutory_sworn"] },
+                        "include_clerk_stamp": { "type": "boolean" },
+                        "currency_symbol_mode": { "type": "string", "enum": ["symbol", "code"] },
+                        "currency_placement": { "type": "string", "enum": ["prefix", "suffix"] },
+                        "currency_separators": { "type": "string", "enum": ["comma_dot", "dot_comma", "space_comma", "apostrophe_dot", "plain"] },
+                        "date_format": { "type": "string", "enum": ["iso", "us_slash", "euro", "formal_prose", "short_abbrev", "short_dot"] },
+                        "number_decimals": { "type": "integer", "default": 2 },
+                        "unit_measure": { "type": "string" },
+                        "custom_fields": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["label", "value"],
+                                "properties": {
+                                    "label": { "type": "string" },
+                                    "value": { "type": "string" }
+                                }
+                            }
+                        },
+                        "sections": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["title", "content"],
+                                "properties": {
+                                    "title": { "type": "string" },
+                                    "content": { "type": "string" }
+                                }
+                            }
+                        },
+                        "signatures": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["signer_name"],
+                                "properties": {
+                                    "signer_name": { "type": "string" },
+                                    "signer_title": { "type": "string" },
+                                    "date": { "type": "string" }
+                                }
+                            }
+                        }
                     },
                     "required": ["doc_type", "from", "to"]
                 },
@@ -286,7 +336,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                     "properties": {
                         "target_type": {
                             "type": "string",
-                            "enum": ["invoice", "receipt", "estimate", "credit_note"],
+                            "enum": ["invoice", "receipt", "estimate", "credit_note", "refund"],
                             "description": "Target lifecycle document type"
                         },
                         "due_days": { "type": "integer", "description": "Number of days until payment is due (for invoice conversion)" },

@@ -111,7 +111,7 @@
             "name": "Can AI agents generate documents through MCP?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes. Connect any Model Context Protocol client to https://pressmark.dev/mcp using Streamable HTTP to preview and generate all 39 document archetypes."
+              "text": "Yes. Connect any Model Context Protocol client to https://pressmark.dev/mcp using Streamable HTTP to preview and generate all 57 document archetypes."
             }
           },
           {
@@ -375,17 +375,17 @@
             </div>
           </div>
           <button type="button" class="btn btn-primary btn-sm btn-select-archetype" id="btnOpenArchetypeModal" title="Select Document Archetype & Domain">
-            <span>📂 Switch Archetype (39)</span>
+            <span>📂 Switch Archetype (57)</span>
           </button>
         </div>
 
         <!-- Quick Category Chips for Instant Prescriptive Filtering -->
         <div class="archetype-category-chips" id="archetypeCategoryChips">
-          <button type="button" class="cat-chip active" data-category="all">All (39)</button>
+          <button type="button" class="cat-chip active" data-category="all">All (57)</button>
           <button type="button" class="cat-chip" data-category="invoices">Invoices (8)</button>
           <button type="button" class="cat-chip" data-category="estimates">Quotes & PO (6)</button>
           <button type="button" class="cat-chip" data-category="agreements">Agreements (6)</button>
-          <button type="button" class="cat-chip" data-category="real_estate">Real Estate & CRE (11)</button>
+          <button type="button" class="cat-chip" data-category="real_estate">Real Estate & CRE (29)</button>
           <button type="button" class="cat-chip" data-category="operations">Ops & Legal (8)</button>
         </div>
       </div>
@@ -750,15 +750,15 @@
           <div class="card-body">
             <!-- Archetype Quick Search -->
             <div class="archetype-search-box">
-              <input type="text" id="archetypeSearchInput" class="form-input" placeholder="🔍 Search 39 archetypes..." autocomplete="off">
+              <input type="text" id="archetypeSearchInput" class="form-input" placeholder="🔍 Search 57 archetypes..." autocomplete="off">
             </div>
 
             <div class="category-tabs">
-              <div class="category-tab active" data-category="all">All (39)</div>
+              <div class="category-tab active" data-category="all">All (57)</div>
               <div class="category-tab" data-category="invoices">Invoices (8)</div>
               <div class="category-tab" data-category="estimates">Quotes & PO (6)</div>
               <div class="category-tab" data-category="agreements">Agreements (6)</div>
-              <div class="category-tab" data-category="real_estate">Real Estate & CRE (11)</div>
+              <div class="category-tab" data-category="real_estate">Real Estate & CRE (29)</div>
               <div class="category-tab" data-category="operations">Ops & Legal (8)</div>
             </div>
             <div class="template-grid">
@@ -793,6 +793,24 @@
               <button class="template-pill" data-type="property_inspection_checklist" data-category="real_estate">📋 Move-In/Out Checklist</button>
               <button class="template-pill" data-type="letter_of_intent_cre" data-category="real_estate">🤝 CRE Letter of Intent (LOI)</button>
               <button class="template-pill" data-type="tenant_estoppel" data-category="real_estate">🏛️ Tenant Estoppel Cert</button>
+              <button class="template-pill" data-type="room_rental_lease" data-category="real_estate">🛏️ Room Rental & Co-Living</button>
+              <button class="template-pill" data-type="lease_renewal_agreement" data-category="real_estate">🔄 Lease Renewal Agreement</button>
+              <button class="template-pill" data-type="lease_amendment" data-category="real_estate">📝 Lease Amendment & Addendum</button>
+              <button class="template-pill" data-type="rental_application" data-category="real_estate">🪪 Rental Application</button>
+              <button class="template-pill" data-type="adverse_action_notice" data-category="real_estate">⚖️ FCRA Adverse Action</button>
+              <button class="template-pill" data-type="notice_of_entry" data-category="real_estate">🚪 24-Hr Notice of Entry</button>
+              <button class="template-pill" data-type="rent_increase_notice" data-category="real_estate">📈 Rent Increase Notice</button>
+              <button class="template-pill" data-type="mutual_lease_termination" data-category="real_estate">🤝 Mutual Lease Termination</button>
+              <button class="template-pill" data-type="tenant_rent_ledger" data-category="real_estate">📒 Tenant Rent Ledger</button>
+              <button class="template-pill" data-type="schedule_of_real_estate_owned" data-category="real_estate">🏦 Portfolio SREO Schedule</button>
+              <button class="template-pill" data-type="schedule_e_tax_worksheet" data-category="real_estate">🧾 IRS Schedule E Worksheet</button>
+              <button class="template-pill" data-type="real_estate_deal_analysis" data-category="real_estate">📐 BRRRR & Deal Analysis</button>
+              <button class="template-pill" data-type="sublease_agreement" data-category="real_estate">🔑 Residential Sublease</button>
+              <button class="template-pill" data-type="rent_to_own_agreement" data-category="real_estate">🏡 Rent-to-Own (Lease-Option)</button>
+              <button class="template-pill" data-type="property_management_agreement" data-category="real_estate">🏢 Property Mgmt Agreement</button>
+              <button class="template-pill" data-type="real_estate_purchase_agreement" data-category="real_estate">✍️ Purchase & Sale Agreement</button>
+              <button class="template-pill" data-type="property_deed" data-category="real_estate">🏛️ Quitclaim / Warranty Deed</button>
+              <button class="template-pill" data-type="mechanics_lien_waiver" data-category="real_estate">🔨 Mechanic's Lien Waiver</button>
               <button class="template-pill" data-type="packing_slip" data-category="operations">🚚 Packing Slip / BOL</button>
               <button class="template-pill" data-type="bill_of_sale" data-category="operations">📜 Bill of Sale</button>
               <button class="template-pill" data-type="certificate" data-category="operations">🏆 Certificate</button>
@@ -1198,6 +1216,78 @@
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">50-State Statutory Lease Profile</label>
+                <select id="stateCodeSelect" class="form-select">
+                  <option value="">Auto-Detect from Address (or None)</option>
+                  <option value="AL">AL — Alabama (Ala. Code § 35-9A-101)</option>
+                  <option value="AK">AK — Alaska (AS § 34.03.010)</option>
+                  <option value="AZ">AZ — Arizona (A.R.S. § 33-1301)</option>
+                  <option value="AR">AR — Arkansas (Ark. Code § 18-17-101)</option>
+                  <option value="CA">CA — California (Cal. Civ. Code § 1940 / AB 12)</option>
+                  <option value="CO">CO — Colorado (C.R.S. § 38-12-101)</option>
+                  <option value="CT">CT — Connecticut (Conn. Gen. Stat. § 47a-1)</option>
+                  <option value="DE">DE — Delaware (25 Del. C. § 5101)</option>
+                  <option value="DC">DC — District of Columbia (D.C. Code § 42-3501)</option>
+                  <option value="FL">FL — Florida (Fla. Stat. § 83.40 / § 83.512 Flood)</option>
+                  <option value="GA">GA — Georgia (O.C.G.A. § 44-7-1 / HB 404)</option>
+                  <option value="HI">HI — Hawaii (HRS § 521-1)</option>
+                  <option value="ID">ID — Idaho (Idaho Code § 6-301)</option>
+                  <option value="IL">IL — Illinois (765 ILCS 705/)</option>
+                  <option value="IN">IN — Indiana (Ind. Code § 32-31-1)</option>
+                  <option value="IA">IA — Iowa (Iowa Code Ch. 562A)</option>
+                  <option value="KS">KS — Kansas (K.S.A. § 58-2540)</option>
+                  <option value="KY">KY — Kentucky (KRS § 383.505)</option>
+                  <option value="LA">LA — Louisiana (La. Civ. Code art. 2668)</option>
+                  <option value="ME">ME — Maine (14 M.R.S. § 6000)</option>
+                  <option value="MD">MD — Maryland (Md. Real Prop. § 8-203)</option>
+                  <option value="MA">MA — Massachusetts (M.G.L. c. 186 § 15B)</option>
+                  <option value="MI">MI — Michigan (MCL § 554.601 / § 554.634)</option>
+                  <option value="MN">MN — Minnesota (Minn. Stat. Ch. 504B)</option>
+                  <option value="MS">MS — Mississippi (Miss. Code § 89-8-1)</option>
+                  <option value="MO">MO — Missouri (RSMo § 535.300)</option>
+                  <option value="MT">MT — Montana (MCA § 70-24-101)</option>
+                  <option value="NE">NE — Nebraska (Neb. Rev. Stat. § 76-1401)</option>
+                  <option value="NV">NV — Nevada (NRS Ch. 118A)</option>
+                  <option value="NH">NH — New Hampshire (RSA Ch. 540-A)</option>
+                  <option value="NJ">NJ — New Jersey (N.J.S.A. § 46:8-19 / Truth-in-Renting)</option>
+                  <option value="NM">NM — New Mexico (NMSA § 47-8-1)</option>
+                  <option value="NY">NY — New York (N.Y. RPL Art. 7 / § 231-c Good Cause)</option>
+                  <option value="NC">NC — North Carolina (N.C. Gen. Stat. Ch. 42)</option>
+                  <option value="ND">ND — North Dakota (N.D.C.C. Ch. 47-16)</option>
+                  <option value="OH">OH — Ohio (ORC Ch. 5321)</option>
+                  <option value="OK">OK — Oklahoma (41 O.S. § 101)</option>
+                  <option value="OR">OR — Oregon (ORS Ch. 90)</option>
+                  <option value="PA">PA — Pennsylvania (68 P.S. § 250.101)</option>
+                  <option value="RI">RI — Rhode Island (R.I. Gen. Laws § 34-18-1)</option>
+                  <option value="SC">SC — South Carolina (S.C. Code § 27-40-10)</option>
+                  <option value="SD">SD — South Dakota (SDCL Ch. 43-32)</option>
+                  <option value="TN">TN — Tennessee (T.C.A. § 66-28-101)</option>
+                  <option value="TX">TX — Texas (Tex. Prop. Code Ch. 92)</option>
+                  <option value="UT">UT — Utah (Utah Code § 57-22-1)</option>
+                  <option value="VT">VT — Vermont (9 V.S.A. Ch. 137)</option>
+                  <option value="VA">VA — Virginia (Va. Code § 55.1-1200)</option>
+                  <option value="WA">WA — Washington (RCW Ch. 59.18)</option>
+                  <option value="WV">WV — West Virginia (W. Va. Code Ch. 37 Art. 6)</option>
+                  <option value="WI">WI — Wisconsin (Wis. Stat. Ch. 704 / ATCP 134)</option>
+                  <option value="WY">WY — Wyoming (Wyo. Stat. § 1-21-1201)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Municipal Rent Ordinance Override</label>
+                <select id="municipalitySelect" class="form-select">
+                  <option value="">Statewide Default (None)</option>
+                  <option value="Chicago">Chicago, IL — RLTO (Mun. Code Ch. 5-12)</option>
+                  <option value="Cook County">Cook County, IL — RTLO (Ord. No. 21-0249)</option>
+                  <option value="New York City">New York City, NY — Window Guard & Local Law 55</option>
+                  <option value="San Francisco">San Francisco, CA — Admin. Code Ch. 37 Rent Ord.</option>
+                  <option value="Seattle">Seattle, WA — SMC 7.24 Deposit Cap & Just Cause</option>
+                  <option value="Portland">Portland, OR — PCC 30.01.085 FAIR Ordinance</option>
+                </select>
+              </div>
+            </div>
+
             <div class="form-group">
               <label class="form-label">Statutory Compliance Regime</label>
               <select id="complianceSelect" class="form-select">
@@ -1464,7 +1554,7 @@
           <div class="plan-price">$0 <span>/ month</span></div>
           <p style="font-size: 11px; color: var(--text-muted);">3 documents/mo with subtle brand watermark.</p>
           <ul class="plan-features">
-            <li>All 39 Document Archetypes</li>
+            <li>All 57 Document Archetypes</li>
             <li>Pressmark Vector Preview</li>
             <li>Printable US Letter & A4</li>
             <li>Watermarked output</li>

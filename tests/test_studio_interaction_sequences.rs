@@ -105,49 +105,9 @@ fn create_sample_request(doc_type: DocumentType) -> DocumentRequest {
 
 #[test]
 fn test_all_39_archetypes_pdf_and_preview_png() {
-    let all_archetypes = vec![
-        DocumentType::Invoice,
-        DocumentType::InvoiceStandard,
-        DocumentType::InvoiceFreelance,
-        DocumentType::InvoiceConstruction,
-        DocumentType::InvoiceMedical,
-        DocumentType::InvoiceSaas,
-        DocumentType::InvoiceMinimal,
-        DocumentType::ProformaInvoice,
-        DocumentType::Estimate,
-        DocumentType::Receipt,
-        DocumentType::PurchaseOrder,
-        DocumentType::PackingSlip,
-        DocumentType::CreditNote,
-        DocumentType::QuotationTender,
-        DocumentType::WorkOrder,
-        DocumentType::Agreement,
-        DocumentType::AgreementSow,
-        DocumentType::ContractorAgreement,
-        DocumentType::RetainerAgreement,
-        DocumentType::Nda,
-        DocumentType::CommercialLease,
-        DocumentType::BillOfSale,
-        DocumentType::Certificate,
-        DocumentType::CertificateCompletion,
-        DocumentType::CertificateInsurance,
-        DocumentType::ExpenseReport,
-        DocumentType::DeliveryReceipt,
-        DocumentType::InspectionReport,
-        DocumentType::ResidentialLease,
-        DocumentType::CommercialNnnLease,
-        DocumentType::PropertyManagementStatement,
-        DocumentType::RentRoll,
-        DocumentType::ClosingSettlementStatement,
-        DocumentType::NoticeToVacate,
-        DocumentType::SecurityDepositDisposition,
-        DocumentType::RealEstateCommission,
-        DocumentType::PropertyInspectionChecklist,
-        DocumentType::LetterOfIntentCre,
-        DocumentType::TenantEstoppel,
-    ];
+    let all_archetypes = DocumentType::all().to_vec();
 
-    assert_eq!(all_archetypes.len(), 39);
+    assert_eq!(all_archetypes.len(), 57);
 
     for dt in &all_archetypes {
         let req = create_sample_request(dt.clone());

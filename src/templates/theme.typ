@@ -7,6 +7,7 @@
 
 #let color-slate-950 = rgb("#020617")
 #let color-slate-900 = rgb("#0f172a")
+#let color-slate-800 = rgb("#1e293b")
 #let color-slate-700 = rgb("#334155")
 #let color-slate-600 = rgb("#475569")
 #let color-slate-500 = rgb("#64748b")
@@ -80,21 +81,63 @@
 // =============================================================================
 
 #let compliance-banner(compliance-type, primary-color: color-indigo-600) = {
-  if compliance-type == "eu_vat" {
+  if compliance-type == "eu_vat" or compliance-type == "factur-x" or compliance-type == "factur_x" {
     card-box(
       grid(
         columns: (auto, 1fr),
         gutter: 8pt,
         text(size: 9pt)[🏛️],
         [
-          #text(size: 8pt, weight: "bold", fill: color-slate-900)[EU VAT DIRECTIVE 2006/112/EC COMPLIANT] \
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[EU VAT DIRECTIVE 2006/112/EC & EN 16931 FACTUR-X COMPLIANT] \
           #text(size: 7pt, fill: color-slate-500)[Intra-community supply of services. Reverse charge applies where customer VAT ID is verified.]
         ]
       ),
       bg: rgb("#f0fdf4"),
       border: rgb("#86efac")
     )
-  } else if compliance-type == "irs_w9" {
+  } else if compliance-type == "peppol" or compliance-type == "peppol_bis" {
+    card-box(
+      grid(
+        columns: (auto, 1fr),
+        gutter: 8pt,
+        text(size: 9pt)[🌐],
+        [
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[PEPPOL BIS BILLING 3.0 · UBL 2.1 E-INVOICING STANDARD] \
+          #text(size: 7pt, fill: color-slate-500)[Structured electronic billing payload aligned with Pan-European Public Procurement On-Line (EN 16931) specifications.]
+        ]
+      ),
+      bg: rgb("#eff6ff"),
+      border: rgb("#93c5fd")
+    )
+  } else if compliance-type == "hipaa" or compliance-type == "hipaa_baa" {
+    card-box(
+      grid(
+        columns: (auto, 1fr),
+        gutter: 8pt,
+        text(size: 9pt)[⚕️],
+        [
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[HIPAA 45 CFR § 164.504(e) PROTECTED HEALTH INFORMATION NOTICE] \
+          #text(size: 7pt, fill: color-slate-500)[Confidential clinical billing record subject to HIPAA Privacy & Security Rules. Minimum necessary disclosure safeguard active.]
+        ]
+      ),
+      bg: rgb("#f0fdfa"),
+      border: rgb("#5eead4")
+    )
+  } else if compliance-type == "zatca" or compliance-type == "zatca_ksa" {
+    card-box(
+      grid(
+        columns: (auto, 1fr),
+        gutter: 8pt,
+        text(size: 9pt)[🧾],
+        [
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[ZATCA PHASE 2 (FATOORA) KSA E-INVOICING COMPLIANT] \
+          #text(size: 7pt, fill: color-slate-500)[Issued in accordance with Zakat, Tax and Customs Authority e-invoicing integration and cryptographic stamp regulations.]
+        ]
+      ),
+      bg: rgb("#f0fdf4"),
+      border: rgb("#86efac")
+    )
+  } else if compliance-type == "irs_w9" or compliance-type == "w9" {
     card-box(
       grid(
         columns: (auto, 1fr),
@@ -108,7 +151,7 @@
       bg: rgb("#eff6ff"),
       border: rgb("#93c5fd")
     )
-  } else if compliance-type == "pci_dss" {
+  } else if compliance-type == "pci_dss" or compliance-type == "pci" {
     card-box(
       grid(
         columns: (auto, 1fr),
@@ -136,7 +179,7 @@
       bg: color-slate-50,
       border: color-slate-300
     )
-  } else if compliance-type == "statutory_sworn" {
+  } else if compliance-type == "statutory_sworn" or compliance-type == "sworn" {
     card-box(
       grid(
         columns: (auto, 1fr),
@@ -1200,15 +1243,19 @@
       #text(font: font-sans, size: 7pt, fill: ink-secondary)[#body-text]
       #v(8pt)
 
+      #let is-wet = signature-type == "wet-ink" or signature-type == "wet_ink" or signature-type == "notarized_wet"
+      #let is-ron = signature-type == "ron" or signature-type == "notarized_ron"
+      #let is-esign = signature-type == "esign" or (not is-wet and not is-ron)
+
       #grid(
-        columns: if include-clerk-stamp and signature-type == "wet-ink" {
+        columns: if include-clerk-stamp and is-wet {
           (1.2fr, 0.8fr, auto)
         } else {
           (1.5fr, 1fr)
         },
-        column-gutter: if include-clerk-stamp and signature-type == "wet-ink" { 14pt } else { 24pt },
+        column-gutter: if include-clerk-stamp and is-wet { 14pt } else { 24pt },
         [
-          #if signature-type == "esign" [
+          #if is-esign [
             #if signature-img != none [
               #image(signature-img, height: 20pt)
             ] else if signer-name != "" [
@@ -1224,7 +1271,7 @@
           #text(font: font-sans, size: 6.5pt, fill: ink-subtle)[#effective-title]
         ],
         [
-          #if signature-type == "esign" and execution-date != "" [
+          #if is-esign and execution-date != "" [
             #text(font: font-mono, size: 8.5pt, weight: "bold", fill: navy-judicial)[#execution-date]
           ] else [
             #v(14pt)
@@ -1233,12 +1280,12 @@
           #v(2pt)
           #text(font: font-sans, size: 6.5pt, fill: ink-subtle)[Execution Date (YYYY-MM-DD)]
         ],
-        if include-clerk-stamp and signature-type == "wet-ink" [
+        if include-clerk-stamp and is-wet [
           #date-stamp-zone(width: 1.8in, height: 0.75in)
         ]
       )
 
-      #if signature-type == "esign" and esign-audit-id != "" [
+      #if is-esign and esign-audit-id != "" [
         #v(5pt)
         #rect(
           width: 100%,
@@ -1265,13 +1312,16 @@
         )
       ]
 
-      #if signature-type == "ron" or notary-required [
+      #if is-ron or signature-type == "notarized_wet" or notary-required [
         #v(6pt)
         #line(length: 100%, stroke: 0.5pt + rgb("#e2e8f0"))
         #v(4pt)
         #text(font: font-sans, size: 6.5pt, weight: "bold", fill: navy-judicial)[NOTARIAL ACKNOWLEDGMENT (STATE OF #upper(state), COUNTY OF #upper(county))] \
         #text(font: font-sans, size: 6pt, fill: ink-secondary)[
-          Subscribed and sworn to before me this #if execution-date != "" { execution-date } else { "____ day of _________, 20____" }, by the subscriber proved to me through satisfactory evidence of identification.
+          Subscribed, acknowledged, and sworn to before me this #if execution-date != "" { execution-date } else { "____ day of _________, 20____" }, by the subscriber proved to me through satisfactory evidence of identification.
+          #if is-ron [
+            Executed via two-way audio-video Remote Online Notarization (RON) pursuant to #ron-statute-citation #if ron-session-id != "" [ · Session ID: #ron-session-id].
+          ]
         ]
         #v(6pt)
         #grid(
@@ -1385,3 +1435,147 @@
     ]
   )
 }
+
+/// Real Estate Investment & Underwriting KPI Grid (BiggerPockets / Stessa Pro)
+#let deal-kpi-grid(
+  metrics: (),
+  accent: navy-judicial,
+) = {
+  if metrics.len() > 0 {
+    let cols = calc.min(metrics.len(), 4)
+    rect(
+      width: 100%,
+      stroke: 0.75pt + border-color,
+      radius: 4pt,
+      fill: bg-tint-card,
+      inset: 8pt,
+      [
+        #grid(
+          columns: (1fr,) * cols,
+          gutter: 6pt,
+          ..metrics.map(m => rect(
+            width: 100%,
+            fill: bg-tint-subtle,
+            stroke: (top: 2pt + accent, rest: 0.5pt + border-color),
+            radius: 3pt,
+            inset: (x: 6pt, y: 5pt),
+            [
+              #text(font: font-sans, size: 6.5pt, weight: "bold", fill: ink-subtle)[#upper(m.at(0))] \
+              #v(1pt)
+              #text(font: font-mono, size: 9.5pt, weight: "bold", fill: ink-primary)[#m.at(1)]
+              #if m.len() > 2 and m.at(2) != "" [
+                \ #text(font: font-sans, size: 6pt, fill: ink-secondary)[#m.at(2)]
+              ]
+            ]
+          ))
+        )
+      ]
+    )
+  }
+}
+
+/// Court-Ready Proof / Certificate of Service Block for Statutory Landlord-Tenant Notices
+#let certificate-of-service(
+  server-name: "Authorized Landlord / Property Manager",
+  service-date: "",
+  recipient-name: "Tenant(s) and All Occupants",
+  premises-address: "",
+  state-name: "Tennessee",
+) = {
+  rect(
+    width: 100%,
+    stroke: 0.75pt + border-dark,
+    radius: 3pt,
+    fill: bg-tint-subtle,
+    inset: 8pt,
+    [
+      #grid(
+        columns: (1fr, auto),
+        text(font: font-sans, size: 7.5pt, weight: "bold", fill: navy-judicial)[
+          CERTIFICATE & PROOF OF STATUTORY SERVICE (STATE OF #upper(state-name))
+        ],
+        badge("EVIDENTIARY PROOF OF SERVICE", bg: rgb("#dbeafe"), fg: navy-judicial)
+      )
+      #v(3pt)
+      #text(font: font-sans, size: 7pt, fill: ink-secondary)[
+        I, *#server-name*, hereby certify under penalty of perjury that on *#if service-date != "" { service-date } else { "____/____/20____" }*, I served a true and correct copy of the foregoing statutory notice upon *#recipient-name* at *#if premises-address != "" { premises-address } else { "the Premises" }* by the following statutorily authorized method(s):
+      ]
+      #v(4pt)
+      #grid(
+        columns: (1fr, 1fr),
+        gutter: 4pt,
+        text(font: font-sans, size: 6.8pt, fill: ink-primary)[`[X]` Personal Hand Delivery to Named Tenant],
+        text(font: font-sans, size: 6.8pt, fill: ink-primary)[`[ ]` Substitute Service on Competent Household Member],
+        text(font: font-sans, size: 6.8pt, fill: ink-primary)[`[X]` First-Class / Certified U.S. Mail (Return Receipt)],
+        text(font: font-sans, size: 6.8pt, fill: ink-primary)[`[ ]` Conspicuous Posting on Main Entry Door + Mail],
+      )
+      #v(8pt)
+      #grid(
+        columns: (1.5fr, 1fr),
+        gutter: 20pt,
+        [
+          #line(length: 100%, stroke: 0.75pt + border-dark)
+          #v(1pt)
+          #text(font: font-sans, size: 6pt, fill: ink-subtle)[Signature of Server / Declarant (#server-name)]
+        ],
+        [
+          #line(length: 100%, stroke: 0.75pt + border-dark)
+          #v(1pt)
+          #text(font: font-sans, size: 6pt, fill: ink-subtle)[Date & Time of Service]
+        ]
+      )
+    ]
+  )
+}
+
+/// County Recorder 3.0-Inch Top Margin Header & Stamp Reserve for Recordable Deeds & Liens
+#let recording-header-block(
+  prepared-by: "",
+  return-to: "",
+  parcel-id: "",
+  state-name: "Tennessee",
+  county-name: "Hamilton",
+) = {
+  rect(
+    width: 100%,
+    height: 2.4in,
+    stroke: 0.75pt + border-dark,
+    radius: 3pt,
+    fill: rgb("#ffffff"),
+    inset: 8pt,
+    [
+      #grid(
+        columns: (1fr, 3.5in),
+        gutter: 12pt,
+        [
+          #text(font: font-sans, size: 7pt, weight: "bold", fill: navy-judicial)[
+            COUNTY REGISTER OF DEEDS RECORDING COVER HEADER (#upper(county-name) COUNTY, #upper(state-name))
+          ]
+          #v(4pt)
+          #text(font: font-sans, size: 6.5pt, weight: "bold", fill: ink-subtle)[INSTRUMENT PREPARED BY:] \
+          #text(font: font-sans, size: 7.5pt, fill: ink-primary)[#prepared-by]
+          #v(6pt)
+          #text(font: font-sans, size: 6.5pt, weight: "bold", fill: ink-subtle)[AFTER RECORDING RETURN TO & SEND TAX STATEMENTS TO:] \
+          #text(font: font-sans, size: 7.5pt, fill: ink-primary)[#return-to]
+          #if parcel-id != "" [
+            #v(6pt)
+            #text(font: font-mono, size: 7pt, weight: "bold", fill: navy-judicial)[
+              TAX PARCEL / APN: #parcel-id
+            ]
+          ]
+        ],
+        align(right + top)[
+          #date-stamp-zone(width: 3.4in, height: 1.95in)
+        ]
+      )
+      #v(1fr)
+      #line(length: 100%, stroke: 1pt + border-dark)
+      #v(1pt)
+      #align(center, text(font: font-mono, size: 6pt, weight: "bold", fill: ink-subtle)[
+        --- SPACE ABOVE THIS LINE RESERVED FOR OFFICIAL COUNTY RECORDER STAMP (3.0-INCH STATUTORY MARGIN) ---
+      ])
+    ]
+  )
+}
+
+

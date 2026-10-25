@@ -384,7 +384,7 @@
       layout_style: 'standard',
       background_style: 'white',
       footer_text: 'PROPRIETARY FLIGHT SYSTEMS TELEMETRY · AUDITED RECORD',
-      currency: '$',
+      currency: 'USD',
       from: { name: 'Kensho AI Lab', company: 'Kensho Robotics LLC', address: '500 Howard St, Floor 8\nSan Francisco, CA 94105', email: 'billing@kensho.ai', phone: '+1 415-555-0182', tax_id: 'US-88-291039' },
       to: { name: 'Elena Rostova', company: 'Apex Autonomous Flight', address: '2200 Space Park Way\nSeattle, WA 98101', email: 'ap@apexflight.io', phone: '+1 206-555-4920', tax_id: 'US-91-884910' },
       items: [
@@ -422,7 +422,7 @@
       layout_style: 'framed',
       background_style: 'parchment',
       footer_text: 'PRIVILEGED & CONFIDENTIAL · SOLICITOR-CLIENT RETENTION',
-      currency: '£',
+      currency: 'GBP',
       from: { name: 'Kingsley & Thorne LLP', company: 'Kingsley Maritime Counsel', address: '14 Chancery Lane\nLondon, WC2A 1PL, UK', email: 'accounts@kingsleythorne.co.uk', phone: '+44 20 7946 0912', tax_id: 'GB-992-1849-01' },
       to: { name: 'Lord Marcus Sterling', company: 'Borealis Global Logistics Plc', address: '88 St Mary Axe, Level 32\nLondon, EC3A 8EP', email: 'procurement@borealislogistics.com', phone: '+44 20 7946 8820', tax_id: 'GB-812-4029-44' },
       items: [
@@ -465,7 +465,7 @@
       layout_style: 'standard',
       background_style: 'slate_tint',
       footer_text: 'CANYON PEAK BUILDERS · LICENSED & BONDED GENERAL CONTRACTOR',
-      currency: '$',
+      currency: 'USD',
       from: { name: 'Canyon Peak Builders', company: 'Canyon Peak Construction Co.', address: '4400 Industrial Blvd\nDenver, CO 80216', email: 'estimating@canyonpeak.com', phone: '+1 303-555-0914', tax_id: 'US-84-1920394' },
       to: { name: 'David Mercer', company: 'Summit Creek Commercial Properties', address: '1200 17th St, Suite 500\nDenver, CO 80202', email: 'dmercer@summitcreek.com', phone: '+1 303-555-8831', tax_id: 'US-84-9910294' },
       items: [
@@ -1487,7 +1487,8 @@
 
       let subtotal = (state.items || []).reduce((s, it) => s + (it.quantity * it.unit_price - (it.discount || 0)), 0);
       let tax = subtotal * (state.tax_rate / 100);
-      let grandTotal = Math.max(0, subtotal + tax - (state.discount_amount || 0));
+      let rawTotal = subtotal + tax - (state.discount_amount || 0);
+      let grandTotal = allowsNegativeItems(state.doc_type) ? rawTotal : Math.max(0, rawTotal);
 
       totalsCard.appendChild(createPill(`Totals · Due ${formatAmountUi(grandTotal)}`));
       totalsCard.addEventListener('click', (e) => {
@@ -1872,6 +1873,108 @@
     }
   }
 
+  function allowsNegativeItems(docType) {
+    return [
+      'credit_note',
+      'property_management_statement',
+      'closing_settlement_statement',
+      'security_deposit_disposition',
+      'real_estate_commission',
+      'lease_amendment',
+      'mutual_lease_termination',
+      'tenant_rent_ledger',
+      'schedule_e_tax_worksheet',
+      'real_estate_deal_analysis',
+      'real_estate_purchase_agreement'
+    ].includes(docType);
+  }
+
+  function resolveArchetypeSlug(raw) {
+    if (!raw) return 'invoice';
+    let s = String(raw)
+      .trim()
+      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+    const aliasMap = {
+      quote: 'estimate',
+      proforma: 'proforma_invoice',
+      credit: 'credit_note',
+      credit_memo: 'credit_note',
+      po: 'purchase_order',
+      bol: 'packing_slip',
+      bill_of_lading: 'packing_slip',
+      tender: 'quotation_tender',
+      rfp: 'quotation_tender',
+      msa: 'agreement',
+      master_services_agreement: 'agreement',
+      sow: 'agreement_sow',
+      statement_of_work: 'agreement_sow',
+      ica: 'contractor_agreement',
+      independent_contractor_agreement: 'contractor_agreement',
+      retainer: 'retainer_agreement',
+      mutual_nda: 'nda',
+      non_disclosure_agreement: 'nda',
+      lease: 'residential_lease',
+      residential_lease_agreement: 'residential_lease',
+      nnn_lease: 'commercial_nnn_lease',
+      triple_net_lease: 'commercial_nnn_lease',
+      owner_statement: 'property_management_statement',
+      settlement_statement: 'closing_settlement_statement',
+      hud1: 'closing_settlement_statement',
+      alta_settlement: 'closing_settlement_statement',
+      eviction_notice: 'notice_to_vacate',
+      pay_or_quit: 'notice_to_vacate',
+      deposit_disposition: 'security_deposit_disposition',
+      commission_statement: 'real_estate_commission',
+      move_in_checklist: 'property_inspection_checklist',
+      loi: 'letter_of_intent_cre',
+      letter_of_intent: 'letter_of_intent_cre',
+      estoppel: 'tenant_estoppel',
+      estoppel_certificate: 'tenant_estoppel',
+      room_lease: 'room_rental_lease',
+      roommate_agreement: 'room_rental_lease',
+      lease_renewal: 'lease_renewal_agreement',
+      addendum: 'lease_amendment',
+      fcra_adverse_action: 'adverse_action_notice',
+      entry_notice: 'notice_of_entry',
+      rent_increase: 'rent_increase_notice',
+      lease_termination: 'mutual_lease_termination',
+      rent_ledger: 'tenant_rent_ledger',
+      sreo: 'schedule_of_real_estate_owned',
+      schedule_e: 'schedule_e_tax_worksheet',
+      deal_analysis: 'real_estate_deal_analysis',
+      sublease: 'sublease_agreement',
+      rent_to_own: 'rent_to_own_agreement',
+      lease_option: 'rent_to_own_agreement',
+      pma: 'property_management_agreement',
+      psa: 'real_estate_purchase_agreement',
+      purchase_agreement: 'real_estate_purchase_agreement',
+      deed: 'property_deed',
+      quitclaim_deed: 'property_deed',
+      warranty_deed: 'property_deed',
+      lien_waiver: 'mechanics_lien_waiver',
+      coi: 'certificate_insurance',
+      pod: 'delivery_receipt'
+    };
+    if (aliasMap[s]) return aliasMap[s];
+    // Strip leading state prefix if a state-prefixed slug was passed (e.g. tennessee_residential_lease)
+    const stateSuffixes = [
+      'residential_lease', 'commercial_nnn_lease', 'commercial_lease',
+      'room_rental_lease', 'sublease_agreement', 'rent_to_own_agreement',
+      'lease_renewal_agreement', 'lease_amendment', 'notice_to_vacate',
+      'security_deposit_disposition', 'notice_of_entry', 'rent_increase_notice',
+      'mutual_lease_termination', 'real_estate_purchase_agreement',
+      'property_deed', 'mechanics_lien_waiver', 'bill_of_sale'
+    ];
+    for (const suffix of stateSuffixes) {
+      if (s.endsWith('_' + suffix)) {
+        return suffix;
+      }
+    }
+    return s;
+  }
+
   // Initialization
   function init() {
     bindUndoRedo();
@@ -1911,13 +2014,27 @@
       initUrlParams.get('archetype') ||
       initUrlParams.get('doc_type');
     if (requestedTemplate) {
-      const normalizedType = String(requestedTemplate).trim().toLowerCase().replace(/-/g, '_');
+      const normalizedType = resolveArchetypeSlug(requestedTemplate);
       const targetPill = document.querySelector(`.template-pill[data-type="${normalizedType}"]`);
       if (targetPill) {
         document.querySelectorAll('.template-pill').forEach(p => p.classList.remove('active'));
         targetPill.classList.add('active');
       }
+      if (!hasSavedDoc) {
+        loadSampleDataForArchetype(normalizedType);
+      }
       applyDocumentTypeDefaults(normalizedType);
+    }
+    const requestedState =
+      window.__PRESSMARK_INITIAL_STATE__ ||
+      initUrlParams.get('state') ||
+      initUrlParams.get('state_code');
+    if (requestedState) {
+      state.state_code = String(requestedState).trim().toUpperCase();
+    }
+    const requestedMuni = initUrlParams.get('municipality') || initUrlParams.get('city');
+    if (requestedMuni) {
+      state.municipality = String(requestedMuni).trim();
     }
     setupDynamicInteractions();
     adaptFormToArchetype(state.doc_type);
@@ -2109,6 +2226,8 @@
     bind('taxRateInput', 'tax_rate');
     bind('discountInput', 'discount_amount');
     bind('complianceSelect', 'compliance_mode');
+    bind('stateCodeSelect', 'state_code');
+    bind('municipalitySelect', 'municipality');
     bind('footerTextInput', 'footer_text');
 
     // Data Formatters & Localization
@@ -2451,7 +2570,7 @@
       invoice_minimal: { title: 'COMMERCIAL INVOICE', prefix: 'DOC-' },
       proforma_invoice: { title: 'PROFORMA INVOICE', prefix: 'PRO-' },
       estimate: { title: 'FORMAL ESTIMATE & QUOTE', prefix: 'EST-' },
-      receipt: { title: 'OFFICIAL PAYMENT RECEIPT', prefix: 'RCT-', is_paid: true },
+      receipt: { title: 'OFFICIAL PAYMENT RECEIPT', prefix: 'REC-', is_paid: true },
       purchase_order: { title: 'ENTERPRISE PURCHASE ORDER', prefix: 'PO-' },
       packing_slip: { title: 'PACKING SLIP & BILL OF LADING', prefix: 'PKG-' },
       credit_note: { title: 'CREDIT NOTE', prefix: 'CRD-' },
@@ -2481,13 +2600,33 @@
       real_estate_commission: { title: 'REAL ESTATE COMMISSION & BROKERAGE FEE STATEMENT', prefix: 'COM-' },
       property_inspection_checklist: { title: 'PROPERTY CONDITION & INSPECTION CHECKLIST', prefix: 'CHK-' },
       letter_of_intent_cre: { title: 'COMMERCIAL REAL ESTATE LETTER OF INTENT (LOI)', prefix: 'LOI-' },
-      tenant_estoppel: { title: 'TENANT ESTOPPEL CERTIFICATE', prefix: 'TEC-' }
+      tenant_estoppel: { title: 'TENANT ESTOPPEL CERTIFICATE', prefix: 'TEC-' },
+      room_rental_lease: { title: 'ROOM RENTAL & CO-LIVING LEASE AGREEMENT', prefix: 'RLC-' },
+      lease_renewal_agreement: { title: 'LEASE RENEWAL & EXTENSION AGREEMENT', prefix: 'REN-' },
+      lease_amendment: { title: 'LEASE AMENDMENT & ADDENDUM', prefix: 'AMD-' },
+      rental_application: { title: 'RESIDENTIAL RENTAL APPLICATION', prefix: 'APP-' },
+      adverse_action_notice: { title: 'FCRA ADVERSE ACTION NOTICE', prefix: 'FCRA-' },
+      notice_of_entry: { title: 'LANDLORD NOTICE OF ENTRY', prefix: 'ENT-' },
+      rent_increase_notice: { title: 'STATUTORY NOTICE OF RENT INCREASE', prefix: 'RIN-' },
+      mutual_lease_termination: { title: 'MUTUAL LEASE TERMINATION AGREEMENT', prefix: 'MLT-' },
+      tenant_rent_ledger: { title: 'TENANT RENT & PAYMENT LEDGER', prefix: 'LDG-' },
+      schedule_of_real_estate_owned: { title: 'SCHEDULE OF REAL ESTATE OWNED (SREO)', prefix: 'SREO-' },
+      schedule_e_tax_worksheet: { title: 'IRS SCHEDULE E TAX PREP WORKSHEET', prefix: 'TXE-' },
+      real_estate_deal_analysis: { title: 'REAL ESTATE INVESTMENT DEAL ANALYSIS', prefix: 'DEAL-' },
+      sublease_agreement: { title: 'RESIDENTIAL SUBLEASE AGREEMENT', prefix: 'SUBL-' },
+      rent_to_own_agreement: { title: 'RENT-TO-OWN (LEASE-OPTION) AGREEMENT', prefix: 'RTO-' },
+      property_management_agreement: { title: 'PROPERTY MANAGEMENT AGREEMENT', prefix: 'PMA-' },
+      real_estate_purchase_agreement: { title: 'REAL ESTATE PURCHASE & SALE AGREEMENT', prefix: 'PSA-' },
+      property_deed: { title: 'QUITCLAIM / WARRANTY DEED', prefix: 'DEED-' },
+      mechanics_lien_waiver: { title: 'MECHANIC\'S LIEN WAIVER & RELEASE', prefix: 'LIEN-' }
     };
 
     const conf = map[type] || map.invoice;
     state.doc_type = type;
     state.title = conf.title;
     state.doc_number = `${conf.prefix}2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    state.recordable = (type === 'property_deed');
+    state.notary_required = ['property_deed', 'mechanics_lien_waiver', 'tenant_estoppel'].includes(type);
     if (conf.is_paid) {
       state.is_paid = true;
       const isPaidCheck = document.getElementById('isPaidCheck');
@@ -2639,7 +2778,7 @@
 
   function extractBaseDocNumber(num) {
     if (!num) return '2026-0042';
-    return num.replace(/^(EST-|INV-|RCT-|REC-|CRD-)/i, '');
+    return num.replace(/^[A-Za-z]{2,5}-/, '');
   }
 
   function executeLifecycleTransition(targetState) {
@@ -2726,6 +2865,8 @@
   }
 
   function loadSampleDataForArchetype(type) {
+    state.recordable = (type === 'property_deed');
+    state.notary_required = ['property_deed', 'mechanics_lien_waiver', 'tenant_estoppel'].includes(type);
     if (type === 'residential_lease') {
       state.header_subtitle = 'Standard Fixed-Term Residential Tenancy Agreement';
       state.from = {
@@ -2839,12 +2980,12 @@
         { label: 'Reserve Escrow Account', value: '$25,000.00 (Maintained at Boston Private)' }
       ];
       state.items = [
-        { description: 'Gross Actual Rents Collected (23 Units)', quantity: 1.0, unit_price: 65550.00 },
-        { description: 'Late Fees & Parking Surcharges Collected', quantity: 1.0, unit_price: 1150.00 },
-        { description: 'Property Management Fee (6.0% of Collections)', quantity: 1.0, unit_price: 4002.00, discount: 8004.00 },
-        { description: 'HVAC Emergency Compressor Repair (Unit 4B)', quantity: 1.0, unit_price: 1850.00, discount: 3700.00 },
-        { description: 'Landscaping & Grounds Upkeep Contract', quantity: 1.0, unit_price: 1200.00, discount: 2400.00 },
-        { description: 'Common Area Electric & Water (Eversource)', quantity: 1.0, unit_price: 2410.00, discount: 4820.00 }
+        { description: 'Gross Actual Rents Collected (23 Units)', quantity: 1.0, unit_price: 65550.00, discount: 0.0 },
+        { description: 'Late Fees & Parking Surcharges Collected', quantity: 1.0, unit_price: 1150.00, discount: 0.0 },
+        { description: 'Property Management Fee (6.0% of Collections)', quantity: 1.0, unit_price: -4002.00, discount: 0.0 },
+        { description: 'HVAC Emergency Compressor Repair (Unit 4B)', quantity: 1.0, unit_price: -1850.00, discount: 0.0 },
+        { description: 'Landscaping & Grounds Upkeep Contract', quantity: 1.0, unit_price: -1200.00, discount: 0.0 },
+        { description: 'Common Area Electric & Water (Eversource)', quantity: 1.0, unit_price: -2410.00, discount: 0.0 }
       ];
       state.sections = [
         { title: 'Trust Fund & Escrow Certification', content: 'All operating funds and security deposits are segregated in federally insured trust accounts at Boston Private Bank pursuant to Massachusetts General Laws Chapter 186 § 15B.' }
@@ -2986,12 +3127,12 @@
         { label: 'Statutory Interest Accrued', value: '$28.42' }
       ];
       state.items = [
-        { description: 'Original Security Deposit Held', quantity: 1.0, unit_price: 3500.00 },
-        { description: 'Accrued Statutory Trust Interest', quantity: 1.0, unit_price: 28.42 },
-        { description: 'Professional Deep Clean & Carpet Sanitization (Receipt #441)', quantity: 1.0, unit_price: 0.00, discount: 320.00 },
-        { description: 'Drywall Patching & Paint Beyond Normal Wear (Room 2)', quantity: 1.0, unit_price: 0.00, discount: 450.00 },
-        { description: 'Replacement of Missing Garage Gate Remote', quantity: 1.0, unit_price: 0.00, discount: 120.00 },
-        { description: 'Unpaid Prorated Utility Charges (Water / Trash)', quantity: 1.0, unit_price: 0.00, discount: 84.20 }
+        { description: 'Original Security Deposit Held', quantity: 1.0, unit_price: 3500.00, discount: 0.0 },
+        { description: 'Accrued Statutory Trust Interest', quantity: 1.0, unit_price: 28.42, discount: 0.0 },
+        { description: 'Professional Deep Clean & Carpet Sanitization (Receipt #441)', quantity: 1.0, unit_price: -320.00, discount: 0.0 },
+        { description: 'Drywall Patching & Paint Beyond Normal Wear (Room 2)', quantity: 1.0, unit_price: -450.00, discount: 0.0 },
+        { description: 'Replacement of Missing Garage Gate Remote', quantity: 1.0, unit_price: -120.00, discount: 0.0 },
+        { description: 'Unpaid Prorated Utility Charges (Water / Trash)', quantity: 1.0, unit_price: -84.20, discount: 0.0 }
       ];
       state.sections = [
         { title: 'Statutory Return Notice', content: 'Enclosed is check #4092 drawn on First Republic Bank for the net refund of $2,554.22. Pursuant to state law, itemized receipts and contractor invoices are attached.' }
@@ -3024,11 +3165,11 @@
         { label: 'Selling Broker Lic', value: 'NY-DOS-309182' }
       ];
       state.items = [
-        { description: 'Total Gross Commission (5.00% of $3,850,000.00)', quantity: 1.0, unit_price: 192500.00 },
-        { description: 'Listing Brokerage Share (50.00%)', quantity: 1.0, unit_price: 0.00, discount: 96250.00 },
-        { description: 'Brokerage House Split (70/30 Tier)', quantity: 1.0, unit_price: 0.00, discount: 28875.00 },
-        { description: 'Transaction Coordinator (TC) Fee', quantity: 1.0, unit_price: 0.00, discount: 450.00 },
-        { description: 'E&O Insurance Risk Fee', quantity: 1.0, unit_price: 0.00, discount: 150.00 }
+        { description: 'Total Gross Commission (5.00% of $3,850,000.00)', quantity: 1.0, unit_price: 192500.00, discount: 0.0 },
+        { description: 'Listing Brokerage Share (50.00%)', quantity: 1.0, unit_price: -96250.00, discount: 0.0 },
+        { description: 'Brokerage House Split (70/30 Tier)', quantity: 1.0, unit_price: -28875.00, discount: 0.0 },
+        { description: 'Transaction Coordinator (TC) Fee', quantity: 1.0, unit_price: -450.00, discount: 0.0 },
+        { description: 'E&O Insurance Risk Fee', quantity: 1.0, unit_price: -150.00, discount: 0.0 }
       ];
       state.sections = [
         { title: 'Disbursement Authorization', content: 'Escrow Officer is authorized and instructed to disburse the proceeds as itemized above at time of recording pursuant to the cooperative brokerage agreement.' }
@@ -3140,6 +3281,302 @@
       ];
       state.signatures = [
         { signer_name: 'Dr. Evelyn Reed', signer_title: 'Managing Member, Global Health Partners LLC', date: '2026-10-01' }
+      ];
+    } else if (type === 'room_rental_lease') {
+      state.header_subtitle = 'Individual Bedroom Lease & Shared Common-Area Utility Split Schedule';
+      state.from = { name: 'Vance Residential Group', company: 'Vance Co-Living Properties LLC', address: '842 Valencia St, San Francisco, CA 94110', email: 'leasing@vanceresidential.com', phone: '+1 (415) 555-0190' };
+      state.to = { name: 'Liam Chen', company: 'Bedroom B Co-Tenant', address: '842 Valencia St, Bedroom B, San Francisco, CA 94110', email: 'liam.chen@example.com' };
+      state.custom_fields = [
+        { label: 'Leased Bedroom', value: 'Private Bedroom B (Upper Floor, Keyed Lock #B2)' },
+        { label: 'Shared Common Areas', value: 'Kitchen, Living Room, Laundry & Patio' },
+        { label: 'Utility Split Ratio', value: '25% Pro-Rata Share (4 Private Bedrooms)' },
+        { label: 'Quiet Hours', value: '10:00 PM – 7:00 AM Sun–Thu; 11:00 PM – 8:00 AM Fri–Sat' }
+      ];
+      state.items = [
+        { description: 'Monthly Base Rent — Private Bedroom B', quantity: 1.0, unit_price: 1350.00 },
+        { description: 'Fixed High-Speed Fiber & Common Area Cleaning Share', quantity: 1.0, unit_price: 65.00 },
+        { description: 'Refundable Bedroom Security Deposit', quantity: 1.0, unit_price: 1350.00 }
+      ];
+      state.sections = [
+        { title: 'Individual Liability & House Rules', content: 'Co-Tenant is solely liable for Bedroom B base rent and a 25% share of metered electric/gas/water utilities. Overnight guests may not exceed 7 nights per calendar month without Landlord consent.' }
+      ];
+    } else if (type === 'lease_renewal_agreement') {
+      state.header_subtitle = 'Statutory Lease Term Extension & Adjusted Monthly Rent Schedule';
+      state.from = { name: 'Vance Residential Group', company: 'Vance Residential Holdings LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'renewals@vanceresidential.com' };
+      state.to = { name: 'Marcus & Elena Sterling', company: 'Renewing Residential Tenants', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.custom_fields = [
+        { label: 'Original Lease Date', value: 'November 1, 2025' },
+        { label: 'Renewal Commencement', value: 'November 1, 2026' },
+        { label: 'Renewal Expiration', value: 'October 31, 2027 (12 Months)' },
+        { label: 'Prior Monthly Rent', value: '$2,650.00 / month' },
+        { label: 'Renewed Monthly Rent', value: '$2,730.00 / month (+3.0%)' }
+      ];
+      state.items = [
+        { description: 'Renewed Monthly Base Rent (Nov 2026 – Oct 2027)', quantity: 1.0, unit_price: 2730.00 },
+        { description: 'Reserved Covered Parking Space #18 (Unchanged)', quantity: 1.0, unit_price: 75.00 }
+      ];
+      state.sections = [
+        { title: 'Ratification of Original Lease', content: 'Except as expressly modified by this Renewal Agreement, all covenants, security deposit terms, and statutory disclosures of the Original Lease remain in full force and effect.' }
+      ];
+    } else if (type === 'lease_amendment') {
+      state.header_subtitle = 'Mid-Term Lease Modification · Pet, Occupant & Parking Addendum';
+      state.from = { name: 'Vance Residential Group', company: 'Vance Residential Holdings LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'leasing@vanceresidential.com' };
+      state.to = { name: 'Marcus & Elena Sterling', company: 'Residential Tenants', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.custom_fields = [
+        { label: 'Amendment Number', value: 'Amendment No. 1 (Pet & Parking Addendum)' },
+        { label: 'Effective Date', value: 'November 1, 2026' },
+        { label: 'Approved Pet', value: '1 Golden Retriever ("Milo", 55 lbs, Vaccinated)' }
+      ];
+      state.items = [
+        { description: 'Refundable Pet Security Deposit Addendum', quantity: 1.0, unit_price: 300.00 },
+        { description: 'Monthly Pet Rent Adjustment', quantity: 1.0, unit_price: 35.00 }
+      ];
+      state.sections = [
+        { title: 'Amended Lease Provisions', content: 'Section 14 (Pets) of the Lease is hereby amended to authorize one (1) domesticated dog described above, subject to current rabies vaccination records and tenant liability coverage.' }
+      ];
+    } else if (type === 'rental_application') {
+      state.header_subtitle = 'Prospective Tenant Residency, Employment & FCRA Screening Application';
+      state.from = { name: 'Vance Residential Group', company: 'Vance Property Management LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'screening@vanceresidential.com' };
+      state.to = { name: 'Sophia Alvarez', company: 'Primary Rental Applicant', address: '910 West 6th St, Apt 312, Austin, TX 78703', email: 'sophia.alvarez@example.com', phone: '+1 (512) 555-0144' };
+      state.custom_fields = [
+        { label: 'Target Unit', value: '1420 South Congress Ave, Unit 6A, Austin, TX 78704' },
+        { label: 'Desired Move-In Date', value: 'November 15, 2026' },
+        { label: 'Current Employer & Title', value: 'Meridian Cloud Systems · Senior Product Designer' },
+        { label: 'Verified Gross Monthly Income', value: '$11,400.00 / month (4.1x Rent-to-Income Ratio)' },
+        { label: 'Prior Landlord Reference', value: 'Highland Park Lofts (+1 512-555-0199 · 24 Months On-Time)' }
+      ];
+      state.items = [
+        { description: 'Statutory Tenant Screening & Credit/Eviction Report Fee', quantity: 1.0, unit_price: 45.00 }
+      ];
+      state.sections = [
+        { title: 'FCRA Consumer Report Authorization', content: 'Applicant authorizes Landlord and its consumer reporting agency to obtain consumer credit, eviction, and criminal history reports pursuant to the Fair Credit Reporting Act (15 U.S.C. § 1681b).' }
+      ];
+    } else if (type === 'adverse_action_notice') {
+      state.header_subtitle = 'Statutory Fair Credit Reporting Act (15 U.S.C. § 1681m(a)) Consumer Disclosure';
+      state.from = { name: 'Vance Compliance Department', company: 'Vance Property Management LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'compliance@vanceresidential.com' };
+      state.to = { name: 'Jordan Blake', company: 'Rental Applicant', address: '220 Barton Springs Rd, Austin, TX 78704', email: 'j.blake@example.com' };
+      state.custom_fields = [
+        { label: 'Application Reference', value: 'APP-2026-8841 (Unit 3C)' },
+        { label: 'Adverse Action Taken', value: 'Conditional Approval Requiring Co-Signer or Additional Deposit' },
+        { label: 'Consumer Reporting Agency', value: 'TransUnion Rental Screening Solutions, Inc. (P.O. Box 1000, Chester, PA 19016 · 1-800-888-4213)' },
+        { label: 'Credit Score Disclosed', value: '618 (Score Range: 300–850 · Date: 2026-10-24)' },
+        { label: 'Key Score Factors', value: '1. Ratio of revolving balances to credit limits; 2. Length of credit history' }
+      ];
+      state.items = [];
+      state.sections = [
+        { title: 'Statutory Consumer Rights Under 15 U.S.C. § 1681m(a)', content: 'The consumer reporting agency did not make this leasing decision and cannot explain why it was made. You have the right to obtain a free copy of your consumer report within 60 days and to dispute the accuracy or completeness of any record.' }
+      ];
+    } else if (type === 'notice_of_entry') {
+      state.header_subtitle = 'Statutory Advance Written Notice of Landlord Entry to Premises';
+      state.from = { name: 'Vance Property Operations', company: 'Vance Property Management LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'maintenance@vanceresidential.com', phone: '+1 (512) 555-0188' };
+      state.to = { name: 'Marcus & Elena Sterling', company: 'Occupying Tenants', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.custom_fields = [
+        { label: 'Scheduled Entry Date', value: 'Thursday, October 29, 2026' },
+        { label: 'Entry Time Window', value: '10:00 AM – 1:00 PM Local Time' },
+        { label: 'Authorized Personnel', value: 'Apex HVAC Mechanical Services & Property Supervisor' },
+        { label: 'Statutory Purpose', value: 'Annual Winter HVAC & Smoke/CO Detector Safety Inspection' }
+      ];
+      state.items = [];
+      state.sections = [
+        { title: 'Notice & Right of Quiet Enjoyment', content: 'This notice is served in accordance with state statutory advance notice requirements. Tenant presence is welcomed but not required; personnel will knock, announce entry, and secure the premises upon completion.' }
+      ];
+    } else if (type === 'rent_increase_notice') {
+      state.header_subtitle = 'Statutory Advance Written Notice of Monthly Rent Adjustment';
+      state.from = { name: 'Vance Residential Group', company: 'Vance Residential Holdings LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'leasing@vanceresidential.com' };
+      state.to = { name: 'Marcus & Elena Sterling', company: 'Residential Tenants', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.custom_fields = [
+        { label: 'Effective Date of New Rent', value: 'January 1, 2027 (65+ Days Advance Notice)' },
+        { label: 'Current Monthly Rent', value: '$2,650.00 / month' },
+        { label: 'New Monthly Rent', value: '$2,750.00 / month' },
+        { label: 'Net Adjustment', value: '+$100.00 / month (+3.77%)' }
+      ];
+      state.items = [
+        { description: 'Current Monthly Base Rent (Through Dec 31, 2026)', quantity: 1.0, unit_price: 2650.00, discount: 0.0 },
+        { description: 'Monthly Base Rent Increase Adjustment (Effective Jan 1, 2027 · +3.77%)', quantity: 1.0, unit_price: 100.00, discount: 0.0 }
+      ];
+      state.sections = [
+        { title: 'Statutory Notice & Election', content: 'Please confirm renewal acceptance or intent to vacate at least 30 days prior to the Effective Date. All other lease provisions remain unchanged.' }
+      ];
+    } else if (type === 'mutual_lease_termination') {
+      state.header_subtitle = 'Bilateral Early Lease Surrender, Release of Claims & Move-Out Settlement';
+      state.from = { name: 'Vance Residential Group', company: 'Vance Residential Holdings LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'leasing@vanceresidential.com' };
+      state.to = { name: 'Marcus & Elena Sterling', company: 'Vacating Tenants', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.custom_fields = [
+        { label: 'Original Lease Expiration', value: 'May 31, 2027' },
+        { label: 'Agreed Early Surrender Date', value: 'November 30, 2026 at 5:00 PM' },
+        { label: 'Key Return & Walkthrough', value: 'On-Site Management Office upon vacant broom-clean delivery' }
+      ];
+      state.items = [
+        { description: 'Agreed Early Lease Buyout & Re-Leasing Settlement Fee', quantity: 1.0, unit_price: 1500.00 }
+      ];
+      state.sections = [
+        { title: 'Mutual Release of Future Rent Obligations', content: 'Upon timely surrender of possession in broom-clean condition and payment of the settlement consideration above, Landlord and Tenant mutually release one another from all future rent obligations accruing after the Surrender Date.' }
+      ];
+    } else if (type === 'tenant_rent_ledger') {
+      state.header_subtitle = 'Chronological Audit Trail of Charges, Payments, Late Fees & Running Balance';
+      state.from = { name: 'Vance Accounting & Escrow', company: 'Vance Property Management LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'accounting@vanceresidential.com' };
+      state.to = { name: 'Marcus & Elena Sterling', company: 'Lease Account #RLA-2026-0402', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.custom_fields = [
+        { label: 'Audit Period', value: 'August 1, 2026 – October 25, 2026' },
+        { label: 'Monthly Base Rent', value: '$2,650.00 (Due 1st · 5-Day Grace Period)' },
+        { label: 'Security Deposit in Escrow', value: '$2,650.00 (First Republic Escrow #8841)' }
+      ];
+      state.items = [
+        { description: '2026-08-01 · August Base Rent Charge', quantity: 1.0, unit_price: 2650.00, discount: 0.0 },
+        { description: '2026-08-02 · ACH Payment Received (#ACH-99102)', quantity: 1.0, unit_price: -2650.00, discount: 0.0 },
+        { description: '2026-09-01 · September Base Rent Charge', quantity: 1.0, unit_price: 2650.00, discount: 0.0 },
+        { description: '2026-09-03 · ACH Payment Received (#ACH-99841)', quantity: 1.0, unit_price: -2650.00, discount: 0.0 },
+        { description: '2026-10-01 · October Base Rent Charge', quantity: 1.0, unit_price: 2650.00, discount: 0.0 },
+        { description: '2026-10-07 · Statutory Late Fee Assessment (Past Grace Period)', quantity: 1.0, unit_price: 95.00, discount: 0.0 }
+      ];
+      state.sections = [
+        { title: 'Ledger Certification', content: 'I hereby certify that the foregoing Tenant Rent & Payment Ledger is a true, complete, and accurate accounting of all charges and credits posted to the tenancy account.' }
+      ];
+    } else if (type === 'schedule_of_real_estate_owned') {
+      state.header_subtitle = 'Portfolio Balance Sheet · Market Valuation, Senior Debt, LTV, DSCR & Annual NOI';
+      state.from = { name: 'Daniel Hallman', company: 'Hallman Capital Properties LLC', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'capital@hallmanproperties.com' };
+      state.to = { name: 'Commercial Real Estate Underwriting Committee', company: 'First Horizon Commercial Bank', address: '701 Market St, Chattanooga, TN 37402', email: 'cre.underwriting@firsthorizon.com' };
+      state.custom_fields = [
+        { label: 'Total Portfolio Market Value', value: '$4,850,000.00 (4 Properties · 18 Units)' },
+        { label: 'Total Senior Mortgage Debt', value: '$2,910,000.00' },
+        { label: 'Total Net Portfolio Equity', value: '$1,940,000.00 (60.0% Weighted LTV)' },
+        { label: 'Portfolio Weighted DSCR', value: '1.58x Debt Service Coverage Ratio' }
+      ];
+      state.items = [
+        { description: '412 Northshore Dr (6-Unit Multifamily · Value $1.65M · Debt $990K · LTV 60% · DSCR 1.62x) — Annual NOI', quantity: 1.0, unit_price: 118500.00 },
+        { description: '808 Georgia Ave (4-Unit Historic Row · Value $1.15M · Debt $690K · LTV 60% · DSCR 1.54x) — Annual NOI', quantity: 1.0, unit_price: 82400.00 },
+        { description: '1904 East Main St (6-Unit Mixed-Use · Value $1.40M · Debt $840K · LTV 60% · DSCR 1.61x) — Annual NOI', quantity: 1.0, unit_price: 101200.00 },
+        { description: '215 Riverfront Pkwy (Duplex Townhomes · Value $650K · Debt $390K · LTV 60% · DSCR 1.49x) — Annual NOI', quantity: 1.0, unit_price: 46800.00 }
+      ];
+      state.sections = [
+        { title: 'Borrower Representation of Schedule Accuracy', content: 'The undersigned Principal certifies that the Schedule of Real Estate Owned (SREO) accurately reflects current title ownership, unpaid principal mortgage balances, and trailing 12-month Net Operating Income.' }
+      ];
+    } else if (type === 'schedule_e_tax_worksheet') {
+      state.header_subtitle = 'IRS Form 1040 Schedule E (Part I) Rental Real Estate Income & Expense Summary';
+      state.from = { name: 'Hallman Capital Properties LLC', company: 'Tax Year 2026 Accounting Package', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'tax@hallmanproperties.com' };
+      state.to = { name: 'Vance & Associates CPAs LLP', company: 'Certified Public Accountants', address: '500 Chestnut St, Suite 900, Chattanooga, TN 37402', email: 'filings@vancecpa.com' };
+      state.custom_fields = [
+        { label: 'Property 1A Address', value: '412 Northshore Dr, Chattanooga, TN 37405 (Multi-Family)' },
+        { label: 'Gross Rents Received (Line 3)', value: '$148,200.00' },
+        { label: 'Total Operating Expenses', value: '$54,680.00 (Lines 5–17)' },
+        { label: 'MACRS 27.5-Yr Depreciation (Line 18)', value: '$38,900.00' },
+        { label: 'Net Schedule E Taxable Income', value: '$54,620.00' }
+      ];
+      state.items = [
+        { description: 'Line 3 · Gross Rents Received (12 Months)', quantity: 1.0, unit_price: 148200.00, discount: 0.0 },
+        { description: 'Line 9 · Insurance (Hazard, Liability & Loss of Rent)', quantity: 1.0, unit_price: -6400.00, discount: 0.0 },
+        { description: 'Line 11 · Management Fees (8% Gross Collected)', quantity: 1.0, unit_price: -11856.00, discount: 0.0 },
+        { description: 'Line 12 · Mortgage Interest Paid (Form 1098)', quantity: 1.0, unit_price: -21400.00, discount: 0.0 },
+        { description: 'Line 14 · Repairs & Maintenance', quantity: 1.0, unit_price: -6824.00, discount: 0.0 },
+        { description: 'Line 16 · Real Estate Property Taxes', quantity: 1.0, unit_price: -8200.00, discount: 0.0 },
+        { description: 'Line 18 · Depreciation Expense (27.5-Yr Straight-Line)', quantity: 1.0, unit_price: -38900.00, discount: 0.0 }
+      ];
+    } else if (type === 'real_estate_deal_analysis') {
+      state.header_subtitle = 'Institutional Investment Underwriting · Cap Rate, Cash-on-Cash, DSCR & BRRRR Pro Forma';
+      state.from = { name: 'Acquisitions & Underwriting Team', company: 'Hallman Capital Properties LLC', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'acquisitions@hallmanproperties.com' };
+      state.to = { name: 'Investment Committee & JV Partners', company: 'Series B Value-Add Multifamily Fund', address: 'Chattanooga, TN 37402', email: 'investors@hallmanproperties.com' };
+      state.custom_fields = [
+        { label: 'Purchase Price & Rehab Budget', value: '$820,000 Purchase + $115,000 Value-Add Rehab ($935,000 All-In)' },
+        { label: 'After-Repair Value (ARV)', value: '$1,225,000.00 (76.3% All-In LTV to ARV)' },
+        { label: 'Stabilized Net Operating Income', value: '$94,800.00 / year' },
+        { label: 'Going-In Cap Rate / Yield on Cost', value: '10.14% Stabilized Cap Rate on Cost (7.74% Exit Cap)' },
+        { label: 'Cash-on-Cash Return (Year 1)', value: '16.8% Net Cash-on-Cash Return' },
+        { label: 'Debt Service Coverage Ratio (DSCR)', value: '1.52x DSCR (@ 6.50% 30-Yr Amortizing)' }
+      ];
+      state.items = [
+        { description: 'Stabilized Gross Scheduled Rent (8 Units @ $1,350/mo)', quantity: 12.0, unit_price: 10800.00, discount: 0.0 },
+        { description: 'Vacancy & Credit Loss Reserve (5.0%)', quantity: 1.0, unit_price: -6480.00, discount: 0.0 },
+        { description: 'Operating Expenses (Taxes, Insurance, Mgmt, CapEx Reserve)', quantity: 1.0, unit_price: -28320.00, discount: 0.0 },
+        { description: 'Annual Senior Debt Service ($857,500 Refi @ 6.50%)', quantity: 1.0, unit_price: -62350.00, discount: 0.0 }
+      ];
+    } else if (type === 'sublease_agreement') {
+      state.header_subtitle = 'Residential Subtenancy Agreement & Master Lease Flow-Through Consent';
+      state.from = { name: 'Marcus Sterling', company: 'Primary Master Tenant (Sublessor)', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.to = { name: 'Noah Takahashi', company: 'Incoming Subtenant (Sublessee)', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'noah.t@example.com' };
+      state.custom_fields = [
+        { label: 'Sublease Term', value: 'January 1, 2027 – May 31, 2027 (5 Months)' },
+        { label: 'Master Landlord Consent', value: 'Vance Residential Holdings LLC (Written Consent Attached)' },
+        { label: 'Sublease Security Deposit', value: '$2,650.00 Held in Escrow' }
+      ];
+      state.items = [
+        { description: 'Monthly Sublease Base Rent', quantity: 1.0, unit_price: 2650.00 },
+        { description: 'Refundable Sublease Security Deposit', quantity: 1.0, unit_price: 2650.00 }
+      ];
+    } else if (type === 'rent_to_own_agreement') {
+      state.header_subtitle = 'Residential Lease with Exclusive Irrevocable Option to Purchase Real Estate';
+      state.from = { name: 'Vance Residential Holdings LLC', company: 'Property Owner / Optionor (Seller)', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'closings@vanceresidential.com' };
+      state.to = { name: 'Caleb & Hannah Montgomery', company: 'Tenant-Buyers / Optionees', address: '1842 Lookout Mountain Trl, Chattanooga, TN 37409', email: 'montgomery.family@example.com' };
+      state.custom_fields = [
+        { label: 'Agreed Option Strike Price', value: '$465,000.00 (Locked for 24 Months)' },
+        { label: 'Upfront Non-Refundable Option Fee', value: '$14,000.00 (100% Credited Toward Purchase Price at Closing)' },
+        { label: 'Monthly Rent Credit', value: '$350.00 / month Credited to Down Payment ($8,400 Over 24 Mos)' },
+        { label: 'Option Expiration Date', value: 'October 31, 2028 at 5:00 PM' }
+      ];
+      state.items = [
+        { description: 'Upfront Option Consideration Fee (Credited at Closing)', quantity: 1.0, unit_price: 14000.00 },
+        { description: 'Monthly Base Lease Payment (Includes $350/mo Purchase Credit)', quantity: 1.0, unit_price: 2450.00 }
+      ];
+    } else if (type === 'property_management_agreement') {
+      state.header_subtitle = 'Exclusive Agency Contract for Leasing, Rent Collection, Escrow & Maintenance';
+      state.from = { name: 'Vance Property Management LLC', company: 'Licensed Real Estate Brokerage #294810', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'agency@vanceresidential.com' };
+      state.to = { name: 'Highland Crest Holdings LLC', company: 'Property Owner Principal', address: '412 Northshore Dr, Chattanooga, TN 37405', email: 'owner@highlandcrest.com' };
+      state.custom_fields = [
+        { label: 'Managed Portfolio', value: '412 Northshore Dr (6-Unit Multifamily)' },
+        { label: 'Monthly Management Fee', value: '8.0% of Gross Collected Rents' },
+        { label: 'New Tenant Placement Fee', value: '50% of First Full Month Rent ($1,100 Est.)' },
+        { label: 'Repair Authorization Limit', value: '$500.00 per occurrence (Emergency Repairs Exempt)' },
+        { label: 'Owner Reserve Balance', value: '$2,500.00 Held in Trust Escrow Account' }
+      ];
+      state.items = [
+        { description: 'Initial Owner Operating Reserve Deposit (Trust Account)', quantity: 1.0, unit_price: 2500.00 },
+        { description: 'Estimated Monthly Management Fee (8% on $12,350 Gross Rent)', quantity: 1.0, unit_price: 988.00 }
+      ];
+    } else if (type === 'real_estate_purchase_agreement') {
+      state.header_subtitle = 'Definitive Contract for the Purchase & Sale of Real Property';
+      state.from = { name: 'Highland Crest Holdings LLC', company: 'Seller / Current Title Holder', address: '412 Northshore Dr, Chattanooga, TN 37405', email: 'closings@highlandcrest.com' };
+      state.to = { name: 'Hallman Capital Properties LLC', company: 'Purchaser / Acquiring Entity', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'acquisitions@hallmanproperties.com' };
+      state.custom_fields = [
+        { label: 'Property Address & APN', value: '412 Northshore Dr, Chattanooga, TN 37405 · APN 135K-A-014.00' },
+        { label: 'Contract Purchase Price', value: '$1,650,000.00' },
+        { label: 'Earnest Money Deposit', value: '$35,000.00 Held by Pioneer Title & Escrow' },
+        { label: 'Due Diligence & Inspection Period', value: '21 Calendar Days from Effective Date' },
+        { label: 'Financing Contingency', value: 'Conventional Commercial Loan (65% LTV · 30 Days)' },
+        { label: 'Scheduled Closing Date', value: 'December 15, 2026' }
+      ];
+      state.items = [
+        { description: 'Contract Purchase Price', quantity: 1.0, unit_price: 1650000.00, discount: 0.0 },
+        { description: 'Earnest Money Deposit Credited at Closing', quantity: 1.0, unit_price: -35000.00, discount: 0.0 }
+      ];
+    } else if (type === 'property_deed') {
+      state.header_subtitle = 'Recordable Statutory Real Property Conveyance Instrument (3.0in Recorder Stamp Margin)';
+      state.recordable = true;
+      state.notary_required = true;
+      state.county = 'Hamilton';
+      state.state_code = state.state_code || 'TN';
+      state.from = { name: 'Highland Crest Holdings LLC', company: 'Grantor (Conveying Title Holder)', address: '412 Northshore Dr, Chattanooga, TN 37405', email: 'legal@highlandcrest.com' };
+      state.to = { name: 'Hallman Capital Properties LLC', company: 'Grantee (Acquiring Title Holder)', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'title@hallmanproperties.com' };
+      state.custom_fields = [
+        { label: 'Conveyance Instrument Type', value: 'General Warranty Deed (Statutory Covenants of Title)' },
+        { label: 'Assessor Parcel Number (APN)', value: '135K-A-014.00 (Hamilton County, Tennessee)' },
+        { label: 'Legal Description', value: 'Lot 14, Block A, Northshore Subdivision, Plat Book 42, Page 118, Register\'s Office of Hamilton County, TN' },
+        { label: 'Derivation Clause', value: 'Being the same property conveyed to Grantor by Deed recorded in Book 11420, Page 882' }
+      ];
+      state.items = [
+        { description: 'Actual Consideration Paid for Transfer Tax Valuation', quantity: 1.0, unit_price: 1650000.00 }
+      ];
+    } else if (type === 'mechanics_lien_waiver') {
+      state.header_subtitle = 'Statutory Contractor & Subcontractor Waiver and Release Upon Progress or Final Payment';
+      state.notary_required = true;
+      state.from = { name: 'Canyon Peak Construction Co.', company: 'General Contractor / Lien Claimant', address: '4400 Industrial Blvd, Denver, CO 80216', email: 'billing@canyonpeak.com' };
+      state.to = { name: 'Hallman Capital Properties LLC', company: 'Property Owner & Construction Lender', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'draws@hallmanproperties.com' };
+      state.custom_fields = [
+        { label: 'Waiver Type', value: 'Conditional Waiver and Release Upon Progress Payment (Draw #3)' },
+        { label: 'Project Property Address', value: '412 Northshore Dr, Chattanooga, TN 37405' },
+        { label: 'Through Date Covered', value: 'October 25, 2026' },
+        { label: 'Disputed / Retained Claims', value: '$0.00 (Excludes 10% Statutory Contract Retainage of $11,500.00)' }
+      ];
+      state.items = [
+        { description: 'Progress Draw #3 Payment Subject to Clearance of Funds', quantity: 1.0, unit_price: 38500.00 }
       ];
     } else if (type.includes('certificate')) {
       state.header_subtitle = 'Conferred for Demonstrated Technical Excellence & Innovation';
@@ -4020,6 +4457,8 @@
     setVal('spacingDensitySelect', state.spacing_density || 'standard');
     setVal('paperSizeSelect', state.paper_size || 'us-letter');
     setVal('complianceSelect', state.compliance_mode || 'none');
+    setVal('stateCodeSelect', state.state_code || '');
+    setVal('municipalitySelect', state.municipality || '');
     setVal('taxRateInput', state.tax_rate);
     setVal('discountInput', state.discount_amount);
     setVal('footerTextInput', state.footer_text || '');
@@ -4419,6 +4858,24 @@
       property_inspection_checklist: { icon: '📋', cat: 'Property Operations & Auditing', name: 'Property Condition & Inspection Checklist', fromBadge: '● INSPECTING AGENT / MANAGER', fromRole: 'Inspector', toBadge: '○ TENANT / RESIDENTIAL OCCUPANT', toRole: 'Acknowledging Tenant', items: 'Property Condition & Fixture Audit Matrix', totalLabel: 'None' },
       letter_of_intent_cre: { icon: '🤝', cat: 'Commercial Real Estate (CRE)', name: 'CRE Letter of Intent (LOI) to Lease', fromBadge: '● PROSPECTIVE TENANT / LESSEE', fromRole: 'Tenant Principal', toBadge: '○ BUILDING OWNER / LESSOR', toRole: 'Landlord Entity', items: 'Commercial Lease Terms & Proposed Consideration', totalLabel: 'Proposed Initial Deposit Commitment' },
       tenant_estoppel: { icon: '🏛️', cat: 'CRE Diligence & Financing', name: 'Tenant Estoppel Certificate', fromBadge: '● TENANT ENTITY / LESSEE', fromRole: 'Occupying Tenant', toBadge: '○ PURCHASER & LENDING INSTITUTION', toRole: 'Relying Beneficiaries', items: 'Lease Standing & Financial Attestation Schedule', totalLabel: 'Confirmed Monthly Base Rent' },
+      room_rental_lease: { icon: '🛏️', cat: 'Real Estate & Co-Living', name: 'Room Rental & Co-Living Lease Agreement', fromBadge: '● LANDLORD / HOUSE MANAGER', fromRole: 'Property Owner / Master Lessor', toBadge: '○ CO-TENANT / ROOM OCCUPANT', toRole: 'Bedroom Lessee', items: 'Bedroom Rent, Utility Split & Deposit Schedule', totalLabel: 'Total Move-In Commitment' },
+      lease_renewal_agreement: { icon: '🔄', cat: 'Real Estate & Property Management', name: 'Lease Renewal & Extension Agreement', fromBadge: '● LANDLORD / LESSOR', fromRole: 'Property Owner / Agent', toBadge: '○ RENEWING TENANT / LESSEE', toRole: 'Occupying Tenant', items: 'Renewed Monthly Rent & Fee Schedule', totalLabel: 'Total Renewed Monthly Rent' },
+      lease_amendment: { icon: '📝', cat: 'Real Estate & Property Management', name: 'Lease Amendment & Addendum', fromBadge: '● LANDLORD / LESSOR', fromRole: 'Property Owner / Agent', toBadge: '○ TENANT / LESSEE', toRole: 'Occupying Tenant', items: 'Amended Lease Charges & Deposits', totalLabel: 'Total Addendum Adjustment' },
+      rental_application: { icon: '🪪', cat: 'Tenant Screening & Leasing', name: 'Residential Rental Application', fromBadge: '● LEASING OFFICE / LANDLORD', fromRole: 'Screening Authority', toBadge: '○ RENTAL APPLICANT', toRole: 'Prospective Tenant', items: 'Application & Screening Fee Schedule', totalLabel: 'Total Application Fee Due' },
+      adverse_action_notice: { icon: '⚖️', cat: 'FCRA Leasing Compliance', name: 'FCRA Adverse Action Notice', fromBadge: '● LANDLORD / SCREENING ENTITY', fromRole: 'Compliance Officer', toBadge: '○ RENTAL APPLICANT', toRole: 'Consumer Applicant', items: 'None', totalLabel: 'None' },
+      notice_of_entry: { icon: '🚪', cat: 'Statutory Landlord Notice', name: 'Landlord Notice of Entry', fromBadge: '● LANDLORD / PROPERTY MANAGER', fromRole: 'Authorized Agent', toBadge: '○ OCCUPYING TENANT', toRole: 'Resident', items: 'None', totalLabel: 'None' },
+      rent_increase_notice: { icon: '📈', cat: 'Statutory Landlord Notice', name: 'Statutory Notice of Rent Increase', fromBadge: '● LANDLORD / PROPERTY MANAGER', fromRole: 'Property Owner / Agent', toBadge: '○ RESIDENTIAL TENANT', toRole: 'Occupying Lessee', items: 'Prior vs. Adjusted Monthly Rent Comparison', totalLabel: 'New Monthly Rent Effective' },
+      mutual_lease_termination: { icon: '🤝', cat: 'Lease Surrender & Settlement', name: 'Mutual Lease Termination Agreement', fromBadge: '● LANDLORD / LESSOR', fromRole: 'Property Owner', toBadge: '○ VACATING TENANT / LESSEE', toRole: 'Surrendering Tenant', items: 'Early Surrender Settlement & Deposit Schedule', totalLabel: 'Net Termination Settlement' },
+      tenant_rent_ledger: { icon: '📒', cat: 'Property Accounting & Audit', name: 'Tenant Rent & Payment Ledger', fromBadge: '● PROPERTY ACCOUNTING / ESCROW', fromRole: 'Ledger Custodian', toBadge: '○ TENANT ACCOUNT HOLDER', toRole: 'Lessee of Record', items: 'Chronological Charges, Payments & Running Balance', totalLabel: 'Current Account Balance Due' },
+      schedule_of_real_estate_owned: { icon: '🏦', cat: 'Real Estate Portfolio & Lending', name: 'Schedule of Real Estate Owned (SREO)', fromBadge: '● PORTFOLIO PRINCIPAL / BORROWER', fromRole: 'Sponsor / Guarantor', toBadge: '○ COMMERCIAL LENDER / UNDERWRITER', toRole: 'Lending Institution', items: 'Portfolio Asset Valuation, Debt, LTV, DSCR & NOI', totalLabel: 'Total Annual Portfolio NOI' },
+      schedule_e_tax_worksheet: { icon: '🧾', cat: 'Real Estate Tax & Accounting', name: 'IRS Schedule E Tax Prep Worksheet', fromBadge: '● RENTAL PROPERTY OWNER', fromRole: 'Taxpayer Entity', toBadge: '○ CPA / TAX PREPARER', toRole: 'Accounting Firm', items: 'IRS Form 1040 Schedule E Part I Income & Deductions', totalLabel: 'Net Schedule E Taxable Income' },
+      real_estate_deal_analysis: { icon: '📐', cat: 'Real Estate Investment Underwriting', name: 'Real Estate Investment Deal Analysis', fromBadge: '● ACQUISITIONS / SPONSOR', fromRole: 'Underwriting Lead', toBadge: '○ INVESTMENT COMMITTEE / LP', toRole: 'Capital Partner', items: 'Pro Forma Cash Flow, Rehab & Debt Service Schedule', totalLabel: 'Projected Year-1 Net Cash Flow' },
+      sublease_agreement: { icon: '🔑', cat: 'Real Estate & Subtenancy', name: 'Residential Sublease Agreement', fromBadge: '● MASTER TENANT / SUBLESSOR', fromRole: 'Original Lessee', toBadge: '○ INCOMING SUBTENANT / SUBLESSEE', toRole: 'Sublessee Occupant', items: 'Sublease Rent & Security Deposit Schedule', totalLabel: 'Total Initial Sublease Commitment' },
+      rent_to_own_agreement: { icon: '🏡', cat: 'Lease-Option & Creative Finance', name: 'Rent-to-Own (Lease-Option) Agreement', fromBadge: '● PROPERTY OWNER / OPTIONOR', fromRole: 'Seller / Lessor', toBadge: '○ TENANT-BUYER / OPTIONEE', toRole: 'Optionee / Lessee', items: 'Option Consideration, Base Rent & Purchase Credits', totalLabel: 'Total Initial Option & Move-In Due' },
+      property_management_agreement: { icon: '🏢', cat: 'Property Management Agency', name: 'Property Management Agreement', fromBadge: '● LICENSED PROPERTY MANAGER', fromRole: 'Managing Brokerage', toBadge: '○ BENEFICIAL PROPERTY OWNER', toRole: 'Asset Principal', items: 'Management Fee, Leasing Fee & Reserve Schedule', totalLabel: 'Initial Owner Reserve & Setup' },
+      real_estate_purchase_agreement: { icon: '✍️', cat: 'Real Estate Acquisition & Closing', name: 'Real Estate Purchase & Sale Agreement', fromBadge: '● SELLER / CURRENT TITLE HOLDER', fromRole: 'Conveying Seller', toBadge: '○ PURCHASER / ACQUIRING ENTITY', toRole: 'Contract Buyer', items: 'Purchase Price, Earnest Money & Closing Credits', totalLabel: 'Net Contract Balance at Closing' },
+      property_deed: { icon: '🏛️', cat: 'County Recorder Title Conveyance', name: 'Quitclaim / Warranty Deed', fromBadge: '● GRANTOR (CONVEYING OWNER)', fromRole: 'Title Grantor', toBadge: '○ GRANTEE (ACQUIRING OWNER)', toRole: 'Title Grantee', items: 'Conveyance Consideration & Transfer Tax Valuation', totalLabel: 'Total Conveyance Consideration' },
+      mechanics_lien_waiver: { icon: '🔨', cat: 'Construction & Title Clearance', name: 'Mechanic\'s Lien Waiver & Release', fromBadge: '● CONTRACTOR / LIEN CLAIMANT', fromRole: 'Releasing Contractor', toBadge: '○ PROPERTY OWNER & LENDER', toRole: 'Reliance Parties', items: 'Progress / Final Draw Payment Released', totalLabel: 'Total Payment Subject to Waiver' },
 
       // Operations & Logistics
       packing_slip: { icon: '🚚', cat: 'Logistics & Fulfillment', name: 'Packing Slip & Bill of Lading', fromBadge: '● SHIPPER / LOGISTICS HUB', fromRole: 'Carrier / Dispatch', toBadge: '○ CONSIGNEE / RECEIVER', toRole: 'Receiving Party', items: 'Manifest & Package Contents', totalLabel: 'Total Pieces Shipped' },
@@ -4432,11 +4889,21 @@
     };
 
     const tax = ARCHETYPE_TAXONOMY[type] || ARCHETYPE_TAXONOMY.invoice;
+    state._taxonomy_cat = tax.cat;
+    state._taxonomy_name = tax.name;
 
     // 1. Update Step 1 Primary Archetype Header Hero
     if (heroIcon) heroIcon.innerText = tax.icon;
     if (heroCategory) heroCategory.innerText = tax.cat.toUpperCase();
     if (heroHeading) heroHeading.innerText = tax.name;
+
+    // Synchronize Top Studio Breadcrumbs
+    const crumbCategory = document.getElementById('crumbCategory');
+    const crumbDocName = document.getElementById('crumbDocName');
+    const crumbDocNumber = document.getElementById('crumbDocNumber');
+    if (crumbCategory) crumbCategory.innerText = tax.cat;
+    if (crumbDocName) crumbDocName.innerText = state.title || tax.name;
+    if (crumbDocNumber) crumbDocNumber.innerText = '#' + (state.doc_number || 'INV-2026-0001');
 
     // 2. Prescriptive Line Items & Table Card
     if (cardLineItems) {
@@ -5023,7 +5490,12 @@
 
     itemsTbody.querySelectorAll('.item-rate').forEach(input => {
       input.addEventListener('input', (e) => {
-        state.items[e.target.dataset.idx].unit_price = parseFloat(e.target.value) || 0;
+        const idx = e.target.dataset.idx;
+        const val = parseFloat(e.target.value) || 0;
+        state.items[idx].unit_price = val;
+        if (val < 0) {
+          state.items[idx].discount = 0;
+        }
         updateCalculations();
         schedulePreview();
         renderInteractiveOverlay();
@@ -5055,7 +5527,9 @@
   // Format financial values according to user localization and currency preferences
   function formatAmountUi(val) {
     const dec = state.number_decimals !== undefined ? state.number_decimals : 2;
-    let parts = Number(val).toFixed(dec).split('.');
+    const numericVal = Number(val) || 0;
+    const isNeg = numericVal < 0;
+    let parts = Math.abs(numericVal).toFixed(dec).split('.');
     let intPart = parts[0];
     let fracPart = parts[1];
 
@@ -5085,15 +5559,26 @@
       'NZD': 'NZ$', 'SGD': 'S$', 'CNY': '¥',
       'JPY': '¥', 'CHF': 'Fr. ', 'INR': '₹', 'BRL': 'R$', 'SEK': 'kr ', 'AED': 'AED '
     };
-    let sym = currMap[state.currency] || state.currency || '$';
+    const symbolToIso = {
+      '$': 'USD', 'US$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY',
+      '₹': 'INR', 'R$': 'BRL', 'CA$': 'CAD', 'C$': 'CAD', 'A$': 'AUD',
+      'AU$': 'AUD', 'NZ$': 'NZD', 'S$': 'SGD', 'Fr.': 'CHF', 'Fr. ': 'CHF',
+      'kr': 'SEK', 'kr ': 'SEK'
+    };
+    const rawCurr = (state.currency || 'USD').trim();
+    const isoCode = symbolToIso[rawCurr] || rawCurr.toUpperCase();
+    let sym = currMap[isoCode] || rawCurr || '$';
     if (state.currency_symbol_mode === 'code') {
-      sym = state.currency || 'USD';
+      sym = isoCode;
     }
 
+    const signPrefix = isNeg ? '-' : '';
     if (state.currency_placement === 'suffix') {
-      return `${numStr} ${sym}`.trim();
+      return `${signPrefix}${numStr} ${sym}`.trim();
+    } else if (state.currency_symbol_mode === 'code') {
+      return `${signPrefix}${sym} ${numStr}`;
     } else {
-      return `${sym}${numStr}`;
+      return `${signPrefix}${sym}${numStr}`;
     }
   }
 
@@ -5112,7 +5597,8 @@
     const subtotal = state.items.reduce((sum, item) => sum + (item.quantity * item.unit_price - (item.discount || 0)), 0);
     const tax = state.tax_rate ? subtotal * (state.tax_rate / 100.0) : 0.0;
     const discount = state.discount_amount || 0.0;
-    const grandTotal = Math.max(0, subtotal + tax - discount);
+    const rawTotal = subtotal + tax - discount;
+    const grandTotal = allowsNegativeItems(state.doc_type) ? rawTotal : Math.max(0, rawTotal);
 
     animateNumberChange(subtotalDisplay, formatAmountUi(subtotal));
     animateNumberChange(taxDisplay, formatAmountUi(tax));
@@ -5160,13 +5646,13 @@
     const crumbDocName = document.getElementById('crumbDocName');
     const crumbDocNumber = document.getElementById('crumbDocNumber');
     if (crumbCategory) {
-      crumbCategory.innerText = (state.category || 'commercial invoicing').replace(/_/g, ' ');
+      crumbCategory.innerText = (state._taxonomy_cat || state.category || 'Commercial Invoicing').replace(/_/g, ' ');
     }
     if (crumbDocName) {
-      crumbDocName.innerText = state.document_type || 'Tax Invoice';
+      crumbDocName.innerText = state.title || state._taxonomy_name || state.document_type || 'Tax Invoice';
     }
     if (crumbDocNumber) {
-      crumbDocNumber.innerText = '#' + (state.document_number || 'INV-2026-0001');
+      crumbDocNumber.innerText = '#' + (state.doc_number || state.document_number || 'INV-2026-0001');
     }
   }
 
@@ -5418,7 +5904,7 @@
         }
         state.doc_type = 'receipt';
         state.title = 'OFFICIAL ITEMIZED RECEIPT';
-        state.doc_number = `RCT-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+        state.doc_number = `REC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
         state.is_paid = true;
         state.show_qr_seal = true;
 

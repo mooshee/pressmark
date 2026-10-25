@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum DocumentType {
     Invoice,
@@ -35,7 +35,7 @@ pub enum DocumentType {
     CertificateInsurance,
     CertificateCompletion,
     InspectionReport,
-    // Real Estate & Property Management Suite
+    // Real Estate & Property Management Suite (Initial 11)
     ResidentialLease,
     CommercialNnnLease,
     PropertyManagementStatement,
@@ -47,11 +47,51 @@ pub enum DocumentType {
     PropertyInspectionChecklist,
     LetterOfIntentCre,
     TenantEstoppel,
+    // Avail & Stessa Expansion (11)
+    RoomRentalLease,
+    LeaseRenewalAgreement,
+    LeaseAmendment,
+    RentalApplication,
+    AdverseActionNotice,
+    NoticeOfEntry,
+    RentIncreaseNotice,
+    MutualLeaseTermination,
+    TenantRentLedger,
+    ScheduleOfRealEstateOwned,
+    ScheduleETaxWorksheet,
+    // BiggerPockets & Rocket Lawyer Expansion (7)
+    RealEstateDealAnalysis,
+    SubleaseAgreement,
+    RentToOwnAgreement,
+    PropertyManagementAgreement,
+    RealEstatePurchaseAgreement,
+    PropertyDeed,
+    MechanicsLienWaiver,
 }
 
 impl Default for DocumentType {
     fn default() -> Self {
         Self::Invoice
+    }
+}
+
+impl<'de> Deserialize<'de> for DocumentType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if s.trim().is_empty() {
+            return Ok(Self::Invoice);
+        }
+        Self::from_slug(&s)
+            .or_else(|| Self::parse_state_prefixed_slug(&s).map(|(_, dt)| dt))
+            .ok_or_else(|| {
+                serde::de::Error::custom(format!(
+                    "Unknown document type '{}'. Expected one of the 57 Pressmark archetypes.",
+                    s
+                ))
+            })
     }
 }
 
@@ -95,6 +135,24 @@ impl DocumentType {
             Self::PropertyInspectionChecklist => "PROPERTY CONDITION & INSPECTION CHECKLIST",
             Self::LetterOfIntentCre => "COMMERCIAL REAL ESTATE LETTER OF INTENT (LOI)",
             Self::TenantEstoppel => "TENANT ESTOPPEL CERTIFICATE",
+            Self::RoomRentalLease => "ROOM RENTAL & CO-LIVING LEASE AGREEMENT",
+            Self::LeaseRenewalAgreement => "LEASE RENEWAL & RENT ADJUSTMENT AGREEMENT",
+            Self::LeaseAmendment => "LEASE AMENDMENT & STATUTORY ADDENDUM",
+            Self::RentalApplication => "RESIDENTIAL RENTAL APPLICATION & FCRA CONSENT",
+            Self::AdverseActionNotice => "FCRA ADVERSE ACTION & SCREENING DENIAL NOTICE",
+            Self::NoticeOfEntry => "STATUTORY NOTICE OF INTENT TO ENTER PREMISES",
+            Self::RentIncreaseNotice => "STATUTORY NOTICE OF RENT ADJUSTMENT",
+            Self::MutualLeaseTermination => "MUTUAL LEASE TERMINATION & SURRENDER AGREEMENT",
+            Self::TenantRentLedger => "CERTIFIED TENANT RENT & CHARGE LEDGER",
+            Self::ScheduleOfRealEstateOwned => "SCHEDULE OF REAL ESTATE OWNED (SREO)",
+            Self::ScheduleETaxWorksheet => "IRS SCHEDULE E RENTAL TAX & T12 OPERATING WORKSHEET",
+            Self::RealEstateDealAnalysis => "REAL ESTATE INVESTMENT & DEAL UNDERWRITING REPORT",
+            Self::SubleaseAgreement => "RESIDENTIAL SUBLEASE & LANDLORD CONSENT AGREEMENT",
+            Self::RentToOwnAgreement => "RENT-TO-OWN (LEASE-OPTION) AGREEMENT",
+            Self::PropertyManagementAgreement => "EXCLUSIVE PROPERTY MANAGEMENT AGREEMENT",
+            Self::RealEstatePurchaseAgreement => "REAL ESTATE PURCHASE & SALE AGREEMENT (PSA)",
+            Self::PropertyDeed => "STATUTORY RECORDABLE PROPERTY DEED",
+            Self::MechanicsLienWaiver => "STATUTORY MECHANIC'S LIEN WAIVER & RELEASE",
         }
     }
 
@@ -108,7 +166,7 @@ impl DocumentType {
             Self::InvoiceMinimal => "DOC-",
             Self::ProformaInvoice => "PI-",
             Self::Estimate => "EST-",
-            Self::Receipt => "RCT-",
+            Self::Receipt => "REC-",
             Self::PurchaseOrder => "PO-",
             Self::PackingSlip => "PKG-",
             Self::CreditNote => "CRD-",
@@ -137,6 +195,24 @@ impl DocumentType {
             Self::PropertyInspectionChecklist => "CHK-",
             Self::LetterOfIntentCre => "LOI-",
             Self::TenantEstoppel => "TEC-",
+            Self::RoomRentalLease => "RLC-",
+            Self::LeaseRenewalAgreement => "REN-",
+            Self::LeaseAmendment => "AMD-",
+            Self::RentalApplication => "APP-",
+            Self::AdverseActionNotice => "FCRA-",
+            Self::NoticeOfEntry => "ENT-",
+            Self::RentIncreaseNotice => "RIN-",
+            Self::MutualLeaseTermination => "MLT-",
+            Self::TenantRentLedger => "LDG-",
+            Self::ScheduleOfRealEstateOwned => "SREO-",
+            Self::ScheduleETaxWorksheet => "TXE-",
+            Self::RealEstateDealAnalysis => "DEAL-",
+            Self::SubleaseAgreement => "SUBL-",
+            Self::RentToOwnAgreement => "RTO-",
+            Self::PropertyManagementAgreement => "PMA-",
+            Self::RealEstatePurchaseAgreement => "PSA-",
+            Self::PropertyDeed => "DEED-",
+            Self::MechanicsLienWaiver => "LIEN-",
         }
     }
 
@@ -181,6 +257,24 @@ impl DocumentType {
             Self::PropertyInspectionChecklist => "property_inspection_checklist",
             Self::LetterOfIntentCre => "letter_of_intent_cre",
             Self::TenantEstoppel => "tenant_estoppel",
+            Self::RoomRentalLease => "room_rental_lease",
+            Self::LeaseRenewalAgreement => "lease_renewal_agreement",
+            Self::LeaseAmendment => "lease_amendment",
+            Self::RentalApplication => "rental_application",
+            Self::AdverseActionNotice => "adverse_action_notice",
+            Self::NoticeOfEntry => "notice_of_entry",
+            Self::RentIncreaseNotice => "rent_increase_notice",
+            Self::MutualLeaseTermination => "mutual_lease_termination",
+            Self::TenantRentLedger => "tenant_rent_ledger",
+            Self::ScheduleOfRealEstateOwned => "schedule_of_real_estate_owned",
+            Self::ScheduleETaxWorksheet => "schedule_e_tax_worksheet",
+            Self::RealEstateDealAnalysis => "real_estate_deal_analysis",
+            Self::SubleaseAgreement => "sublease_agreement",
+            Self::RentToOwnAgreement => "rent_to_own_agreement",
+            Self::PropertyManagementAgreement => "property_management_agreement",
+            Self::RealEstatePurchaseAgreement => "real_estate_purchase_agreement",
+            Self::PropertyDeed => "property_deed",
+            Self::MechanicsLienWaiver => "mechanics_lien_waiver",
         }
     }
 
@@ -225,6 +319,24 @@ impl DocumentType {
             Self::PropertyInspectionChecklist,
             Self::LetterOfIntentCre,
             Self::TenantEstoppel,
+            Self::RoomRentalLease,
+            Self::LeaseRenewalAgreement,
+            Self::LeaseAmendment,
+            Self::RentalApplication,
+            Self::AdverseActionNotice,
+            Self::NoticeOfEntry,
+            Self::RentIncreaseNotice,
+            Self::MutualLeaseTermination,
+            Self::TenantRentLedger,
+            Self::ScheduleOfRealEstateOwned,
+            Self::ScheduleETaxWorksheet,
+            Self::RealEstateDealAnalysis,
+            Self::SubleaseAgreement,
+            Self::RentToOwnAgreement,
+            Self::PropertyManagementAgreement,
+            Self::RealEstatePurchaseAgreement,
+            Self::PropertyDeed,
+            Self::MechanicsLienWaiver,
         ]
     }
 
@@ -269,13 +381,39 @@ impl DocumentType {
             Self::PropertyInspectionChecklist => "property-inspection-checklist",
             Self::LetterOfIntentCre => "letter-of-intent-cre",
             Self::TenantEstoppel => "tenant-estoppel",
+            Self::RoomRentalLease => "room-rental-lease",
+            Self::LeaseRenewalAgreement => "lease-renewal-agreement",
+            Self::LeaseAmendment => "lease-amendment",
+            Self::RentalApplication => "rental-application",
+            Self::AdverseActionNotice => "adverse-action-notice",
+            Self::NoticeOfEntry => "notice-of-entry",
+            Self::RentIncreaseNotice => "rent-increase-notice",
+            Self::MutualLeaseTermination => "mutual-lease-termination",
+            Self::TenantRentLedger => "tenant-rent-ledger",
+            Self::ScheduleOfRealEstateOwned => "schedule-of-real-estate-owned",
+            Self::ScheduleETaxWorksheet => "schedule-e-tax-worksheet",
+            Self::RealEstateDealAnalysis => "real-estate-deal-analysis",
+            Self::SubleaseAgreement => "sublease-agreement",
+            Self::RentToOwnAgreement => "rent-to-own-agreement",
+            Self::PropertyManagementAgreement => "property-management-agreement",
+            Self::RealEstatePurchaseAgreement => "real-estate-purchase-agreement",
+            Self::PropertyDeed => "property-deed",
+            Self::MechanicsLienWaiver => "mechanics-lien-waiver",
         }
     }
 
     pub fn from_slug(slug: &str) -> Option<Self> {
-        let normalized = slug.trim().to_lowercase().replace('-', "_");
+        let normalized = slug
+            .trim()
+            .to_lowercase()
+            .replace(['-', ' '], "_")
+            .split('_')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("_");
+        let compact = normalized.replace('_', "");
         for item in Self::all() {
-            if item.as_str() == normalized {
+            if item.as_str() == normalized || item.as_str().replace('_', "") == compact {
                 return Some(item.clone());
             }
         }
@@ -290,23 +428,208 @@ impl DocumentType {
             "payment_receipt" | "paid_receipt" => Some(Self::Receipt),
             "po" => Some(Self::PurchaseOrder),
             "bol" | "bill_of_lading" => Some(Self::PackingSlip),
-            "refund" | "credit_memo" => Some(Self::CreditNote),
+            "credit" | "refund" | "credit_memo" => Some(Self::CreditNote),
             "msa" | "master_services_agreement" => Some(Self::Agreement),
             "sow" | "statement_of_work" => Some(Self::AgreementSow),
             "mutual_nda" | "non_disclosure_agreement" => Some(Self::Nda),
             "coi" | "certificate_of_insurance" => Some(Self::CertificateInsurance),
             "certificate_of_completion" => Some(Self::CertificateCompletion),
+            "lease" | "standard_lease" => Some(Self::ResidentialLease),
             "nnn_lease" | "triple_net_lease" => Some(Self::CommercialNnnLease),
             "owner_statement" | "property_statement" => Some(Self::PropertyManagementStatement),
             "closing_statement" | "settlement_statement" => Some(Self::ClosingSettlementStatement),
-            "eviction_notice" | "pay_or_quit" => Some(Self::NoticeToVacate),
-            "security_deposit" => Some(Self::SecurityDepositDisposition),
+            "eviction_notice"
+            | "pay_or_quit"
+            | "pay_or_quit_notice"
+            | "cure_or_quit"
+            | "14_day_rent_demand"
+            | "3_day_notice_to_pay_or_quit"
+            | "5_day_notice_to_pay_or_quit"
+            | "scra_military_termination"
+            | "vawa_termination" => Some(Self::NoticeToVacate),
+            "security_deposit" | "deposit_disposition" => Some(Self::SecurityDepositDisposition),
             "commission_statement" | "brokerage_commission" => Some(Self::RealEstateCommission),
             "move_in_checklist" | "move_out_checklist" => Some(Self::PropertyInspectionChecklist),
             "loi" | "letter_of_intent" => Some(Self::LetterOfIntentCre),
             "estoppel" | "estoppel_certificate" => Some(Self::TenantEstoppel),
+            "room_lease" | "coliving_lease" | "co_living_lease" | "roommate_agreement" => Some(Self::RoomRentalLease),
+            "lease_renewal" | "lease_extension" => Some(Self::LeaseRenewalAgreement),
+            "lease_addendum" | "pet_addendum" | "cosigner_guaranty" | "lease_guaranty" => Some(Self::LeaseAmendment),
+            "tenant_application" | "screening_application" => Some(Self::RentalApplication),
+            "fcra_adverse_action" | "tenant_denial_notice" => Some(Self::AdverseActionNotice),
+            "intent_to_enter" | "entry_notice" => Some(Self::NoticeOfEntry),
+            "rent_increase" | "rent_adjustment_notice" => Some(Self::RentIncreaseNotice),
+            "cash_for_keys" | "lease_surrender" | "early_termination_agreement" => Some(Self::MutualLeaseTermination),
+            "rent_ledger" | "tenant_ledger" => Some(Self::TenantRentLedger),
+            "sreo" | "reo_schedule" | "real_estate_portfolio" => Some(Self::ScheduleOfRealEstateOwned),
+            "schedule_e" | "t12_income_statement" | "rental_tax_worksheet" => Some(Self::ScheduleETaxWorksheet),
+            "deal_analysis"
+            | "brrrr_analysis"
+            | "brrrr_deal_analysis"
+            | "fix_and_flip_analysis"
+            | "rental_property_analysis"
+            | "rehab_estimator"
+            | "str_analysis" => Some(Self::RealEstateDealAnalysis),
+            "sublease" | "sublet_agreement" => Some(Self::SubleaseAgreement),
+            "rent_to_own" | "lease_option" | "lease_purchase" => Some(Self::RentToOwnAgreement),
+            "property_management_contract" => Some(Self::PropertyManagementAgreement),
+            "purchase_agreement" | "psa" | "wholesale_assignment" | "contract_for_deed" | "land_contract" => Some(Self::RealEstatePurchaseAgreement),
+            "deed"
+            | "quitclaim_deed"
+            | "warranty_deed"
+            | "grant_deed"
+            | "special_warranty_deed"
+            | "lady_bird_deed"
+            | "tod_deed"
+            | "beneficiary_deed" => Some(Self::PropertyDeed),
+            "lien_waiver" | "conditional_lien_waiver" | "unconditional_lien_waiver" => Some(Self::MechanicsLienWaiver),
             _ => None,
         }
+    }
+
+    pub fn allows_negative_items(&self) -> bool {
+        matches!(
+            self,
+            Self::CreditNote
+                | Self::PropertyManagementStatement
+                | Self::SecurityDepositDisposition
+                | Self::RealEstateCommission
+                | Self::ClosingSettlementStatement
+                | Self::TenantRentLedger
+                | Self::ScheduleETaxWorksheet
+                | Self::RealEstateDealAnalysis
+                | Self::RentIncreaseNotice
+                | Self::RealEstatePurchaseAgreement
+        )
+    }
+
+    pub fn supports_jurisdiction_inference(&self) -> bool {
+        self.is_state_lease_instrument()
+            || matches!(
+                self,
+                Self::PropertyDeed
+                    | Self::MechanicsLienWaiver
+                    | Self::TenantEstoppel
+                    | Self::SubleaseAgreement
+                    | Self::RentToOwnAgreement
+                    | Self::RealEstatePurchaseAgreement
+                    | Self::PropertyManagementAgreement
+                    | Self::PropertyManagementStatement
+                    | Self::ClosingSettlementStatement
+                    | Self::RealEstateCommission
+                    | Self::PropertyInspectionChecklist
+                    | Self::LetterOfIntentCre
+                    | Self::RentalApplication
+                    | Self::AdverseActionNotice
+                    | Self::TenantRentLedger
+                    | Self::ScheduleOfRealEstateOwned
+                    | Self::ScheduleETaxWorksheet
+                    | Self::RealEstateDealAnalysis
+                    | Self::RentRoll
+                    | Self::CommercialNnnLease
+                    | Self::CommercialLease
+            )
+    }
+
+    /// Resolves state-prefixed programmatic SEO slugs such as:
+    /// - `"tennessee-residential-lease"` -> `(TN, ResidentialLease)`
+    /// - `"california-eviction-notice"` -> `(CA, NoticeToVacate)`
+    /// - `"texas-quitclaim-deed"` -> `(TX, PropertyDeed)`
+    /// - `"new-york-room-rental-lease"` -> `(NY, RoomRentalLease)`
+    pub fn parse_state_prefixed_slug(
+        slug: &str,
+    ) -> Option<(&'static crate::state_laws::StateLeaseProfile, Self)> {
+        let normalized = slug.trim().to_ascii_lowercase().replace('_', "-");
+        // Check full state slugs first (longest match wins, e.g. "west-virginia-" before "virginia-")
+        let mut profiles: Vec<&'static crate::state_laws::StateLeaseProfile> =
+            crate::state_laws::all_state_lease_profiles().iter().collect();
+        profiles.sort_by(|a, b| b.slug.len().cmp(&a.slug.len()));
+
+        for profile in &profiles {
+            let prefix = format!("{}-", profile.slug);
+            if let Some(rest) = normalized.strip_prefix(&prefix) {
+                if let Some(doc_type) = Self::from_slug(rest) {
+                    return Some((*profile, doc_type));
+                }
+            }
+        }
+        // Check Washington DC alias
+        if let Some(rest) = normalized.strip_prefix("washington-dc-") {
+            if let Some(profile) = crate::state_laws::get_state_lease_profile("DC") {
+                if let Some(doc_type) = Self::from_slug(rest) {
+                    return Some((profile, doc_type));
+                }
+            }
+        }
+        // Check 2-letter state code prefix (e.g. "tn-residential-lease")
+        for profile in &profiles {
+            let code_prefix = format!("{}-", profile.code.to_ascii_lowercase());
+            if let Some(rest) = normalized.strip_prefix(&code_prefix) {
+                if let Some(doc_type) = Self::from_slug(rest) {
+                    return Some((*profile, doc_type));
+                }
+            }
+        }
+        None
+    }
+
+    pub fn is_contract_or_lease(&self) -> bool {
+        matches!(
+            self,
+            Self::Agreement
+                | Self::AgreementSow
+                | Self::ContractorAgreement
+                | Self::RetainerAgreement
+                | Self::Nda
+                | Self::BillOfSale
+                | Self::ResidentialLease
+                | Self::RoomRentalLease
+                | Self::SubleaseAgreement
+                | Self::RentToOwnAgreement
+                | Self::CommercialNnnLease
+                | Self::CommercialLease
+                | Self::LeaseRenewalAgreement
+                | Self::LeaseAmendment
+                | Self::MutualLeaseTermination
+                | Self::PropertyManagementAgreement
+                | Self::RealEstatePurchaseAgreement
+                | Self::PropertyDeed
+                | Self::MechanicsLienWaiver
+                | Self::LetterOfIntentCre
+                | Self::TenantEstoppel
+                | Self::NoticeToVacate
+                | Self::NoticeOfEntry
+                | Self::RentIncreaseNotice
+                | Self::AdverseActionNotice
+                | Self::RentalApplication
+                | Self::SecurityDepositDisposition
+                | Self::RealEstateCommission
+                | Self::PropertyInspectionChecklist
+                | Self::ClosingSettlementStatement
+                | Self::PropertyManagementStatement
+                | Self::RentRoll
+                | Self::TenantRentLedger
+                | Self::ScheduleOfRealEstateOwned
+                | Self::ScheduleETaxWorksheet
+                | Self::RealEstateDealAnalysis
+        )
+    }
+
+    pub fn is_state_lease_instrument(&self) -> bool {
+        matches!(
+            self,
+            Self::ResidentialLease
+                | Self::RoomRentalLease
+                | Self::SubleaseAgreement
+                | Self::RentToOwnAgreement
+                | Self::LeaseRenewalAgreement
+                | Self::LeaseAmendment
+                | Self::NoticeToVacate
+                | Self::NoticeOfEntry
+                | Self::RentIncreaseNotice
+                | Self::SecurityDepositDisposition
+                | Self::MutualLeaseTermination
+        )
     }
 
     pub fn seo_metadata(&self) -> (String, String) {
@@ -314,7 +637,10 @@ impl DocumentType {
             .display_title()
             .split_whitespace()
             .map(|w| {
-                if w == "NNN" || w == "(NNN)" || w == "LOI" || w == "(LOI)" || w == "NDA" || w == "MSA" || w == "SOW" || w == "COI" {
+                if matches!(
+                    w,
+                    "NNN" | "(NNN)" | "LOI" | "(LOI)" | "NDA" | "MSA" | "SOW" | "COI" | "FCRA" | "IRS" | "T12" | "SREO" | "(SREO)" | "PSA" | "(PSA)"
+                ) {
                     w.to_string()
                 } else {
                     let mut chars = w.chars();
@@ -331,6 +657,31 @@ impl DocumentType {
         let description = format!(
             "Create and download a print-ready {} PDF in milliseconds. Customize line items, clauses, tax rates, and QR payment links with live preview in Pressmark Studio.",
             title_case
+        );
+        (page_title, description)
+    }
+
+    pub fn state_seo_metadata(
+        &self,
+        state: &crate::state_laws::StateLeaseProfile,
+    ) -> (String, String) {
+        let (base_title, _) = self.seo_metadata();
+        let clean_doc_name = base_title
+            .trim_end_matches(" Template & PDF Generator · Pressmark Studio");
+        let page_title = format!(
+            "{} {} ({}) · Statutory PDF Generator · Pressmark Studio",
+            state.name, clean_doc_name, state.code
+        );
+        let description = format!(
+            "Generate a compliant {} {} under {}. Automatically enforces {} security deposit caps ({}), {} return deadlines, {} Pay-or-Quit notices, and mandatory {} disclosures.",
+            state.name,
+            clean_doc_name,
+            state.governing_statute,
+            state.code,
+            state.deposit_cap,
+            state.return_deadline,
+            state.pay_or_quit_notice,
+            state.name
         );
         (page_title, description)
     }
@@ -390,20 +741,41 @@ impl PartyDetails {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+fn default_quantity() -> f64 {
+    1.0
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LineItem {
+    #[serde(default, alias = "name", alias = "item", alias = "title")]
     pub description: String,
+    #[serde(default = "default_quantity", alias = "qty")]
     pub quantity: f64,
+    #[serde(default, alias = "rate", alias = "price", alias = "amount")]
     pub unit_price: f64,
+    #[serde(default)]
     pub tax_rate: Option<f64>,
+    #[serde(default)]
     pub discount: Option<f64>,
+}
+
+impl Default for LineItem {
+    fn default() -> Self {
+        Self {
+            description: String::new(),
+            quantity: 0.0,
+            unit_price: 0.0,
+            tax_rate: None,
+            discount: None,
+        }
+    }
 }
 
 impl LineItem {
     pub fn amount(&self) -> f64 {
         let gross = self.quantity * self.unit_price;
         let discount = self.discount.unwrap_or(0.0);
-        (gross - discount).max(0.0)
+        gross - discount
     }
 }
 
@@ -429,9 +801,10 @@ pub struct DocumentSection {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DocumentRequest {
-    #[serde(default)]
+    #[serde(default, alias = "type", alias = "archetype", alias = "template", alias = "document_type")]
     pub doc_type: DocumentType,
     pub title: Option<String>,
+    #[serde(default, alias = "document_number", alias = "number")]
     pub doc_number: Option<String>,
     pub issue_date: Option<String>,
     pub due_date: Option<String>,
@@ -448,11 +821,11 @@ pub struct DocumentRequest {
     pub signature_data: Option<String>,
     pub signer_name: Option<String>,
     pub signer_title: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "issuer", alias = "seller", alias = "landlord", alias = "sender")]
     pub from: PartyDetails,
-    #[serde(default)]
+    #[serde(default, alias = "recipient", alias = "buyer", alias = "client", alias = "tenant")]
     pub to: PartyDetails,
-    #[serde(default)]
+    #[serde(default, alias = "line_items")]
     pub items: Vec<LineItem>,
     pub currency: Option<String>,
     pub tax_rate: Option<f64>,
@@ -498,25 +871,88 @@ pub struct DocumentRequest {
     pub paid_at: Option<String>,
     pub transaction_reference: Option<String>,
     pub amount_paid: Option<f64>,
+    #[serde(default, alias = "state", alias = "jurisdiction")]
+    pub state_code: Option<String>,
+    pub municipality: Option<String>,
+    pub county: Option<String>,
+    pub recordable: Option<bool>,
+    pub notary_required: Option<bool>,
+    pub year_built: Option<u32>,
+    pub lease_package_mode: Option<bool>,
 }
 
 impl DocumentRequest {
+    pub fn normalized_currency_code(&self) -> &str {
+        let raw = self.currency.as_deref().map(str::trim).unwrap_or("");
+        match raw.to_ascii_uppercase().as_str() {
+            "" | "$" | "USD" | "US$" | "US DOLLAR" | "US DOLLARS" => "USD",
+            "€" | "EUR" | "EURO" | "EUROS" => "EUR",
+            "£" | "GBP" | "UK£" => "GBP",
+            "¥" | "JPY" | "JP¥" => "JPY",
+            "CNY" | "RMB" | "CN¥" => "CNY",
+            "CA$" | "CAD" | "C$" => "CAD",
+            "A$" | "AUD" | "AU$" => "AUD",
+            "NZ$" | "NZD" => "NZD",
+            "S$" | "SGD" => "SGD",
+            "CHF" | "FR." | "FR" | "SFR" => "CHF",
+            "₹" | "INR" | "RS" | "RS." => "INR",
+            "R$" | "BRL" => "BRL",
+            "KR" | "SEK" => "SEK",
+            "NOK" => "NOK",
+            "DKK" => "DKK",
+            "AED" | "DHS" => "AED",
+            _ => raw,
+        }
+    }
+
     pub fn currency_symbol(&self) -> &str {
-        match self.currency.as_deref() {
-            Some("EUR") | Some("€") => "€",
-            Some("GBP") | Some("£") => "£",
-            Some("JPY") | Some("CNY") | Some("¥") => "¥",
-            Some("CAD") => "CA$",
-            Some("AUD") => "A$",
-            Some("NZD") => "NZ$",
-            Some("SGD") => "S$",
-            Some("CHF") => "CHF",
-            Some("INR") | Some("₹") => "₹",
-            Some("BRL") | Some("R$") => "R$",
-            Some("SEK") | Some("NOK") | Some("DKK") => "kr",
-            Some("AED") => "AED",
-            Some(s) if !s.is_empty() => s,
+        match self.normalized_currency_code() {
+            "USD" => "$",
+            "EUR" => "€",
+            "GBP" => "£",
+            "JPY" | "CNY" => "¥",
+            "CAD" => "CA$",
+            "AUD" => "A$",
+            "NZD" => "NZ$",
+            "SGD" => "S$",
+            "CHF" => "CHF",
+            "INR" => "₹",
+            "BRL" => "R$",
+            "SEK" | "NOK" | "DKK" => "kr",
+            "AED" => "AED",
+            s if !s.is_empty() => s,
             _ => "$",
+        }
+    }
+
+    pub fn normalized_execution_mode(&self) -> &'static str {
+        match self
+            .execution_mode
+            .as_deref()
+            .unwrap_or("esign")
+            .trim()
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "wet_ink" | "wet-ink" | "notarized_wet" | "notarized-wet" | "wet" | "physical" => "wet-ink",
+            "ron" | "notarized_ron" | "notarized-ron" | "remote_online_notary" => "ron",
+            _ => "esign",
+        }
+    }
+
+    pub fn normalized_compliance_mode(&self) -> &str {
+        let raw = self.compliance_mode.as_deref().map(str::trim).unwrap_or("none");
+        match raw.to_ascii_lowercase().as_str() {
+            "" | "none" | "standard" => "none",
+            "peppol" | "peppol_bis" | "peppol-bis" => "peppol_bis",
+            "factur-x" | "factur_x" | "eu_vat" | "eu-vat" => "eu_vat",
+            "hipaa" | "hipaa_baa" | "hipaa-baa" => "hipaa_baa",
+            "zatca" | "zatca_ksa" => "zatca",
+            "irs_w9" | "irs-w9" | "w9" => "irs_w9",
+            "pci_dss" | "pci-dss" | "pci" => "pci_dss",
+            "soc2" | "soc2_badge" | "soc2-badge" | "iso27001" => "soc2_badge",
+            "statutory_sworn" | "statutory-sworn" | "sworn" => "statutory_sworn",
+            _ => raw,
         }
     }
 
@@ -537,7 +973,12 @@ impl DocumentRequest {
         let sub = self.subtotal();
         let tax = self.tax_total();
         let discount = self.discount_amount.unwrap_or(0.0);
-        (sub + tax - discount).max(0.0)
+        let raw = sub + tax - discount;
+        if sub < 0.0 && self.doc_type.allows_negative_items() {
+            raw
+        } else {
+            raw.max(0.0)
+        }
     }
 
     pub fn extract_base_id(doc_num: &str) -> &str {
@@ -930,7 +1371,7 @@ impl DocumentRequest {
 
         let num_formatted = format!("{}{}", formatted_int, frac_str);
         let symbol_or_code = if self.currency_symbol_mode.as_deref() == Some("code") {
-            self.currency.as_deref().unwrap_or("USD")
+            self.normalized_currency_code()
         } else {
             self.currency_symbol()
         };
@@ -956,37 +1397,297 @@ impl DocumentRequest {
     }
 
     pub fn format_date(&self, date_str: &str) -> String {
-        let parts: Vec<&str> = date_str.split('-').collect();
-        if parts.len() == 3 && parts[0].len() == 4 {
-            let y = parts[0];
-            let m = parts[1];
-            let d = parts[2];
-            let month_name = match m {
+        let trimmed = date_str.trim();
+        let date_part = trimmed
+            .split('T')
+            .next()
+            .unwrap_or(trimmed)
+            .split_whitespace()
+            .next()
+            .unwrap_or(trimmed);
+
+        let parsed_ymd: Option<(String, String, String)> = if date_part.contains('-') {
+            let parts: Vec<&str> = date_part.split('-').collect();
+            if parts.len() == 3 && parts[0].len() == 4 && parts[0].chars().all(|c| c.is_ascii_digit()) {
+                let m = parts[1].parse::<u32>().ok().filter(|&v| (1..=12).contains(&v));
+                let d = parts[2].parse::<u32>().ok().filter(|&v| (1..=31).contains(&v));
+                if let (Some(mv), Some(dv)) = (m, d) {
+                    Some((parts[0].to_string(), format!("{:02}", mv), format!("{:02}", dv)))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else if date_part.contains('/') {
+            let parts: Vec<&str> = date_part.split('/').collect();
+            if parts.len() == 3 && parts[0].len() == 4 && parts[0].chars().all(|c| c.is_ascii_digit()) {
+                // YYYY/MM/DD
+                let m = parts[1].parse::<u32>().ok().filter(|&v| (1..=12).contains(&v));
+                let d = parts[2].parse::<u32>().ok().filter(|&v| (1..=31).contains(&v));
+                if let (Some(mv), Some(dv)) = (m, d) {
+                    Some((parts[0].to_string(), format!("{:02}", mv), format!("{:02}", dv)))
+                } else {
+                    None
+                }
+            } else if parts.len() == 3 && parts[2].len() == 4 && parts[2].chars().all(|c| c.is_ascii_digit()) {
+                // MM/DD/YYYY
+                let m = parts[0].parse::<u32>().ok().filter(|&v| (1..=12).contains(&v));
+                let d = parts[1].parse::<u32>().ok().filter(|&v| (1..=31).contains(&v));
+                if let (Some(mv), Some(dv)) = (m, d) {
+                    Some((parts[2].to_string(), format!("{:02}", mv), format!("{:02}", dv)))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some((y, m, d)) = parsed_ymd {
+            let month_name = match m.as_str() {
                 "01" => "January", "02" => "February", "03" => "March",
                 "04" => "April", "05" => "May", "06" => "June",
                 "07" => "July", "08" => "August", "09" => "September",
                 "10" => "October", "11" => "November", "12" => "December",
-                _ => m,
+                _ => m.as_str(),
             };
-            let short_month = match m {
+            let short_month = match m.as_str() {
                 "01" => "Jan", "02" => "Feb", "03" => "Mar",
                 "04" => "Apr", "05" => "May", "06" => "Jun",
                 "07" => "Jul", "08" => "Aug", "09" => "Sep",
                 "10" => "Oct", "11" => "Nov", "12" => "Dec",
-                _ => m,
+                _ => m.as_str(),
             };
 
             match self.date_format.as_deref() {
                 Some("us_slash") | Some("us") => format!("{}/{}/{}", m, d, y),
                 Some("euro") | Some("eu") => format!("{}/{}/{}", d, m, y),
-                Some("formal_prose") | Some("long") | Some("formal") => format!("{} {}, {}", month_name, d, y),
+                Some("formal_prose") | Some("long") | Some("formal") | Some("us_long") => {
+                    format!("{} {}, {}", month_name, d, y)
+                }
+                Some("uk_long") => format!("{} {} {}", d, month_name, y),
                 Some("short_abbrev") | Some("short") => format!("{}-{}-{}", d, short_month, y),
                 Some("short_dot") => format!("{}.{}.{}", d, m, y),
-                _ => date_str.to_string(), // default ISO
+                _ => format!("{}-{}-{}", y, m, d), // default ISO
             }
         } else {
             date_str.to_string()
         }
+    }
+
+    pub fn effective_state_profile(&self) -> Option<&'static crate::state_laws::StateLeaseProfile> {
+        if let Some(ref code) = self.state_code {
+            if let Some(profile) = crate::state_laws::get_state_lease_profile(code) {
+                return Some(profile);
+            }
+        }
+        if let Some(muni) = self.effective_municipal_profile() {
+            if let Some(profile) = crate::state_laws::get_state_lease_profile(muni.state_code) {
+                return Some(profile);
+            }
+        }
+        for cf in &self.custom_fields {
+            let lbl = cf.label.trim().to_ascii_lowercase();
+            if lbl == "state"
+                || lbl == "state code"
+                || lbl == "governing state"
+                || lbl == "jurisdiction"
+                || lbl == "governing law"
+            {
+                if let Some(profile) = crate::state_laws::get_state_lease_profile(&cf.value) {
+                    return Some(profile);
+                }
+                if let Some(profile) = crate::state_laws::infer_state_from_address(&cf.value) {
+                    return Some(profile);
+                }
+            }
+            if lbl.contains("premises")
+                || lbl.contains("property")
+                || lbl.contains("address")
+                || lbl.contains("target unit")
+                || lbl.contains("managed portfolio")
+                || lbl.contains("governing")
+                || lbl.contains("location")
+            {
+                if let Some(profile) = crate::state_laws::infer_state_from_address(&cf.value) {
+                    return Some(profile);
+                }
+            }
+        }
+        if self.doc_type.supports_jurisdiction_inference() {
+            if let Some(ref addr) = self.to.address {
+                if let Some(profile) = crate::state_laws::infer_state_from_address(addr) {
+                    return Some(profile);
+                }
+            }
+            if let Some(ref addr) = self.from.address {
+                if let Some(profile) = crate::state_laws::infer_state_from_address(addr) {
+                    return Some(profile);
+                }
+            }
+        }
+        None
+    }
+
+    pub fn effective_municipal_profile(
+        &self,
+    ) -> Option<&'static crate::state_laws::MunicipalLeaseSubProfile> {
+        let explicit_state = self
+            .state_code
+            .as_deref()
+            .and_then(crate::state_laws::get_state_lease_profile);
+
+        let candidate = if let Some(ref muni) = self.municipality {
+            crate::state_laws::get_municipal_sub_profile(muni)
+        } else {
+            None
+        }
+        .or_else(|| {
+            for cf in &self.custom_fields {
+                let lbl = cf.label.trim().to_ascii_lowercase();
+                if lbl == "municipality" || lbl == "city" || lbl == "local ordinance" {
+                    if let Some(profile) = crate::state_laws::get_municipal_sub_profile(&cf.value) {
+                        return Some(profile);
+                    }
+                }
+            }
+            None
+        });
+
+        if let Some(muni_prof) = candidate {
+            if let Some(st) = explicit_state {
+                if muni_prof.state_code != st.code {
+                    return None;
+                }
+            }
+            return Some(muni_prof);
+        }
+        None
+    }
+
+    pub fn effective_county(&self) -> String {
+        if let Some(ref c) = self.county {
+            let trimmed = c.trim().trim_end_matches(" County").trim_end_matches(" county");
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+        for cf in &self.custom_fields {
+            let lbl = cf.label.trim().to_ascii_lowercase();
+            if lbl.contains("county") {
+                let trimmed = cf
+                    .value
+                    .trim()
+                    .trim_end_matches(" County")
+                    .trim_end_matches(" county");
+                if !trimmed.is_empty() {
+                    return trimmed.to_string();
+                }
+            }
+        }
+        "Hamilton".to_string()
+    }
+
+    pub fn effective_year_built(&self) -> Option<u32> {
+        if let Some(y) = self.year_built {
+            return Some(y);
+        }
+        for cf in &self.custom_fields {
+            let lbl = cf.label.trim().to_ascii_lowercase();
+            if lbl.contains("year built") || lbl.contains("construction year") {
+                for token in cf.value.split(|c: char| !c.is_ascii_digit()) {
+                    if token.len() == 4 {
+                        if let Ok(y) = token.parse::<u32>() {
+                            if (1700..=2100).contains(&y) {
+                                return Some(y);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    pub fn is_recordable_instrument(&self) -> bool {
+        self.recordable
+            .unwrap_or(self.doc_type == DocumentType::PropertyDeed)
+    }
+
+    pub fn is_notary_required(&self) -> bool {
+        let mode_lower = self
+            .execution_mode
+            .as_deref()
+            .unwrap_or("")
+            .trim()
+            .to_ascii_lowercase();
+        self.notary_required.unwrap_or(
+            matches!(
+                self.doc_type,
+                DocumentType::PropertyDeed | DocumentType::MechanicsLienWaiver
+            ) || matches!(
+                mode_lower.as_str(),
+                "notarized_wet" | "notarized-wet" | "notarized_ron" | "notarized-ron" | "ron" | "remote_online_notary"
+            ),
+        )
+    }
+
+    /// Normalizes currency, execution mode, and compliance mode, and validates finite numbers and negative line item rules.
+    pub fn normalize_and_validate(&mut self) -> Result<(), String> {
+        if let Some(tr) = self.tax_rate {
+            if !tr.is_finite() || !(0.0..=100.0).contains(&tr) {
+                return Err("Invalid tax_rate: must be a finite percentage between 0 and 100.".to_string());
+            }
+        }
+        if let Some(disc) = self.discount_amount {
+            if !disc.is_finite() || disc < 0.0 {
+                return Err("Invalid discount_amount: must be a finite non-negative number.".to_string());
+            }
+        }
+        if let Some(paid) = self.amount_paid {
+            if !paid.is_finite() || paid < 0.0 {
+                return Err("Invalid amount_paid: must be a finite non-negative number.".to_string());
+            }
+        }
+        let allow_neg = self.doc_type.allows_negative_items();
+        for (idx, item) in self.items.iter().enumerate() {
+            if !item.quantity.is_finite() || !item.unit_price.is_finite() {
+                return Err(format!("Line item #{} has non-finite quantity or unit_price.", idx + 1));
+            }
+            if let Some(d) = item.discount {
+                if !d.is_finite() || d < 0.0 {
+                    return Err(format!("Line item #{} has invalid discount.", idx + 1));
+                }
+            }
+            if let Some(tr) = item.tax_rate {
+                if !tr.is_finite() || !(0.0..=100.0).contains(&tr) {
+                    return Err(format!("Line item #{} has invalid tax_rate.", idx + 1));
+                }
+            }
+            if !allow_neg && (item.quantity < 0.0 || item.unit_price < 0.0) {
+                return Err(format!(
+                    "Line item #{} ('{}') cannot have negative quantity or unit_price on a '{}' document.",
+                    idx + 1,
+                    item.description,
+                    self.doc_type.as_str()
+                ));
+            }
+        }
+        if let Some(dec) = self.number_decimals.as_mut() {
+            *dec = (*dec).min(4);
+        }
+        if self.currency.is_some() {
+            let norm = self.normalized_currency_code().to_string();
+            self.currency = Some(norm);
+        }
+        if self.compliance_mode.is_some() {
+            let norm = self.normalized_compliance_mode().to_string();
+            self.compliance_mode = Some(norm);
+        }
+        Ok(())
     }
 }
 
@@ -1018,6 +1719,7 @@ pub struct PreviewResponse {
 #[derive(Debug, Deserialize)]
 pub struct CopilotRequest {
     pub prompt: String,
+    #[serde(default)]
     pub current_state: DocumentRequest,
 }
 
@@ -1044,16 +1746,19 @@ pub struct VisionResponse {
 }
 
 /// Extract the numeric/base sequence from a prefixed document number (e.g. "EST-2026-0042" -> "2026-0042").
+/// Strips any leading 2-to-5 letter alphabetic archetype prefix followed by a hyphen.
 fn extract_doc_base_id(doc_num: &str) -> &str {
-    for prefix in &[
-        "INV-", "EST-", "QT-", "REC-", "CRD-", "DOC-", "PO-", "PKG-", "MSA-", "RLA-", "NNN-",
-        "PMS-", "RRL-", "ESC-", "NTV-", "SDD-", "COM-", "CHK-", "LOI-", "TEC-", "CERT-", "MED-",
-        "CST-", "SUB-", "BOS-", "ICA-", "SOW-", "NDA-", "INSP-",
-    ] {
-        if doc_num.starts_with(prefix) {
-            return &doc_num[prefix.len()..];
+    if let Some(dash_idx) = doc_num.find('-') {
+        let prefix = &doc_num[..dash_idx];
+        if (2..=5).contains(&prefix.len()) && prefix.chars().all(|c| c.is_ascii_alphabetic()) {
+            let rest = &doc_num[dash_idx + 1..];
+            if !rest.is_empty() {
+                return rest;
+            }
         }
     }
     doc_num
 }
+
+
 

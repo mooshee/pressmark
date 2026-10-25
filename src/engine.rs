@@ -666,7 +666,25 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         "CREDIT / REFUNDED"
     } else if req.doc_type == DocumentType::Estimate || req.doc_type == DocumentType::QuotationTender {
         "ESTIMATE / QUOTE"
-    } else if req.due_date.is_none() && req.is_paid.is_none() && matches!(req.doc_type, DocumentType::Certificate | DocumentType::CertificateCompletion | DocumentType::CertificateInsurance | DocumentType::Nda | DocumentType::PackingSlip | DocumentType::DeliveryReceipt | DocumentType::PropertyInspectionChecklist | DocumentType::RentRoll | DocumentType::TenantEstoppel | DocumentType::LetterOfIntentCre) {
+    } else if req.due_date.is_none()
+        && req.is_paid.is_none()
+        && (matches!(
+            req.doc_type,
+            DocumentType::Certificate
+                | DocumentType::CertificateCompletion
+                | DocumentType::CertificateInsurance
+                | DocumentType::Nda
+                | DocumentType::PackingSlip
+                | DocumentType::DeliveryReceipt
+                | DocumentType::PropertyInspectionChecklist
+                | DocumentType::RentRoll
+                | DocumentType::TenantEstoppel
+                | DocumentType::LetterOfIntentCre
+                | DocumentType::ScheduleOfRealEstateOwned
+                | DocumentType::ScheduleETaxWorksheet
+                | DocumentType::RealEstateDealAnalysis
+        ) || req.doc_type.is_contract_or_lease())
+    {
         "OFFICIALLY ISSUED"
     } else if is_paid {
         "PAID / SETTLED"
@@ -677,6 +695,51 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
     };
 
     let layout_style = req.layout_style.as_deref().unwrap_or("standard");
+
+    // 3b. Recordable Deed / County Register of Deeds 3.0-Inch Top Margin Header (Bug C3 fix)
+    if req.is_recordable_instrument() {
+        let state_name = req
+            .effective_state_profile()
+            .map(|p| p.name)
+            .unwrap_or("Tennessee");
+        let county_name = req.effective_county();
+        let prepared_by = format!(
+            "{}{}",
+            req.from.name,
+            req.from
+                .address
+                .as_deref()
+                .map(|a| format!(", {}", a.replace('\n', ", ")))
+                .unwrap_or_default()
+        );
+        let return_to = format!(
+            "{}{}",
+            req.to.name,
+            req.to
+                .address
+                .as_deref()
+                .map(|a| format!(", {}", a.replace('\n', ", ")))
+                .unwrap_or_default()
+        );
+        let parcel_id = req
+            .custom_fields
+            .iter()
+            .find(|cf| {
+                let l = cf.label.to_ascii_lowercase();
+                l.contains("parcel") || l.contains("apn") || l.contains("pin") || l.contains("tax id")
+            })
+            .map(|cf| cf.value.as_str())
+            .unwrap_or(req.doc_number.as_deref().unwrap_or("APN-VERIFIED"));
+
+        markup.push_str(&format!(
+            "#recording-header-block(\n  prepared-by: \"{}\",\n  return-to: \"{}\",\n  parcel-id: \"{}\",\n  state-name: \"{}\",\n  county-name: \"{}\"\n)\n#v(6pt)\n\n",
+            escape_typst_string_literal(&prepared_by),
+            escape_typst_string_literal(&return_to),
+            escape_typst_string_literal(parcel_id),
+            escape_typst_string_literal(state_name),
+            escape_typst_string_literal(&county_name)
+        ));
+    }
 
     markup.push_str(&format!(
         "#document-header(\n  title: \"{}\",\n  subtitle: {},\n  doc-number: \"{}\",\n  date: \"{}\",\n  due-date: {},\n  logo-path: {},\n  company-name: \"{}\",\n  primary-color: rgb(\"{}\"),\n  is-paid: {},\n  status: \"{}\",\n  layout-style: \"{}\"\n)\n\n",
@@ -694,13 +757,12 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
     ));
 
     // Compliance Notice Banner
-    if let Some(ref comp) = req.compliance_mode {
-        if comp != "none" && !comp.is_empty() {
-            markup.push_str(&format!(
-                "#compliance-banner(\"{}\", primary-color: rgb(\"{}\"))\n#v(6pt)\n\n",
-                escape_typst_string_literal(comp), primary_hex
-            ));
-        }
+    let comp = req.normalized_compliance_mode();
+    if comp != "none" && !comp.is_empty() {
+        markup.push_str(&format!(
+            "#compliance-banner(\"{}\", primary-color: rgb(\"{}\"))\n#v(6pt)\n\n",
+            escape_typst_string_literal(comp), primary_hex
+        ));
     }
 
     // 5. Parties Block
@@ -710,8 +772,29 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         DocumentType::PurchaseOrder => "PURCHASER / BUYER",
         DocumentType::Agreement | DocumentType::Nda => "DISCLOSING / FIRST PARTY",
         DocumentType::Certificate => "ISSUING AUTHORITY",
-        DocumentType::ResidentialLease | DocumentType::CommercialLease | DocumentType::CommercialNnnLease | DocumentType::NoticeToVacate | DocumentType::SecurityDepositDisposition => "LANDLORD / LESSOR",
+        DocumentType::ResidentialLease
+        | DocumentType::RoomRentalLease
+        | DocumentType::LeaseRenewalAgreement
+        | DocumentType::LeaseAmendment
+        | DocumentType::CommercialLease
+        | DocumentType::CommercialNnnLease
+        | DocumentType::NoticeToVacate
+        | DocumentType::NoticeOfEntry
+        | DocumentType::RentIncreaseNotice
+        | DocumentType::MutualLeaseTermination
+        | DocumentType::SecurityDepositDisposition
+        | DocumentType::TenantRentLedger => "LANDLORD / LESSOR",
+        DocumentType::SubleaseAgreement => "SUBLESSOR (PRIME TENANT)",
+        DocumentType::RentToOwnAgreement => "LANDLORD / OPTIONOR (SELLER)",
+        DocumentType::RentalApplication | DocumentType::AdverseActionNotice => "LANDLORD / SCREENING AGENT",
         DocumentType::PropertyManagementStatement | DocumentType::RentRoll => "MANAGING AGENT / BROKERAGE",
+        DocumentType::PropertyManagementAgreement => "PROPERTY OWNER / PRINCIPAL",
+        DocumentType::ScheduleOfRealEstateOwned
+        | DocumentType::ScheduleETaxWorksheet
+        | DocumentType::RealEstateDealAnalysis => "PORTFOLIO OWNER / SPONSOR",
+        DocumentType::RealEstatePurchaseAgreement => "SELLER / ASSIGNOR",
+        DocumentType::PropertyDeed => "GRANTOR (CONVEYING OWNER)",
+        DocumentType::MechanicsLienWaiver => "CLAIMANT / CONTRACTOR",
         DocumentType::ClosingSettlementStatement => "SETTLEMENT / ESCROW AGENT",
         DocumentType::RealEstateCommission => "DISBURSING BROKERAGE",
         DocumentType::PropertyInspectionChecklist => "INSPECTED BY (LANDLORD / AGENT)",
@@ -725,8 +808,29 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         DocumentType::PurchaseOrder => "VENDOR / SUPPLIER",
         DocumentType::Agreement | DocumentType::Nda => "RECEIVING / SECOND PARTY",
         DocumentType::Certificate => "AWARDED / RECOGNIZED TO",
-        DocumentType::ResidentialLease | DocumentType::CommercialLease | DocumentType::CommercialNnnLease | DocumentType::NoticeToVacate | DocumentType::SecurityDepositDisposition => "TENANT / LESSEE",
+        DocumentType::ResidentialLease
+        | DocumentType::RoomRentalLease
+        | DocumentType::LeaseRenewalAgreement
+        | DocumentType::LeaseAmendment
+        | DocumentType::CommercialLease
+        | DocumentType::CommercialNnnLease
+        | DocumentType::NoticeToVacate
+        | DocumentType::NoticeOfEntry
+        | DocumentType::RentIncreaseNotice
+        | DocumentType::MutualLeaseTermination
+        | DocumentType::SecurityDepositDisposition
+        | DocumentType::TenantRentLedger => "TENANT / LESSEE",
+        DocumentType::SubleaseAgreement => "SUBLESSEE (SUBTENANT)",
+        DocumentType::RentToOwnAgreement => "TENANT / OPTIONEE (BUYER)",
+        DocumentType::RentalApplication | DocumentType::AdverseActionNotice => "APPLICANT / PROSPECTIVE TENANT",
         DocumentType::PropertyManagementStatement | DocumentType::RentRoll => "PROPERTY OWNER / CLIENT",
+        DocumentType::PropertyManagementAgreement => "MANAGING BROKER / AGENT",
+        DocumentType::ScheduleOfRealEstateOwned
+        | DocumentType::ScheduleETaxWorksheet
+        | DocumentType::RealEstateDealAnalysis => "LENDER / UNDERWRITING & CPA",
+        DocumentType::RealEstatePurchaseAgreement => "BUYER / PURCHASER",
+        DocumentType::PropertyDeed => "GRANTEE (VESTING RECIPIENT)",
+        DocumentType::MechanicsLienWaiver => "PROPERTY OWNER / GENERAL CONTRACTOR",
         DocumentType::ClosingSettlementStatement => "BUYER / BORROWER & SELLER",
         DocumentType::RealEstateCommission => "AGENT / CO-BROKER",
         DocumentType::PropertyInspectionChecklist => "RESIDENT / TENANT",
@@ -751,11 +855,86 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         surface_hex
     ));
 
-    // 6. Custom Fields Grid (if any)
-    if !req.custom_fields.is_empty() {
+    // 5b. Layer 1: Page-1 State Statutory Mandates & Municipal Sub-Profile Box
+    if req.doc_type.is_state_lease_instrument() {
+        if let Some(state_profile) = req.effective_state_profile() {
+            // Render Page-1 Statutory Mandates for VA (§ 55.1-1204.1) & MN (§ 504B.120) first on Page 1
+            if let Some(mandate_text) = state_profile.page1_mandate {
+                markup.push_str(&format!(
+                    "#v(4pt)\n#rect(width: 100%, fill: rgb(\"#fef2f2\"), stroke: (left: 3.5pt + rgb(\"#dc2626\"), rest: 0.75pt + rgb(\"#fca5a5\")), radius: 3pt, inset: 8pt, [\n  #text(size: 8pt, weight: \"bold\", fill: rgb(\"#991b1b\"))[PAGE-1 STATUTORY MANDATE ({} · {})] \\\n  #v(2pt)\n  #text(size: 8pt, weight: \"medium\", fill: color-slate-900)[{}] \\\n  #v(3pt)\n  #text(size: 7.5pt, weight: \"bold\", fill: rgb(\"#991b1b\"))[Page-1 Itemized Total Commitment: {}]\n])\n#v(4pt)\n\n",
+                    escape_typst_text(state_profile.name),
+                    escape_typst_text(state_profile.governing_statute),
+                    escape_typst_text(mandate_text),
+                    req.format_amount_typst(req.grand_total())
+                ));
+            }
+
+            let citation_str = format!(
+                "{} STATUTORY FRAMEWORK · {} ({})",
+                state_profile.name.to_uppercase(),
+                state_profile.governing_statute,
+                state_profile.framework
+            );
+            let burden_str = format!(
+                "Deposit Cap: {} | Return: {} | Grace: {} | Late Fee Cap: {}",
+                state_profile.deposit_cap,
+                state_profile.return_deadline,
+                state_profile.grace_period,
+                state_profile.late_fee_cap
+            );
+            markup.push_str(&format!(
+                "#v(2pt)\n#statutory-box(\n  citation: \"{}\",\n  burden: \"{}\",\n  [\n    #text(size: 7.5pt, fill: color-slate-700)[\n      *Governing Jurisdiction:* {} ({}) — {} \\\n      *Pay-or-Quit Notice:* {} #h(8pt) *Right of Entry Notice:* {} \\\n      *Rent Regulation:* {} \\\n      *Mandatory Statutory Disclosures:* {}\n    ]\n  ]\n)\n#v(4pt)\n\n",
+                escape_typst_string_literal(&citation_str),
+                escape_typst_string_literal(&burden_str),
+                escape_typst_text(state_profile.name),
+                escape_typst_text(state_profile.code),
+                escape_typst_text(state_profile.governing_statute),
+                escape_typst_text(state_profile.pay_or_quit_notice),
+                escape_typst_text(state_profile.entry_notice),
+                escape_typst_text(state_profile.rent_control_note),
+                escape_typst_text(state_profile.key_disclosures)
+            ));
+        }
+
+        if let Some(muni) = req.effective_municipal_profile() {
+            let muni_cit = format!(
+                "MUNICIPAL ORDINANCE OVERRIDE: {} ({})",
+                muni.name.to_uppercase(),
+                muni.ordinance_citation
+            );
+            let muni_burden = format!(
+                "Deposit Cap: {} | Grace: {} | Late Fee Cap: {}",
+                muni.deposit_cap, muni.grace_period, muni.late_fee_cap
+            );
+            markup.push_str(&format!(
+                "#v(2pt)\n#statutory-box(\n  citation: \"{}\",\n  burden: \"{}\",\n  [\n    #text(size: 7.5pt, fill: color-slate-700)[\n      *Municipal Jurisdiction:* {} ({}) — {} \\\n      *Municipal Pay-or-Quit:* {} #h(8pt) *Municipal Entry Notice:* {} \\\n      *Required Municipal Attachments:* {}\n    ]\n  ]\n)\n#v(4pt)\n\n",
+                escape_typst_string_literal(&muni_cit),
+                escape_typst_string_literal(&muni_burden),
+                escape_typst_text(muni.name),
+                escape_typst_text(muni.state_code),
+                escape_typst_text(muni.ordinance_citation),
+                escape_typst_text(muni.pay_or_quit_notice),
+                escape_typst_text(muni.entry_notice),
+                escape_typst_text(muni.key_disclosures)
+            ));
+        }
+    }
+
+    // 6. Custom Fields Grid (if any; for SREO / Schedule E / Deal Analysis, the first 4 KPIs render inside #deal-kpi-grid)
+    let cf_slice = if matches!(
+        req.doc_type,
+        DocumentType::ScheduleOfRealEstateOwned
+            | DocumentType::ScheduleETaxWorksheet
+            | DocumentType::RealEstateDealAnalysis
+    ) {
+        req.custom_fields.get(4..).unwrap_or(&[])
+    } else {
+        &req.custom_fields[..]
+    };
+    if !cf_slice.is_empty() {
         markup.push_str("#v(4pt)\n");
         markup.push_str("#grid(\n  columns: (1fr, 1fr),\n  gutter: 10pt,\n");
-        for field in &req.custom_fields {
+        for field in cf_slice {
             markup.push_str(&format!(
                 "  card-box([\n    #text(size: 7.5pt, weight: \"bold\", fill: color-slate-400)[{}] \\\n    #text(size: 9.5pt, weight: \"medium\", fill: color-slate-900)[{}]\n  ]),\n",
                 escape_typst_text(&field.label.to_uppercase()),
@@ -783,7 +962,12 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             ));
             markup.push_str("]\n#v(14pt)\n");
         }
-        DocumentType::Agreement | DocumentType::Nda | DocumentType::ContractorAgreement => {
+        DocumentType::Agreement
+        | DocumentType::AgreementSow
+        | DocumentType::Nda
+        | DocumentType::ContractorAgreement
+        | DocumentType::RetainerAgreement
+        | DocumentType::BillOfSale => {
             // Legal & Contractual layout
             markup.push_str("#v(8pt)\n");
             markup.push_str(&format!(
@@ -811,13 +995,25 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Total Contract Retainer:");
             }
         }
-        DocumentType::ResidentialLease | DocumentType::CommercialNnnLease | DocumentType::CommercialLease | DocumentType::LetterOfIntentCre => {
-            // Real Estate Leases: Domain-Specific Rent & Deposit Schedule
+        DocumentType::ResidentialLease
+        | DocumentType::RoomRentalLease
+        | DocumentType::SubleaseAgreement
+        | DocumentType::RentToOwnAgreement
+        | DocumentType::CommercialNnnLease
+        | DocumentType::CommercialLease
+        | DocumentType::LeaseRenewalAgreement
+        | DocumentType::LeaseAmendment
+        | DocumentType::LetterOfIntentCre => {
             if !req.items.is_empty() {
                 markup.push_str("#v(6pt)\n");
                 let schedule_title = match req.doc_type {
                     DocumentType::CommercialNnnLease => "Base Rent, NNN Operating Expenses & Deposit Schedule",
                     DocumentType::LetterOfIntentCre => "Proposed Base Rent & Consideration Schedule",
+                    DocumentType::RoomRentalLease => "Co-Living Room Rent, Shared Utility Split & Deposit Schedule",
+                    DocumentType::SubleaseAgreement => "Sublease Monthly Rent, Proration & Deposit Schedule",
+                    DocumentType::RentToOwnAgreement => "Monthly Rent, Option Consideration & Rent Credit Schedule",
+                    DocumentType::LeaseRenewalAgreement => "Prior Rent vs. Renewed Rent & Adjustment Schedule",
+                    DocumentType::LeaseAmendment => "Lease Amendment Financial & Fee Adjustments",
                     _ => "Rent, Security Deposit & Fee Schedule",
                 };
                 markup.push_str(&format!("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(2pt)\n", schedule_title));
@@ -835,17 +1031,100 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 markup.push_str(")\n#v(4pt)\n");
                 let total_label = match req.doc_type {
                     DocumentType::CommercialNnnLease => "Initial Monthly & Deposit Total:",
+                    DocumentType::RoomRentalLease => "Total Room Move-In Commitment:",
+                    DocumentType::SubleaseAgreement => "Total Sublease Move-In Commitment:",
+                    DocumentType::RentToOwnAgreement => "Total Initial Lease-Option Commitment:",
+                    DocumentType::LeaseRenewalAgreement => "Renewed Monthly Lease Commitment:",
+                    DocumentType::LeaseAmendment => "Net Amendment Adjustment:",
                     _ => "Total Initial Move-In Commitment:",
                 };
                 render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, total_label);
             }
+
+            // Bug C5 fix: Render lease covenants at 9pt primary legibility in the body
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(6pt)\n#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Operative Lease Covenants & Statutory Terms]\n#v(3pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
+            }
+
+            if req.doc_type == DocumentType::SubleaseAgreement {
+                markup.push_str("#v(4pt)\n#card-box([\n  #text(size: 8pt, weight: \"bold\", fill: navy-judicial)[THREE-PARTY PRIME LANDLORD CONSENT & ATTORNMENT] \\\n  #v(2pt)\n  #text(size: 8pt, fill: color-slate-700)[The undersigned Prime Landlord hereby consents to the foregoing Sublease Agreement without releasing Prime Tenant (Sublessor) from primary liability under the Master Lease.] \\\n  #v(10pt)\n  #grid(columns: (1.5fr, 1fr), gutter: 20pt, [#line(length: 100%, stroke: 0.75pt + color-slate-400) \\ #text(size: 6.5pt, fill: color-slate-500)[Prime Landlord / Master Lessor Signature]], [#line(length: 100%, stroke: 0.75pt + color-slate-400) \\ #text(size: 6.5pt, fill: color-slate-500)[Date of Master Lessor Consent]])\n])\n");
+            }
         }
-        DocumentType::NoticeToVacate => {
+        DocumentType::NoticeToVacate | DocumentType::NoticeOfEntry | DocumentType::RentIncreaseNotice => {
             if !req.items.is_empty() {
                 markup.push_str("#v(6pt)\n");
-                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Statutory Delinquency & Past-Due Rental Ledger]\n#v(2pt)\n");
+                let (tbl_title, col1, col2, tot_lbl) = match req.doc_type {
+                    DocumentType::NoticeOfEntry => (
+                        "Scheduled Premises Entry & Maintenance Scope",
+                        "Entry Window / Inspection Scope",
+                        "Tenant Fee / Charge",
+                        "Total Scheduled Charge:",
+                    ),
+                    DocumentType::RentIncreaseNotice => (
+                        "Current vs. Adjusted Monthly Rent Schedule",
+                        "Rent Component / Effective Date",
+                        "Monthly Amount",
+                        "New Adjusted Monthly Rent:",
+                    ),
+                    _ => (
+                        "Statutory Delinquency & Past-Due Rental Ledger",
+                        "Delinquent Period / Contractual Charge",
+                        "Amount Demanded to Cure",
+                        "Total Delinquent Balance Demanded:",
+                    ),
+                };
+                markup.push_str(&format!("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(2pt)\n", tbl_title));
                 markup.push_str(&format!(
-                    "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Delinquent Period / Contractual Charge*], [*Amount Demanded to Cure*]),\n",
+                    "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*{}*], [*{}*]),\n",
+                    secondary_hex, secondary_hex, surface_hex, col1, col2
+                ));
+                for item in &req.items {
+                    markup.push_str(&format!(
+                        "  [{}], [{}],\n",
+                        escape_typst_text(&item.description),
+                        req.format_amount_typst(item.amount())
+                    ));
+                }
+                markup.push_str(")\n#v(4pt)\n");
+                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, tot_lbl);
+            }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(6pt)\n#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Statutory Notice & Legal Demand]\n#v(3pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
+            }
+            let state_name = req
+                .effective_state_profile()
+                .map(|p| p.name)
+                .unwrap_or("Tennessee");
+            let premises_addr = req
+                .to
+                .address
+                .as_deref()
+                .unwrap_or("Premises Address on File");
+            markup.push_str(&format!(
+                "#v(6pt)\n#certificate-of-service(\n  server-name: \"{}\",\n  service-date: \"{}\",\n  recipient-name: \"{}\",\n  premises-address: \"{}\",\n  state-name: \"{}\"\n)\n#v(4pt)\n",
+                escape_typst_string_literal(&req.from.name),
+                escape_typst_string_literal(req.issue_date.as_deref().unwrap_or("2026-10-01")),
+                escape_typst_string_literal(&req.to.name),
+                escape_typst_string_literal(&premises_addr.replace('\n', ", ")),
+                escape_typst_string_literal(state_name)
+            ));
+        }
+        DocumentType::SecurityDepositDisposition => {
+            if !req.items.is_empty() {
+                markup.push_str("#v(6pt)\n");
+                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Security Deposit Itemized Accounting & Refund Statement]\n#v(2pt)\n");
+                markup.push_str(&format!(
+                    "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Security Deposit Credit / Itemized Deduction*], [*Amount (Credit / Deduction)*]),\n",
                     secondary_hex, secondary_hex, surface_hex
                 ));
                 for item in &req.items {
@@ -856,7 +1135,293 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     ));
                 }
                 markup.push_str(")\n#v(4pt)\n");
-                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Total Delinquent Balance Demanded:");
+                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Net Security Deposit Refund Due:");
+            }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(6pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
+            }
+        }
+        DocumentType::RealEstateCommission => {
+            if !req.items.is_empty() {
+                markup.push_str("#v(6pt)\n");
+                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Commission Calculation, Co-Broker Split & Disbursement Authorization]\n#v(2pt)\n");
+                markup.push_str(&format!(
+                    "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Commission / Split / Brokerage Fee Line Item*], [*Disbursement Amount*]),\n",
+                    secondary_hex, secondary_hex, surface_hex
+                ));
+                for item in &req.items {
+                    markup.push_str(&format!(
+                        "  [{}], [{}],\n",
+                        escape_typst_text(&item.description),
+                        req.format_amount_typst(item.amount())
+                    ));
+                }
+                markup.push_str(")\n#v(4pt)\n");
+                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Net Payable Commission:");
+            }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(6pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
+            }
+        }
+        DocumentType::TenantEstoppel => {
+            if !req.items.is_empty() {
+                markup.push_str("#v(6pt)\n");
+                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Certified Lease Financial & Deposit Summary]\n#v(2pt)\n");
+                markup.push_str(&format!(
+                    "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Certified Lease Financial Component*], [*Verified Amount*]),\n",
+                    secondary_hex, secondary_hex, surface_hex
+                ));
+                for item in &req.items {
+                    markup.push_str(&format!(
+                        "  [{}], [{}],\n",
+                        escape_typst_text(&item.description),
+                        req.format_amount_typst(item.amount())
+                    ));
+                }
+                markup.push_str(")\n#v(4pt)\n");
+                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Total Certified Monthly & Deposit Exposure:");
+            }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(6pt)\n#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Tenant Estoppel Representations & Certifications]\n#v(3pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
+            }
+        }
+        DocumentType::RentalApplication | DocumentType::AdverseActionNotice | DocumentType::MutualLeaseTermination => {
+            if !req.items.is_empty() {
+                markup.push_str("#v(6pt)\n");
+                let (tbl_title, col1, col2, tot_lbl) = match req.doc_type {
+                    DocumentType::RentalApplication => (
+                        "Application Screening Fee, Holding Deposit & Target Rent Schedule",
+                        "Screening / Deposit / Target Rent Component",
+                        "Amount",
+                        "Total Application & Holding Commitment:",
+                    ),
+                    DocumentType::AdverseActionNotice => (
+                        "Applicant Screening & Credit Evaluation Summary",
+                        "Evaluation Factor / Screening Metric",
+                        "Reported Value / Fee",
+                        "Application Fee Status:",
+                    ),
+                    _ => (
+                        "Mutual Lease Surrender & Cash-for-Keys Settlement Schedule",
+                        "Surrender Consideration / Proration / Deposit Item",
+                        "Settlement Amount",
+                        "Net Surrender Settlement Due:",
+                    ),
+                };
+                markup.push_str(&format!("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(2pt)\n", tbl_title));
+                markup.push_str(&format!(
+                    "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*{}*], [*{}*]),\n",
+                    secondary_hex, secondary_hex, surface_hex, col1, col2
+                ));
+                for item in &req.items {
+                    markup.push_str(&format!(
+                        "  [{}], [{}],\n",
+                        escape_typst_text(&item.description),
+                        req.format_amount_typst(item.amount())
+                    ));
+                }
+                markup.push_str(")\n#v(4pt)\n");
+                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, tot_lbl);
+            }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    let sec_title = match req.doc_type {
+                        DocumentType::RentalApplication => "FCRA Consumer Report Authorization & Applicant Representations",
+                        DocumentType::AdverseActionNotice => "Statutory FCRA Adverse Action Notice (15 U.S.C. § 1681m)",
+                        _ => "Mutual Lease Termination, Surrender & Release Covenants",
+                    };
+                    markup.push_str(&format!(
+                        "#v(6pt)\n#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(3pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        sec_title,
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
+            }
+        }
+        DocumentType::TenantRentLedger => {
+            if !req.items.is_empty() {
+                markup.push_str("#v(6pt)\n");
+                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Chronological Certified Tenant Rent, Fee & Payment Ledger]\n#v(2pt)\n");
+                markup.push_str(&format!(
+                    "#table(\n  columns: (auto, 1fr, auto, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col <= 1 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*\\#*], [*Date & Transaction Description*], [*Entry Amount*], [*Running Balance*]),\n",
+                    secondary_hex, secondary_hex, surface_hex
+                ));
+                let mut running = 0.0;
+                for (idx, item) in req.items.iter().enumerate() {
+                    let amt = item.amount();
+                    running += amt;
+                    markup.push_str(&format!(
+                        "  [{}], [{}], [{}], [{}],\n",
+                        idx + 1,
+                        escape_typst_text(&item.description),
+                        req.format_amount_typst(amt),
+                        req.format_amount_typst(running)
+                    ));
+                }
+                markup.push_str(")\n#v(4pt)\n");
+                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Certified Ending Ledger Balance Due:");
+            }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(6pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
+            }
+        }
+        DocumentType::ScheduleOfRealEstateOwned
+        | DocumentType::ScheduleETaxWorksheet
+        | DocumentType::RealEstateDealAnalysis => {
+            // Render #deal-kpi-grid from up to 4 custom_fields or default underwriting KPIs
+            let mut kpi_tuples: Vec<(String, String, String)> = Vec::new();
+            for cf in req.custom_fields.iter().take(4) {
+                kpi_tuples.push((cf.label.clone(), cf.value.clone(), String::new()));
+            }
+            if kpi_tuples.is_empty() {
+                kpi_tuples.push((
+                    "NET TOTAL / NOI".to_string(),
+                    req.format_amount(req.grand_total()),
+                    "Verified Schedule".to_string(),
+                ));
+                kpi_tuples.push((
+                    "LINE ITEMS".to_string(),
+                    req.items.len().to_string(),
+                    "Active Entries".to_string(),
+                ));
+            }
+            markup.push_str("#v(4pt)\n#deal-kpi-grid(\n  metrics: (\n");
+            for (k, v, s) in &kpi_tuples {
+                markup.push_str(&format!(
+                    "    (\"{}\", \"{}\", \"{}\"),\n",
+                    escape_typst_string_literal(k),
+                    escape_typst_string_literal(v),
+                    escape_typst_string_literal(s)
+                ));
+            }
+            markup.push_str(&format!("  ),\n  accent: rgb(\"{}\")\n)\n#v(6pt)\n", primary_hex));
+
+            if !req.items.is_empty() {
+                let (tbl_title, col1, col2, tot_lbl) = match req.doc_type {
+                    DocumentType::ScheduleOfRealEstateOwned => (
+                        "Schedule of Real Estate Owned (SREO) Portfolio Asset & Debt Matrix",
+                        "Property Address, Units, Market Value, Debt, Rate & DSCR",
+                        "Annual Net Operating Income (NOI)",
+                        "Total Portfolio Annual NOI:",
+                    ),
+                    DocumentType::ScheduleETaxWorksheet => (
+                        "IRS Form 1040 Schedule E (Part I) Rental Income & Expense Reconciliation",
+                        "IRS Schedule E Line / Stessa Operating Category",
+                        "Annual Tax Amount",
+                        "Net Schedule E Rental Cash Flow / Taxable Income:",
+                    ),
+                    _ => (
+                        "Real Estate Deal Underwriting, Acquisition, Rehab & Cash-Flow Pro-Forma",
+                        "Underwriting Component / Pro-Forma Line Item",
+                        "Projected Amount",
+                        "Net Deal Basis / Projected Annual Cash Flow:",
+                    ),
+                };
+                markup.push_str(&format!("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(2pt)\n", tbl_title));
+                markup.push_str(&format!(
+                    "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*{}*], [*{}*]),\n",
+                    secondary_hex, secondary_hex, surface_hex, col1, col2
+                ));
+                for item in &req.items {
+                    markup.push_str(&format!(
+                        "  [{}], [{}],\n",
+                        escape_typst_text(&item.description),
+                        req.format_amount_typst(item.amount())
+                    ));
+                }
+                markup.push_str(")\n#v(4pt)\n");
+                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, tot_lbl);
+            }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(6pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
+            }
+        }
+        DocumentType::PropertyManagementAgreement
+        | DocumentType::RealEstatePurchaseAgreement
+        | DocumentType::PropertyDeed
+        | DocumentType::MechanicsLienWaiver => {
+            if !req.items.is_empty() {
+                markup.push_str("#v(6pt)\n");
+                let (tbl_title, col1, col2, tot_lbl) = match req.doc_type {
+                    DocumentType::PropertyManagementAgreement => (
+                        "Management Compensation, Leasing Fee & Repair Reserve Schedule",
+                        "Management Service / Fee / Reserve Authority",
+                        "Contract Amount / Fee",
+                        "Initial Owner Reserve & Onboarding Total:",
+                    ),
+                    DocumentType::RealEstatePurchaseAgreement => (
+                        "Purchase Price, Earnest Money Deposit & Financing Breakdown",
+                        "Purchase Consideration / Escrow Credit / Financing Item",
+                        "Contract Amount",
+                        "Net Purchase Consideration:",
+                    ),
+                    DocumentType::PropertyDeed => (
+                        "Conveyance Consideration & Transfer Tax Valuation",
+                        "Conveyance Parcel / Consideration / Documentary Stamp Item",
+                        "Stated Value",
+                        "Total Stated Conveyance Consideration:",
+                    ),
+                    _ => (
+                        "Construction Progress Billing & Statutory Lien Waiver Schedule",
+                        "Contract Scope / Draw Milestone / Retention Item",
+                        "Waiver Release Amount",
+                        "Net Statutory Lien Waiver Amount:",
+                    ),
+                };
+                markup.push_str(&format!("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(2pt)\n", tbl_title));
+                markup.push_str(&format!(
+                    "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*{}*], [*{}*]),\n",
+                    secondary_hex, secondary_hex, surface_hex, col1, col2
+                ));
+                for item in &req.items {
+                    markup.push_str(&format!(
+                        "  [{}], [{}],\n",
+                        escape_typst_text(&item.description),
+                        req.format_amount_typst(item.amount())
+                    ));
+                }
+                markup.push_str(")\n#v(4pt)\n");
+                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, tot_lbl);
+            }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    let sec_title = match req.doc_type {
+                        DocumentType::PropertyManagementAgreement => "Exclusive Property Management Agency Covenants & Authority",
+                        DocumentType::RealEstatePurchaseAgreement => "Purchase & Sale Covenants, Contingencies & Closing Terms",
+                        DocumentType::PropertyDeed => "Statutory Granting Clause, Legal Description & Habendum",
+                        _ => "Statutory Mechanic's Lien Waiver & Release Covenants",
+                    };
+                    markup.push_str(&format!(
+                        "#v(6pt)\n#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(3pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        sec_title,
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
             }
         }
         DocumentType::RentRoll => {
@@ -878,6 +1443,14 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 markup.push_str(")\n#v(4pt)\n");
                 render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Total Scheduled Monthly Rent:");
             }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(4pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n\n",
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
+            }
         }
         DocumentType::ClosingSettlementStatement => {
             if !req.items.is_empty() {
@@ -896,6 +1469,14 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 }
                 markup.push_str(")\n#v(4pt)\n");
                 render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Net Settlement Due / Escrow Total:");
+            }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(4pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n\n",
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
             }
         }
         DocumentType::PropertyManagementStatement => {
@@ -916,6 +1497,14 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 markup.push_str(")\n#v(4pt)\n");
                 render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Net Owner Distribution:");
             }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(4pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n\n",
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
+            }
         }
         DocumentType::PropertyInspectionChecklist => {
             if !req.items.is_empty() {
@@ -935,6 +1524,14 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     ));
                 }
                 markup.push_str(")\n#v(6pt)\n");
+            }
+            if let Some(ref terms) = req.terms {
+                if !terms.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(4pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n\n",
+                        escape_typst_text(terms).replace('\n', "\\\n")
+                    ));
+                }
             }
         }
         _ => {
@@ -959,9 +1556,18 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     } else {
                         format!("{:.1} {}", item.quantity, escape_typst_text(unit_label))
                     };
+                    let desc_str = if let Some(d) = item.discount.filter(|&d| d > 0.0) {
+                        format!(
+                            "{} #text(size: 7.5pt, fill: rgb(\"#64748b\"))[(Less {} discount)]",
+                            escape_typst_text(&item.description),
+                            req.format_amount_typst(d)
+                        )
+                    } else {
+                        escape_typst_text(&item.description)
+                    };
                     markup.push_str(&format!(
                         "  [{}], [{}], [{}], [{}], [{}],\n",
-                        idx + 1, escape_typst_text(&item.description), qty_str, req.format_amount_typst(item.unit_price), req.format_amount_typst(amount)
+                        idx + 1, desc_str, qty_str, req.format_amount_typst(item.unit_price), req.format_amount_typst(amount)
                     ));
                 }
 
@@ -992,9 +1598,18 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     } else {
                         format!("{:.1} {}", item.quantity, escape_typst_text(unit_label))
                     };
+                    let desc_str = if let Some(d) = item.discount.filter(|&d| d > 0.0) {
+                        format!(
+                            "{} #text(size: 7.5pt, fill: rgb(\"#64748b\"))[(Less {} discount)]",
+                            escape_typst_text(&item.description),
+                            req.format_amount_typst(d)
+                        )
+                    } else {
+                        escape_typst_text(&item.description)
+                    };
                     markup.push_str(&format!(
                         "  [{}], [{}], [{}], [{}],\n",
-                        escape_typst_text(&item.description), qty_str, req.format_amount_typst(item.unit_price), req.format_amount_typst(amount)
+                        desc_str, qty_str, req.format_amount_typst(item.unit_price), req.format_amount_typst(amount)
                     ));
                 }
 
@@ -1012,6 +1627,102 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
     }
 
+    // 7b. Layers 2 & 3: Conspicuous Typography Enforcement & Property/State-Triggered Inline Disclosures
+    if req.doc_type.is_state_lease_instrument() {
+        if let Some(state_profile) = req.effective_state_profile() {
+            // Layer 2: Conspicuous Typography Clause (MI 12pt bold, MA 12pt bold, NJ 10pt bold, SC/TX/OH bold/underlined)
+            if let Some(ref cc) = state_profile.conspicuous_clause {
+                let raw_clause_text = if cc.uppercase {
+                    cc.verbatim_text.to_uppercase()
+                } else {
+                    cc.verbatim_text.to_string()
+                };
+                let weight_str = if cc.bold { "bold" } else { "semibold" };
+                let text_body = if cc.underlined {
+                    format!(
+                        "#underline[#text(size: {}pt, weight: \"{}\", fill: color-slate-900)[{}]]",
+                        cc.point_size,
+                        weight_str,
+                        escape_typst_text(&raw_clause_text).replace('\n', "\\\n")
+                    )
+                } else {
+                    format!(
+                        "#text(size: {}pt, weight: \"{}\", fill: color-slate-900)[{}]",
+                        cc.point_size,
+                        weight_str,
+                        escape_typst_text(&raw_clause_text).replace('\n', "\\\n")
+                    )
+                };
+                markup.push_str(&format!(
+                    "#v(4pt)\n#rect(width: 100%, fill: rgb(\"#fffbeb\"), stroke: 1pt + rgb(\"#d97706\"), radius: 3pt, inset: 8pt, [\n  #text(size: 8pt, weight: \"bold\", fill: rgb(\"#b45309\"))[{} ({})] \\\n  #v(3pt)\n  {}\n])\n#v(4pt)\n\n",
+                    escape_typst_text(cc.title),
+                    escape_typst_text(cc.citation),
+                    text_body
+                ));
+            }
+
+            // Layer 3: Triggered Inline Disclosures for Leases
+            if matches!(
+                req.doc_type,
+                DocumentType::ResidentialLease
+                    | DocumentType::RoomRentalLease
+                    | DocumentType::SubleaseAgreement
+                    | DocumentType::RentToOwnAgreement
+                    | DocumentType::LeaseRenewalAgreement
+                    | DocumentType::LeaseAmendment
+            ) {
+                let mut disclosures_vec: Vec<String> = Vec::new();
+                if let Some(yb) = req.effective_year_built() {
+                    if yb < 1978 {
+                        disclosures_vec.push(format!(
+                            "*Federal Pre-1978 Lead-Based Paint Disclosure (42 U.S.C. § 4852d · Constructed {}):* Housing built before 1978 may contain lead-based paint. Landlord discloses `[X]` No known lead-based paint hazards OR `[ ]` Known hazards attached; Tenant acknowledges receipt of EPA pamphlet *Protect Your Family From Lead in Your Home*.",
+                            yb
+                        ));
+                    }
+                }
+                if state_profile.requires_escrow_bank_disclosure {
+                    let bank_info = req
+                        .custom_fields
+                        .iter()
+                        .find(|cf| {
+                            let l = cf.label.to_ascii_lowercase();
+                            l.contains("escrow") || l.contains("bank") || l.contains("depository")
+                        })
+                        .map(|cf| cf.value.as_str())
+                        .unwrap_or("Segregated Statutory Escrow Account at FDIC-Insured Depository (See Schedule)");
+                    disclosures_vec.push(format!(
+                        "*Mandatory Escrow Bank Depository Disclosure ({}):* Security deposit funds are held at: *{}*.",
+                        escape_typst_text(state_profile.governing_statute),
+                        escape_typst_text(bank_info)
+                    ));
+                }
+                if state_profile.requires_radon_disclosure {
+                    disclosures_vec.push("*Statutory Radon Gas Warning:* Radon is a naturally occurring radioactive gas that, when accumulated in a building in sufficient quantities, may present health risks (lung cancer) to persons exposed over time.".to_string());
+                }
+                if state_profile.requires_mold_disclosure {
+                    disclosures_vec.push("*Statutory Mold & Moisture Prevention Disclosure:* Landlord has inspected the Premises and knows of no damp or wet building materials or visible mold contamination; Tenant agrees to maintain ventilation and report water leaks immediately.".to_string());
+                }
+                if state_profile.requires_bed_bug_disclosure {
+                    disclosures_vec.push("*Statutory Bed Bug Infestation History & Educational Notice:* Landlord certifies the Premises and adjacent units are free of known active bed bug infestation; Tenant agrees to inspect personal furnishings prior to move-in.".to_string());
+                }
+                if state_profile.requires_flood_disclosure {
+                    disclosures_vec.push("*Statutory Flood Zone & Prior Flooding History Disclosure:* Landlord discloses whether the Premises is located in a FEMA Special Flood Hazard Area (100-year floodplain) or has experienced prior flooding damage; standard renter's insurance does not cover flood loss.".to_string());
+                }
+                if state_profile.requires_sprinkler_disclosure {
+                    disclosures_vec.push("*Operative Fire Sprinkler System Disclosure:* Landlord discloses whether the Premises is equipped with an operative automatic fire sprinkler system and its most recent inspection/maintenance date.".to_string());
+                }
+
+                if !disclosures_vec.is_empty() {
+                    markup.push_str(&format!(
+                        "#v(4pt)\n#card-box([\n  #text(size: 8pt, weight: \"bold\", fill: navy-judicial)[LAYER 3 MANDATORY {} INLINE DISCLOSURES] \\\n  #v(3pt)\n  #text(size: 7.8pt, fill: color-slate-700)[\n    {}\n  ]\n])\n#v(4pt)\n\n",
+                        escape_typst_text(&state_profile.name.to_uppercase()),
+                        disclosures_vec.join(" \\\n    #v(2pt)\n    ")
+                    ));
+                }
+            }
+        }
+    }
+
     // 8. Notes & Payment Terms
     if let Some(ref notes) = req.notes {
         if !notes.is_empty() {
@@ -1023,7 +1734,24 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
     }
 
     if let Some(ref terms) = req.terms {
-        if !terms.is_empty() && !matches!(req.doc_type, DocumentType::Agreement | DocumentType::Nda | DocumentType::ContractorAgreement) {
+        if !terms.is_empty()
+            && !matches!(
+                req.doc_type,
+                DocumentType::Agreement
+                    | DocumentType::Nda
+                    | DocumentType::ContractorAgreement
+                    | DocumentType::Certificate
+                    | DocumentType::CertificateCompletion
+                    | DocumentType::CertificateInsurance
+                    | DocumentType::SecurityDepositDisposition
+                    | DocumentType::RealEstateCommission
+                    | DocumentType::TenantRentLedger
+                    | DocumentType::ScheduleOfRealEstateOwned
+                    | DocumentType::ScheduleETaxWorksheet
+                    | DocumentType::RealEstateDealAnalysis
+            )
+            && !req.doc_type.is_contract_or_lease()
+        {
             markup.push_str(&format!(
                 "#v(2pt)\n#text(size: 7.5pt, fill: color-slate-400)[\n  *TERMS & CONDITIONS:* {}\n]\n\n",
                 escape_typst_text(terms)
@@ -1087,11 +1815,19 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
     }
 
-    // 10. Execution Jurat (if execution_mode is specified)
-    if let Some(ref em) = req.execution_mode {
+    // 10. Execution Jurat (if execution_mode is specified OR notary is required — fixes Bug C3)
+    let notary_req = req.is_notary_required();
+    if req.execution_mode.is_some() || notary_req {
+        let em = if req.execution_mode.is_some() {
+            req.normalized_execution_mode()
+        } else if notary_req {
+            "wet-ink"
+        } else {
+            "esign"
+        };
         let signatures = req.effective_signatures();
         let first_sig = signatures.first();
-        let signer_name = first_sig.map(|s| s.signer_name.as_str()).unwrap_or("Daniel Hallman");
+        let signer_name = first_sig.map(|s| s.signer_name.as_str()).unwrap_or(req.from.name.as_str());
         let signer_title = first_sig.and_then(|s| s.signer_title.as_deref()).unwrap_or("Authorized Signatory");
         let date_str = first_sig.and_then(|s| s.date.as_deref()).unwrap_or(req.issue_date.as_deref().unwrap_or("2026-10-01"));
         let sig_img = first_sig.and_then(|s| s.signature_data.as_deref())
@@ -1101,16 +1837,62 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             None => "none".to_string(),
         };
         let include_clerk = req.include_clerk_stamp.unwrap_or(false);
+        let state_profile = req.effective_state_profile();
+        let state_name = state_profile.map(|p| p.name).unwrap_or("Tennessee");
+        let county_name = req.effective_county();
+        let ron_citation = state_profile
+            .map(|p| p.notary_ron_statute)
+            .unwrap_or("T.C.A. § 8-16-301 et seq.");
 
         markup.push_str(&format!(
-            "\n#v(8pt)\n#jurat-box(\n  signature-type: \"{}\",\n  signer-name: \"{}\",\n  signer-title: \"{}\",\n  signature-img: {},\n  execution-date: \"{}\",\n  esign-audit-id: \"PRESSMARK-ESIGN-8492-7A1B\",\n  esign-timestamp: \"2026-10-01T02:00:00Z\",\n  esign-ip: \"192.0.2.14\",\n  include-clerk-stamp: {}\n)\n",
+            "\n#v(8pt)\n#jurat-box(\n  signature-type: \"{}\",\n  notary-required: {},\n  signer-name: \"{}\",\n  signer-title: \"{}\",\n  signature-img: {},\n  execution-date: \"{}\",\n  esign-audit-id: \"PRESSMARK-ESIGN-8492-7A1B\",\n  esign-timestamp: \"2026-10-01T02:00:00Z\",\n  esign-ip: \"192.0.2.14\",\n  ron-statute-citation: \"{}\",\n  ron-session-id: \"RON-SESSION-2026-9941\",\n  include-clerk-stamp: {},\n  state: \"{}\",\n  county: \"{}\"\n)\n",
             escape_typst_string_literal(em),
+            notary_req,
             escape_typst_string_literal(signer_name),
             escape_typst_string_literal(signer_title),
             sig_img_str,
             escape_typst_string_literal(&req.format_date(date_str)),
-            include_clerk
+            escape_typst_string_literal(ron_citation),
+            include_clerk,
+            escape_typst_string_literal(state_name),
+            escape_typst_string_literal(&county_name)
         ));
+    }
+
+    // 10b. Layer 4: Mandatory Standalone Separate Attachments (#pagebreak() for FL § 83.512, WI ATCP 134.09, NY RPL § 231-c, or lease_package_mode)
+    if req.doc_type.is_state_lease_instrument() {
+        if let Some(state_profile) = req.effective_state_profile() {
+            if let Some(ref att) = state_profile.standalone_attachment {
+                if matches!(
+                    req.doc_type,
+                    DocumentType::ResidentialLease
+                        | DocumentType::RoomRentalLease
+                        | DocumentType::SubleaseAgreement
+                        | DocumentType::RentToOwnAgreement
+                        | DocumentType::LeaseRenewalAgreement
+                        | DocumentType::LeaseAmendment
+                        | DocumentType::RentIncreaseNotice
+                        | DocumentType::NoticeToVacate
+                ) {
+                    markup.push_str(&format!(
+                        "\n#pagebreak()\n#rect(width: 100%, fill: rgb(\"#f8fafc\"), stroke: 1pt + navy-judicial, radius: 4pt, inset: 12pt, [\n  #text(size: 11pt, weight: \"bold\", fill: navy-judicial)[{}] \\\n  #v(2pt)\n  #text(size: 8pt, weight: \"bold\", fill: color-slate-500)[STATUTORY AUTHORITY: {} · STANDALONE SEPARATE ATTACHMENT] \\\n  #v(8pt)\n  #line(length: 100%, stroke: 0.5pt + color-slate-300)\n  #v(8pt)\n  #text(size: 9pt, fill: color-slate-800)[\n    {}\n  ]\n  #v(16pt)\n  #grid(\n    columns: (1fr, 1fr),\n    gutter: 24pt,\n    [\n      #line(length: 100%, stroke: 0.75pt + color-slate-700)\n      #v(2pt)\n      #text(size: 7.5pt, weight: \"bold\", fill: color-slate-600)[Tenant / Lessee Separate Initials & Acknowledgment ({})]\n    ],\n    [\n      #line(length: 100%, stroke: 0.75pt + color-slate-700)\n      #v(2pt)\n      #text(size: 7.5pt, weight: \"bold\", fill: color-slate-600)[Landlord / Lessor Acknowledgment ({})]\n    ]\n  )\n])\n",
+                        escape_typst_text(att.title),
+                        escape_typst_text(att.citation),
+                        escape_typst_text(att.body).replace('\n', "\\\n"),
+                        escape_typst_text(&req.to.name),
+                        escape_typst_text(&req.from.name)
+                    ));
+                }
+            }
+
+            if req.lease_package_mode.unwrap_or(false) && state_profile.requires_move_in_checklist {
+                markup.push_str(&format!(
+                    "\n#pagebreak()\n#rect(width: 100%, fill: rgb(\"#ffffff\"), stroke: 0.75pt + color-slate-400, radius: 4pt, inset: 12pt, [\n  #text(size: 11pt, weight: \"bold\", fill: navy-judicial)[MANDATORY {} MOVE-IN / MOVE-OUT CONDITION INVENTORY CHECKLIST] \\\n  #v(2pt)\n  #text(size: 8pt, fill: color-slate-500)[Governing Statute: {} · Prerequisite to Security Deposit Collection / Retention] \\\n  #v(8pt)\n  #table(\n    columns: (1.2fr, 1fr, 1fr),\n    stroke: 0.5pt + color-slate-300,\n    inset: 6pt,\n    table.header([*Room / Fixture*], [*Move-In Condition*], [*Move-Out Condition*]),\n    [Living Room / Flooring / Walls], [Clean / Undamaged], [],\n    [Kitchen Appliances / Countertops / Sink], [Working / Clean], [],\n    [Bedrooms / Windows / Locks / Screens], [Working / Intact], [],\n    [Bathrooms / Plumbing / Exhaust Fan], [Working / Leak-Free], [],\n    [Smoke & Carbon Monoxide Detectors], [Tested & Operational], []\n  )\n])\n",
+                    escape_typst_text(&state_profile.name.to_uppercase()),
+                    escape_typst_text(state_profile.governing_statute)
+                ));
+            }
+        }
     }
 
     // 11. Tamper-Evident Cryptographic Audit Slug

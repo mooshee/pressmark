@@ -386,7 +386,7 @@ impl GhlDispatcher {
         user_email: Option<&str>,
         channel: &str,
     ) -> Result<GhlDispatchReceipt, String> {
-        let archetype_slug = format!("{:?}", doc.doc_type).to_lowercase();
+        let archetype_slug = doc.doc_type.as_str();
         let archetype_title = doc.doc_type.display_title();
         let total_val = doc.grand_total();
 
@@ -413,11 +413,9 @@ impl GhlDispatcher {
         if !doc.signatures.is_empty() {
             tags.push("pressmark:feature:digital-signatures".to_string());
         }
-        if doc.compliance_mode.as_deref().unwrap_or("none") != "none" {
-            tags.push(format!(
-                "pressmark:compliance:{}",
-                doc.compliance_mode.as_deref().unwrap_or("none")
-            ));
+        let comp = doc.normalized_compliance_mode();
+        if comp != "none" && !comp.is_empty() {
+            tags.push(format!("pressmark:compliance:{}", comp));
         }
         let is_high_value_b2b = total_val >= 10_000.0
             || matches!(
@@ -428,6 +426,16 @@ impl GhlDispatcher {
                     | crate::models::DocumentType::CommercialLease
                     | crate::models::DocumentType::Agreement
                     | crate::models::DocumentType::AgreementSow
+                    | crate::models::DocumentType::ScheduleOfRealEstateOwned
+                    | crate::models::DocumentType::RealEstateDealAnalysis
+                    | crate::models::DocumentType::RealEstatePurchaseAgreement
+                    | crate::models::DocumentType::PropertyDeed
+                    | crate::models::DocumentType::PropertyManagementAgreement
+                    | crate::models::DocumentType::PropertyManagementStatement
+                    | crate::models::DocumentType::RealEstateCommission
+                    | crate::models::DocumentType::LetterOfIntentCre
+                    | crate::models::DocumentType::TenantEstoppel
+                    | crate::models::DocumentType::MechanicsLienWaiver
             );
         if is_high_value_b2b {
             tags.push("pressmark:segment:high-value-b2b".to_string());
@@ -438,7 +446,7 @@ impl GhlDispatcher {
         custom_fields.insert("pressmark_document_title".to_string(), json!(doc.title.as_deref().unwrap_or(archetype_title)));
         custom_fields.insert("pressmark_document_archetype".to_string(), json!(archetype_title));
         custom_fields.insert("pressmark_total_amount".to_string(), json!(total_val));
-        custom_fields.insert("pressmark_currency".to_string(), json!(doc.currency.as_deref().unwrap_or("USD")));
+        custom_fields.insert("pressmark_currency".to_string(), json!(doc.normalized_currency_code()));
         custom_fields.insert("pressmark_source_channel".to_string(), json!(channel));
         custom_fields.insert("pressmark_last_action".to_string(), json!("document_generated"));
 

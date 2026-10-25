@@ -1167,7 +1167,7 @@ async fn test_setup_check_checkout_entitlement_and_discovery_routes() {
     let setup_json: serde_json::Value = serde_json::from_slice(&setup_bytes).unwrap();
     assert_eq!(setup_json["checks"]["vector_engine"]["pdf_smoke_test"], true);
     assert_eq!(setup_json["checks"]["mcp_and_discovery"]["tools_count"], 6);
-    assert_eq!(setup_json["checks"]["mcp_and_discovery"]["archetypes_count"], 39);
+    assert_eq!(setup_json["checks"]["mcp_and_discovery"]["archetypes_count"], 57);
 
     // 2. Verify /api/v1/checkout & /api/v1/pricing checkout_url
     let req_checkout = Request::builder()
@@ -1573,10 +1573,10 @@ async fn test_all_copilot_quick_presets_auth_redirect_and_storage_pruning() {
     let cd = res_pdf.headers().get("content-disposition").unwrap().to_str().unwrap();
     assert_eq!(cd, "attachment; filename=\"INV-2026..99.pdf\"");
 
-    // Verify static/index.html has 39 template-pill buttons and updated copy
+    // Verify static/index.html has 57 template-pill buttons and updated copy
     let html = std::fs::read_to_string("static/index.html").unwrap();
-    assert_eq!(html.matches("class=\"template-pill").count(), 39);
-    assert!(html.contains("Switch Archetype (39)"));
+    assert_eq!(html.matches("class=\"template-pill").count(), 57);
+    assert!(html.contains("Switch Archetype (57)"));
     assert!(!html.contains("Neural Receipt"));
 
     // Verify storage prune_stale_data runs cleanly with usage_events retention
@@ -1609,7 +1609,7 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     });
     let router = create_router(Arc::clone(&state));
 
-    // 1. Verify GET /api/v1/templates returns all 39 document archetypes
+    // 1. Verify GET /api/v1/templates returns all 57 document archetypes
     let req_cat = Request::builder()
         .uri("/api/v1/templates")
         .method("GET")
@@ -1619,8 +1619,8 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     assert_eq!(res_cat.status(), StatusCode::OK);
     let body_cat = axum::body::to_bytes(res_cat.into_body(), usize::MAX).await.unwrap();
     let cat_json: serde_json::Value = serde_json::from_slice(&body_cat).unwrap();
-    assert_eq!(cat_json["count"], 39);
-    assert_eq!(cat_json["templates"].as_array().unwrap().len(), 39);
+    assert_eq!(cat_json["count"], 57);
+    assert_eq!(cat_json["templates"].as_array().unwrap().len(), 57);
 
     // 2. Verify GET /templates/residential-lease and /templates/commercial-nnn-lease customize SEO tags and deep-link archetype
     let req_lease = Request::builder()
@@ -1650,7 +1650,7 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     let res_404 = router.clone().oneshot(req_404).await.unwrap();
     assert_eq!(res_404.status(), StatusCode::NOT_FOUND);
 
-    // 3. Verify sitemap.xml includes all 39 /templates/<slug> routes
+    // 3. Verify sitemap.xml includes all 57 /templates/<slug> routes + 51 state-prefixed residential lease routes + 5 state real estate slugs
     let req_sm = Request::builder()
         .uri("/sitemap.xml")
         .method("GET")
@@ -1665,7 +1665,7 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
             .to_vec(),
     )
     .unwrap();
-    assert_eq!(sm_xml.matches("https://pressmark.dev/templates/").count(), 39);
+    assert_eq!(sm_xml.matches("https://pressmark.dev/templates/").count(), 113);
 
     // 4. Verify REST /api/v1/generate and MCP generate_document include 1-click checkout URLs
     let req_gen = Request::builder()
@@ -1740,3 +1740,377 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     assert!(!updated_sess.user.is_subscriber);
     assert_eq!(updated_sess.user.plan, ChatGptPlan::Free);
 }
+
+#[tokio::test]
+async fn test_pressmark_normalization_audit_all_9_items() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use pressmark::engine::generate_pdf;
+    use pressmark::mcp::{JsonRpcRequest, McpHandler};
+    use pressmark::models::{DocumentRequest, DocumentType};
+    use pressmark::openapi::get_openapi_spec;
+    use pressmark::server::{create_router, AppState};
+    use pressmark::state_laws::infer_state_from_address;
+    use pressmark::storage::Storage;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let storage = Arc::new(Storage::new(":memory:").unwrap());
+    let app_state = Arc::new(AppState::new("https://pressmark.dev".to_string()).with_storage(storage));
+    let router = create_router(app_state);
+
+    // -------------------------------------------------------------------------
+    // ITEM 1: Negative Line Items & Deductions Across Accounting/RE Archetypes
+    // -------------------------------------------------------------------------
+    assert!(DocumentType::ScheduleETaxWorksheet.allows_negative_items());
+    assert!(DocumentType::PropertyManagementStatement.allows_negative_items());
+    assert!(DocumentType::SecurityDepositDisposition.allows_negative_items());
+    assert!(DocumentType::TenantRentLedger.allows_negative_items());
+    assert!(DocumentType::RealEstateDealAnalysis.allows_negative_items());
+    assert!(DocumentType::RealEstatePurchaseAgreement.allows_negative_items());
+    assert!(DocumentType::CreditNote.allows_negative_items());
+    assert!(!DocumentType::Invoice.allows_negative_items());
+
+    // MCP validate_document_request & generate_document accept negative unit_price on schedule_e_tax_worksheet
+    let sched_e_doc: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "schedule_e_tax_worksheet",
+        "from": { "name": "Hallman Capital Properties LLC" },
+        "to": { "name": "Vance CPAs" },
+        "items": [
+            { "description": "Line 3 Gross Rents", "quantity": 1.0, "unit_price": 148200.0 },
+            { "description": "Line 12 Mortgage Interest", "quantity": 1.0, "unit_price": -21400.0 },
+            { "description": "Line 18 Depreciation", "quantity": 1.0, "unit_price": -38900.0 }
+        ]
+    }))
+    .unwrap();
+    assert!(McpHandler::validate_document_request(&sched_e_doc).is_ok());
+
+    let mcp_sched_e = McpHandler::handle_request(JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(serde_json::json!(901)),
+        method: "tools/call".to_string(),
+        params: Some(serde_json::json!({
+            "name": "generate_document",
+            "arguments": sched_e_doc
+        })),
+    });
+    assert!(
+        mcp_sched_e.error.is_none() && mcp_sched_e.result.is_some(),
+        "Schedule E negative items should succeed in MCP generate_document: {:?}",
+        mcp_sched_e.error
+    );
+
+    // MCP generate_document still rejects negative unit_price on standard invoice
+    let mcp_inv_neg = McpHandler::handle_request(JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(serde_json::json!(902)),
+        method: "tools/call".to_string(),
+        params: Some(serde_json::json!({
+            "name": "generate_document",
+            "arguments": {
+                "doc_type": "invoice",
+                "from": { "name": "Issuer" },
+                "to": { "name": "Client" },
+                "items": [
+                    { "description": "Bad Negative Item", "quantity": 1.0, "unit_price": -500.0 }
+                ]
+            }
+        })),
+    });
+    assert!(mcp_inv_neg.error.is_some(), "Standard invoice with negative unit_price must fail MCP validation");
+
+    // Negative net grand_total preserved on credit_note / real_estate_deal_analysis
+    let neg_credit: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "credit_note",
+        "from": { "name": "Vendor" },
+        "to": { "name": "Client" },
+        "items": [{ "description": "SLA Credit Refund", "quantity": 1.0, "unit_price": -450.0 }]
+    }))
+    .unwrap();
+    assert_eq!(neg_credit.grand_total(), -450.0);
+
+    // -------------------------------------------------------------------------
+    // ITEM 2: State & Municipal Statutory Jurisdiction Inference & Cross-Validation
+    // -------------------------------------------------------------------------
+    assert_eq!(infer_state_from_address("100 Main St Chattanooga TN 37402").map(|p| p.code), Some("TN"));
+    assert_eq!(infer_state_from_address("100 Main St, Austin, TX, USA").map(|p| p.code), Some("TX"));
+    assert_eq!(infer_state_from_address("742 Evergreen Terrace, san francisco, ca 94107").map(|p| p.code), Some("CA"));
+    // Street suffix false-positive guards
+    assert!(infer_state_from_address("100 Oak CT").is_none());
+    assert!(infer_state_from_address("123 Martin Luther King IN").is_none());
+
+    // Jurisdiction inference on expanded archetypes & custom field labels
+    let deal_doc: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "real_estate_deal_analysis",
+        "from": { "name": "Sponsor" },
+        "to": { "name": "Investor" },
+        "custom_fields": [{ "label": "Managed Portfolio", "value": "412 Northshore Dr, Chattanooga, TN 37405" }]
+    }))
+    .unwrap();
+    assert_eq!(deal_doc.effective_state_profile().map(|p| p.code), Some("TN"));
+
+    // Municipal cross-validation against explicit state_code
+    let mismatched_muni: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "residential_lease",
+        "state_code": "TX",
+        "municipality": "NYC",
+        "from": { "name": "Landlord" },
+        "to": { "name": "Tenant" }
+    }))
+    .unwrap();
+    assert!(
+        mismatched_muni.effective_municipal_profile().is_none(),
+        "NYC municipal profile must not apply when state_code is TX"
+    );
+
+    let matched_muni: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "residential_lease",
+        "state_code": "NY",
+        "municipality": "NYC",
+        "from": { "name": "Landlord" },
+        "to": { "name": "Tenant" }
+    }))
+    .unwrap();
+    assert_eq!(matched_muni.effective_municipal_profile().map(|m| m.slug), Some("new-york-city"));
+
+    // -------------------------------------------------------------------------
+    // ITEM 3: Currency Normalization (ISO 4217 vs Symbols)
+    // -------------------------------------------------------------------------
+    let sym_curr_doc: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "invoice",
+        "currency": "$",
+        "currency_symbol_mode": "code",
+        "from": { "name": "Issuer" },
+        "to": { "name": "Client" },
+        "items": [{ "description": "Consulting", "quantity": 1.0, "unit_price": 1250.0 }]
+    }))
+    .unwrap();
+    assert_eq!(sym_curr_doc.normalized_currency_code(), "USD");
+    assert_eq!(sym_curr_doc.format_amount(1250.0), "USD 1,250.00");
+
+    let lower_curr_doc: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "invoice",
+        "currency": "gbp",
+        "currency_symbol_mode": "symbol",
+        "from": { "name": "Issuer" },
+        "to": { "name": "Client" }
+    }))
+    .unwrap();
+    assert_eq!(lower_curr_doc.normalized_currency_code(), "GBP");
+    assert_eq!(lower_curr_doc.format_amount(500.0), "£500.00");
+
+    // -------------------------------------------------------------------------
+    // ITEM 4: Compliance Banners & Execution Mode Normalization in Engine/Typst
+    // -------------------------------------------------------------------------
+    for (compliance, exec_mode) in [
+        ("peppol", "wet-ink"),
+        ("factur-x", "notarized_wet"),
+        ("hipaa", "notarized_ron"),
+        ("zatca", "ron"),
+        ("pci_dss", "esign"),
+        ("soc2", "esign"),
+        ("statutory_sworn", "wet_ink"),
+    ] {
+        let mut comp_doc: DocumentRequest = serde_json::from_value(serde_json::json!({
+            "doc_type": "property_deed",
+            "compliance_mode": compliance,
+            "execution_mode": exec_mode,
+            "notary_required": true,
+            "recordable": true,
+            "state_code": "TN",
+            "from": { "name": "Grantor LLC" },
+            "to": { "name": "Grantee LLC" },
+            "items": [{ "description": "Consideration", "quantity": 1.0, "unit_price": 250000.0 }]
+        }))
+        .unwrap();
+        assert!(comp_doc.normalize_and_validate().is_ok());
+        let (pdf, _ms) = generate_pdf(&comp_doc)
+            .unwrap_or_else(|e| panic!("Failed to compile compliance={} exec={}: {}", compliance, exec_mode, e));
+        assert!(pdf.starts_with(b"%PDF-"), "Expected valid PDF for compliance={}", compliance);
+    }
+
+    // -------------------------------------------------------------------------
+    // ITEM 5: MCP & OpenAPI Schema Parity
+    // -------------------------------------------------------------------------
+    let openapi = get_openapi_spec("https://pressmark.dev");
+    let oa_props = &openapi["components"]["schemas"]["DocumentRequest"]["properties"];
+    assert_eq!(oa_props["currency"]["default"], "USD");
+    for prop in [
+        "state_code",
+        "municipality",
+        "county",
+        "execution_mode",
+        "notary_required",
+        "recordable",
+        "compliance_mode",
+        "date_format",
+        "currency_symbol_mode",
+        "currency_placement",
+        "currency_separators",
+        "number_decimals",
+        "custom_fields",
+        "sections",
+        "signatures",
+    ] {
+        assert!(oa_props.get(prop).is_some(), "OpenAPI DocumentRequest missing property {}", prop);
+    }
+
+    let mcp_tools = McpHandler::handle_request(JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(serde_json::json!(905)),
+        method: "tools/list".to_string(),
+        params: None,
+    })
+    .result
+    .unwrap();
+    let gen_tool = mcp_tools["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["name"] == "generate_document")
+        .unwrap();
+    let mcp_props = &gen_tool["inputSchema"]["properties"];
+    for prop in [
+        "state_code",
+        "municipality",
+        "county",
+        "execution_mode",
+        "notary_required",
+        "recordable",
+        "compliance_mode",
+        "date_format",
+        "currency_symbol_mode",
+        "currency_placement",
+        "currency_separators",
+        "number_decimals",
+        "custom_fields",
+        "sections",
+        "signatures",
+    ] {
+        assert!(mcp_props.get(prop).is_some(), "MCP generate_document missing property {}", prop);
+    }
+
+    // -------------------------------------------------------------------------
+    // ITEM 6: Date Formatting & Numeric Sanitization
+    // -------------------------------------------------------------------------
+    let mut bad_tax_doc: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "invoice",
+        "tax_rate": -15.0,
+        "from": { "name": "Sender" },
+        "to": { "name": "Receiver" }
+    }))
+    .unwrap();
+    assert!(bad_tax_doc.normalize_and_validate().is_err());
+
+    let mut date_doc: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "invoice",
+        "date_format": "us_long",
+        "tax_rate": 8.25,
+        "number_decimals": 9,
+        "from": { "name": "Sender" },
+        "to": { "name": "Receiver" }
+    }))
+    .unwrap();
+    assert!(date_doc.normalize_and_validate().is_ok());
+    assert_eq!(date_doc.tax_rate, Some(8.25));
+    assert_eq!(date_doc.number_decimals, Some(4));
+    assert_eq!(date_doc.format_date("2026-10-25T14:30:00Z"), "October 25, 2026");
+    assert_eq!(date_doc.format_date("10/5/2026"), "October 05, 2026");
+    assert_eq!(date_doc.format_date("2026/10/05"), "October 05, 2026");
+
+    // -------------------------------------------------------------------------
+    // ITEM 7: Flexible DocumentType Deserialization & Field Aliases
+    // -------------------------------------------------------------------------
+    let aliased_doc: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "archetype": "tennessee-residential-lease",
+        "number": "RLA-2026-7777",
+        "jurisdiction": "tn",
+        "landlord": { "name": "Lookout Mountain Properties LLC" },
+        "tenant": { "name": "Caleb Montgomery" },
+        "line_items": [
+            { "title": "Monthly Base Rent", "qty": 1.0, "rate": 2450.0 }
+        ]
+    }))
+    .unwrap();
+    assert_eq!(aliased_doc.doc_type, DocumentType::ResidentialLease);
+    assert_eq!(aliased_doc.doc_number.as_deref(), Some("RLA-2026-7777"));
+    assert_eq!(aliased_doc.from.name, "Lookout Mountain Properties LLC");
+    assert_eq!(aliased_doc.to.name, "Caleb Montgomery");
+    assert_eq!(aliased_doc.items.len(), 1);
+    assert_eq!(aliased_doc.items[0].description, "Monthly Base Rent");
+    assert_eq!(aliased_doc.items[0].unit_price, 2450.0);
+    assert_eq!(aliased_doc.effective_state_profile().map(|s| s.code), Some("TN"));
+
+    for (raw_type, expected) in [
+        ("ResidentialLease", DocumentType::ResidentialLease),
+        ("Quitclaim Deed", DocumentType::PropertyDeed),
+        ("Schedule E", DocumentType::ScheduleETaxWorksheet),
+        ("msa", DocumentType::Agreement),
+        ("sow", DocumentType::AgreementSow),
+        ("loi", DocumentType::LetterOfIntentCre),
+        ("psa", DocumentType::RealEstatePurchaseAgreement),
+    ] {
+        let parsed: DocumentType = serde_json::from_value(serde_json::json!(raw_type)).unwrap();
+        assert_eq!(parsed, expected, "Failed alias deserialization for {}", raw_type);
+    }
+
+    // -------------------------------------------------------------------------
+    // ITEM 8: Document Lifecycle Prefix Stripping, REC- Prefix & Refund Target
+    // -------------------------------------------------------------------------
+    assert_eq!(DocumentType::Receipt.default_number_prefix(), "REC-");
+    let custom_prefix_doc: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "quotation_tender",
+        "doc_number": "QUO-2026-0099",
+        "from": { "name": "Contractor" },
+        "to": { "name": "Authority" },
+        "items": [{ "description": "Bid Item", "quantity": 1.0, "unit_price": 5000.0 }]
+    }))
+    .unwrap();
+    let inv = custom_prefix_doc.to_invoice(14);
+    assert_eq!(inv.doc_number.as_deref(), Some("INV-2026-0099"));
+    let rec = inv.to_receipt("Stripe", "ch_123", "2026-10-25");
+    assert_eq!(rec.doc_number.as_deref(), Some("REC-2026-0099"));
+    let crd = rec.to_credit_note(Some("Project cancelled"));
+    assert_eq!(crd.doc_number.as_deref(), Some("CRD-2026-0099"));
+
+    // REST /api/v1/lifecycle/convert with target_type = "refund" -> 200 OK (credit_note)
+    let req_refund = Request::builder()
+        .uri("/api/v1/lifecycle/convert")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "document": inv,
+                "target_type": "refund",
+                "reason": "Full customer refund"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let res_refund = router.clone().oneshot(req_refund).await.unwrap();
+    assert_eq!(res_refund.status(), StatusCode::OK);
+    let refund_json: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(res_refund.into_body(), usize::MAX).await.unwrap(),
+    )
+    .unwrap();
+    assert_eq!(refund_json["document"]["doc_type"], "credit_note");
+    assert_eq!(refund_json["document"]["doc_number"], "CRD-2026-0099");
+
+    // REST /api/v1/lifecycle/convert with invalid target_type -> 400 BAD_REQUEST
+    let req_bad_lc = Request::builder()
+        .uri("/api/v1/lifecycle/convert")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "document": inv,
+                "target_type": "bogus_lifecycle_target"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let res_bad_lc = router.clone().oneshot(req_bad_lc).await.unwrap();
+    assert_eq!(res_bad_lc.status(), StatusCode::BAD_REQUEST);
+}
+
+

@@ -569,3 +569,507 @@ fn test_notice_to_vacate_and_security_deposit_disposition() {
         let _ = fs::write(format!("{}/real_estate_template_7_security_deposit_disposition.png", ARTIFACT_DIR), &sdd_png);
     }
 }
+
+#[test]
+fn test_bug_c3_c4_c5_deduction_math_recordable_deed_and_9pt_lease_terms() {
+    use pressmark::engine::generate_typst_markup;
+
+    // 1. Bug C4: Verify negative deduction math on SecurityDepositDisposition yields exact $2,554.22 refund
+    let req_sdd = DocumentRequest {
+        doc_type: DocumentType::SecurityDepositDisposition,
+        from: PartyDetails {
+            name: "Pacifica Property Holdings LLC".to_string(),
+            address: Some("100 Montgomery St, Suite 1400, San Francisco, CA 94104".to_string()),
+            ..Default::default()
+        },
+        to: PartyDetails {
+            name: "Sophie Laurent".to_string(),
+            address: Some("1420 4th Street, Unit 201, Santa Monica, CA 90401".to_string()),
+            ..Default::default()
+        },
+        items: vec![
+            LineItem { description: "Original Security Deposit Held".to_string(), quantity: 1.0, unit_price: 3500.00, tax_rate: None, discount: None },
+            LineItem { description: "Accrued Statutory Trust Interest".to_string(), quantity: 1.0, unit_price: 28.42, tax_rate: None, discount: None },
+            LineItem { description: "Less: Professional Deep Clean (Receipt #441)".to_string(), quantity: 1.0, unit_price: 0.0, tax_rate: None, discount: Some(320.00) },
+            LineItem { description: "Less: Drywall Patching & Paint Beyond Normal Wear".to_string(), quantity: 1.0, unit_price: 0.0, tax_rate: None, discount: Some(450.00) },
+            LineItem { description: "Less: Replacement of Missing Garage Remote (2x)".to_string(), quantity: 1.0, unit_price: 0.0, tax_rate: None, discount: Some(120.00) },
+            LineItem { description: "Less: Unpaid Prorated Utility Charges".to_string(), quantity: 1.0, unit_price: 0.0, tax_rate: None, discount: Some(84.20) },
+        ],
+        terms: Some("Statutory itemized disposition pursuant to Cal. Civ. Code § 1950.5 within 21 calendar days.".to_string()),
+        ..Default::default()
+    };
+
+    assert!((req_sdd.subtotal() - 2554.22).abs() < 0.005, "Expected $2,554.22 net refund, got {}", req_sdd.subtotal());
+    assert!((req_sdd.grand_total() - 2554.22).abs() < 0.005);
+    let sdd_markup = generate_typst_markup(&req_sdd);
+    assert!(sdd_markup.contains("Security Deposit Itemized Accounting & Refund Statement"));
+    assert!(sdd_markup.contains("2,554.22"));
+    // Bug C5: Verify terms on contract/lease/real-estate instruments render at 9pt primary legibility
+    assert!(sdd_markup.contains("#text(size: 9pt, fill: color-slate-700)"));
+
+    let (sdd_pdf, _) = generate_pdf(&req_sdd).expect("Failed to compile SecurityDepositDisposition with negative deductions");
+    assert!(sdd_pdf.starts_with(b"%PDF-"));
+
+    // 2. Bug C3: Verify PropertyDeed / recordable: true renders 3.0in County Recorder Stamp Margin, #recording-header-block, and dynamic RON jurat
+    let req_deed = DocumentRequest {
+        doc_type: DocumentType::PropertyDeed,
+        state_code: Some("TN".to_string()),
+        county: Some("Hamilton".to_string()),
+        recordable: Some(true),
+        notary_required: Some(true),
+        from: PartyDetails {
+            name: "Highland Crest Holdings LLC".to_string(),
+            address: Some("412 Northshore Dr, Chattanooga, TN 37405".to_string()),
+            ..Default::default()
+        },
+        to: PartyDetails {
+            name: "Hallman Capital Properties LLC".to_string(),
+            address: Some("1200 Market St, Suite 400, Chattanooga, TN 37402".to_string()),
+            ..Default::default()
+        },
+        custom_fields: vec![
+            CustomField { label: "APN".to_string(), value: "135K-A-014.00".to_string() },
+        ],
+        items: vec![
+            LineItem { description: "Conveyance Consideration".to_string(), quantity: 1.0, unit_price: 1650000.00, tax_rate: None, discount: None },
+        ],
+        terms: Some("TO HAVE AND TO HOLD the said tract or parcel of land, with the appurtenances, estate, title, and interest thereto belonging to the Grantee forever.".to_string()),
+        ..Default::default()
+    };
+
+    assert!(req_deed.is_recordable_instrument());
+    assert!(req_deed.is_notary_required());
+    let deed_markup = generate_typst_markup(&req_deed);
+    assert!(deed_markup.contains("#recording-header-block("));
+    assert!(deed_markup.contains("state: \"Tennessee\""));
+    assert!(deed_markup.contains("county: \"Hamilton\""));
+    assert!(deed_markup.contains("notary-required: true"));
+    assert!(deed_markup.contains("T.C.A. § 8-16-301"));
+
+    let (deed_pdf, _) = generate_pdf(&req_deed).expect("Failed to compile recordable PropertyDeed PDF");
+    assert!(deed_pdf.starts_with(b"%PDF-"));
+}
+
+#[test]
+fn test_50_state_plus_dc_and_municipal_statutory_lease_engine_all_4_layers() {
+    use pressmark::engine::generate_typst_markup;
+    use pressmark::state_laws::{all_municipal_sub_profiles, all_state_lease_profiles, get_state_lease_profile};
+
+    let states = all_state_lease_profiles();
+    assert_eq!(states.len(), 51, "Must include all 50 US states + District of Columbia");
+
+    let munis = all_municipal_sub_profiles();
+    assert_eq!(munis.len(), 6, "Must include all 6 priority municipal rent ordinances");
+
+    // Verify all 51 jurisdictions produce valid Typst markup with their exact statutory citation
+    for sp in states {
+        let req = DocumentRequest {
+            doc_type: DocumentType::ResidentialLease,
+            state_code: Some(sp.code.to_string()),
+            year_built: Some(1972),
+            from: PartyDetails {
+                name: "Vance Residential Holdings LLC".to_string(),
+                address: Some(format!("100 Main St, {}", sp.code)),
+                ..Default::default()
+            },
+            to: PartyDetails {
+                name: "Alex Morgan".to_string(),
+                address: Some(format!("200 Oak Ave, {}", sp.code)),
+                ..Default::default()
+            },
+            items: vec![
+                LineItem { description: "Monthly Base Rent".to_string(), quantity: 1.0, unit_price: 2200.0, tax_rate: None, discount: None },
+                LineItem { description: "Security Deposit".to_string(), quantity: 1.0, unit_price: 2200.0, tax_rate: None, discount: None },
+            ],
+            ..Default::default()
+        };
+
+        let markup = generate_typst_markup(&req);
+        assert!(
+            markup.contains(sp.name),
+            "State {} ({}) missing state name in markup",
+            sp.code,
+            sp.name
+        );
+        // Verify Layer 3 pre-1978 Lead-Based Paint disclosure triggered
+        assert!(markup.contains("42 U.S.C. § 4852d"));
+    }
+
+    // Explicitly compile representative multi-layer states to PDF:
+    // - Layer 1 Page-1 mandates: Virginia (VA) & Minnesota (MN)
+    // - Layer 2 Conspicuous typography: Michigan (MI), Massachusetts (MA), New Jersey (NJ), South Carolina (SC), Texas (TX), Ohio (OH)
+    // - Layer 4 Standalone pagebreak attachments: Florida (FL § 83.512), Wisconsin (WI ATCP 134.09), New York (NY RPL § 231-c)
+    // - Priority States: Tennessee (TN), California (CA)
+    let priority_codes = ["VA", "MN", "MI", "MA", "NJ", "SC", "TX", "OH", "FL", "WI", "NY", "TN", "CA"];
+    for code in priority_codes {
+        let sp = get_state_lease_profile(code).expect("State profile must exist");
+        let req = DocumentRequest {
+            doc_type: DocumentType::ResidentialLease,
+            state_code: Some(code.to_string()),
+            year_built: Some(1974),
+            lease_package_mode: Some(true),
+            from: PartyDetails {
+                name: "Vance Residential Group".to_string(),
+                address: Some(format!("100 Capitol Blvd, {}", code)),
+                ..Default::default()
+            },
+            to: PartyDetails {
+                name: "Jordan Taylor".to_string(),
+                address: Some(format!("400 Elm St, {}", code)),
+                ..Default::default()
+            },
+            items: vec![
+                LineItem { description: "Monthly Base Rent".to_string(), quantity: 1.0, unit_price: 2400.0, tax_rate: None, discount: None },
+                LineItem { description: "Security Deposit".to_string(), quantity: 1.0, unit_price: 2400.0, tax_rate: None, discount: None },
+            ],
+            ..Default::default()
+        };
+
+        let markup = generate_typst_markup(&req);
+        if let Some(p1_mandate) = sp.page1_mandate {
+            assert!(markup.contains(p1_mandate), "Layer 1 Page-1 mandate missing for {}", code);
+        }
+        if let Some(cc) = sp.conspicuous_clause {
+            assert!(markup.contains(cc.title), "Layer 2 Conspicuous clause missing for {}", code);
+            assert!(
+                markup.contains(&format!("size: {}pt", cc.point_size)),
+                "Layer 2 font size {}pt missing for {}",
+                cc.point_size,
+                code
+            );
+        }
+        if let Some(att) = sp.standalone_attachment {
+            assert!(markup.contains(att.title), "Layer 4 Standalone attachment missing for {}", code);
+            assert!(markup.contains("#pagebreak()"), "Layer 4 #pagebreak() missing for {}", code);
+        }
+
+        let (pdf_bytes, _) = generate_pdf(&req).unwrap_or_else(|e| panic!("Failed to compile {} statutory lease PDF: {}", code, e));
+        assert!(pdf_bytes.starts_with(b"%PDF-"));
+    }
+
+    // Verify all 6 municipal sub-profiles compile cleanly to PDF
+    for mp in munis {
+        let req = DocumentRequest {
+            doc_type: DocumentType::ResidentialLease,
+            state_code: Some(mp.state_code.to_string()),
+            municipality: Some(mp.name.to_string()),
+            from: PartyDetails { name: "Urban Core Properties LLC".to_string(), ..Default::default() },
+            to: PartyDetails { name: "Casey Morgan".to_string(), ..Default::default() },
+            items: vec![
+                LineItem { description: "Monthly Base Rent".to_string(), quantity: 1.0, unit_price: 2800.0, tax_rate: None, discount: None },
+            ],
+            ..Default::default()
+        };
+        let markup = generate_typst_markup(&req);
+        assert!(markup.contains(mp.name));
+        let (pdf_bytes, _) = generate_pdf(&req).unwrap_or_else(|e| panic!("Failed municipal lease PDF for {}: {}", mp.name, e));
+        assert!(pdf_bytes.starts_with(b"%PDF-"));
+    }
+}
+
+#[test]
+fn test_all_18_new_avail_stessa_biggerpockets_rocket_lawyer_archetypes() {
+    let new_archetypes = [
+        DocumentType::RoomRentalLease,
+        DocumentType::LeaseRenewalAgreement,
+        DocumentType::LeaseAmendment,
+        DocumentType::RentalApplication,
+        DocumentType::AdverseActionNotice,
+        DocumentType::NoticeOfEntry,
+        DocumentType::RentIncreaseNotice,
+        DocumentType::MutualLeaseTermination,
+        DocumentType::TenantRentLedger,
+        DocumentType::ScheduleOfRealEstateOwned,
+        DocumentType::ScheduleETaxWorksheet,
+        DocumentType::RealEstateDealAnalysis,
+        DocumentType::SubleaseAgreement,
+        DocumentType::RentToOwnAgreement,
+        DocumentType::PropertyManagementAgreement,
+        DocumentType::RealEstatePurchaseAgreement,
+        DocumentType::PropertyDeed,
+        DocumentType::MechanicsLienWaiver,
+    ];
+    assert_eq!(new_archetypes.len(), 18);
+
+    for dt in new_archetypes {
+        let req = DocumentRequest {
+            doc_type: dt.clone(),
+            state_code: Some("TN".to_string()),
+            county: Some("Hamilton".to_string()),
+            from: PartyDetails {
+                name: "Hallman Capital Properties LLC".to_string(),
+                address: Some("1200 Market St, Suite 400, Chattanooga, TN 37402".to_string()),
+                ..Default::default()
+            },
+            to: PartyDetails {
+                name: "Counterparty Principal".to_string(),
+                address: Some("412 Northshore Dr, Chattanooga, TN 37405".to_string()),
+                ..Default::default()
+            },
+            custom_fields: vec![
+                CustomField { label: "Property".to_string(), value: "412 Northshore Dr, Chattanooga, TN 37405".to_string() },
+                CustomField { label: "DSCR".to_string(), value: "1.58x".to_string() },
+            ],
+            items: vec![
+                LineItem { description: "Primary Line Item / Charge".to_string(), quantity: 1.0, unit_price: 2500.00, tax_rate: None, discount: None },
+                LineItem { description: "Credit / Deduction Adjustment".to_string(), quantity: 1.0, unit_price: 0.00, tax_rate: None, discount: Some(250.00) },
+            ],
+            terms: Some("Executed under applicable state real property statutes.".to_string()),
+            ..Default::default()
+        };
+
+        let (pdf_bytes, _) = generate_pdf(&req).unwrap_or_else(|e| panic!("Failed PDF for {:?}: {}", dt, e));
+        assert!(pdf_bytes.starts_with(b"%PDF-"));
+        let (png_bytes, _) = generate_preview_png(&req, 144).unwrap_or_else(|e| panic!("Failed PNG for {:?}: {}", dt, e));
+        assert!(png_bytes.len() > 1000);
+    }
+}
+
+#[tokio::test]
+async fn test_programmatic_state_seo_landing_routes_and_states_api() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use pressmark::server::{create_router, AppState};
+    use pressmark::storage::Storage;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let storage = Arc::new(Storage::new(":memory:").unwrap());
+    let app_state = Arc::new(AppState::default().with_storage(storage));
+    let router = create_router(app_state);
+
+    // 1. Verify GET /api/v1/states returns all 51 states + 6 municipalities
+    let req_states = Request::builder()
+        .uri("/api/v1/states")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_states = router.clone().oneshot(req_states).await.unwrap();
+    assert_eq!(res_states.status(), StatusCode::OK);
+    let states_bytes = axum::body::to_bytes(res_states.into_body(), usize::MAX).await.unwrap();
+    let states_json: serde_json::Value = serde_json::from_slice(&states_bytes).unwrap();
+    assert_eq!(states_json["states_count"], 51);
+    assert_eq!(states_json["municipalities_count"], 6);
+
+    // 2. Verify programmatic state-prefixed SEO landing routes
+    let seo_routes = [
+        ("/templates/tennessee-residential-lease", "Tennessee", "T.C.A. § 66-28-101", "residential_lease", "TN"),
+        ("/templates/california-residential-lease", "California", "Cal. Civ. Code § 1940", "residential_lease", "CA"),
+        ("/templates/florida-eviction-notice", "Florida", "Fla. Stat. § 83.40", "notice_to_vacate", "FL"),
+        ("/templates/texas-quitclaim-deed", "Texas", "Tex. Prop. Code Ch. 92", "property_deed", "TX"),
+        ("/templates/new-york-room-rental-lease", "New York", "N.Y. Real Prop. Law § 220", "room_rental_lease", "NY"),
+    ];
+
+    for (uri, state_name, citation_prefix, expected_archetype, expected_state_code) in seo_routes {
+        let req = Request::builder().uri(uri).method("GET").body(Body::empty()).unwrap();
+        let res = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK, "Expected 200 OK for {}", uri);
+        let html = String::from_utf8(axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap();
+        assert!(html.contains(state_name), "HTML for {} missing state name {}", uri, state_name);
+        assert!(html.contains(citation_prefix), "HTML for {} missing citation {}", uri, citation_prefix);
+        assert!(
+            html.contains(&format!("window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"{}\";", expected_archetype)),
+            "HTML for {} missing archetype injection {}",
+            uri,
+            expected_archetype
+        );
+        assert!(
+            html.contains(&format!("window.__PRESSMARK_INITIAL_STATE__ = \"{}\";", expected_state_code)),
+            "HTML for {} missing state code injection {}",
+            uri,
+            expected_state_code
+        );
+    }
+
+    // 3. Verify sub-variant SEO routes & West Virginia state-prefixed routes
+    let subvariant_routes = [
+        ("/templates/new-york-14-day-rent-demand", "New York", "notice_to_vacate", "NY"),
+        ("/templates/california-3-day-notice-to-pay-or-quit", "California", "notice_to_vacate", "CA"),
+        ("/templates/west-virginia-residential-lease", "West Virginia", "residential_lease", "WV"),
+        ("/templates/pay-or-quit-notice", "Notice To Vacate", "notice_to_vacate", ""),
+        ("/templates/reo-schedule", "Schedule Of Real Estate Owned", "schedule_of_real_estate_owned", ""),
+    ];
+    for (uri, expected_text, expected_archetype, expected_state_code) in subvariant_routes {
+        let req = Request::builder().uri(uri).method("GET").body(Body::empty()).unwrap();
+        let res = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK, "Expected 200 OK for {}", uri);
+        let html = String::from_utf8(axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap();
+        assert!(html.contains(expected_text), "HTML for {} missing expected text {}", uri, expected_text);
+        assert!(
+            html.contains(&format!("window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"{}\";", expected_archetype)),
+            "HTML for {} missing archetype {}",
+            uri,
+            expected_archetype
+        );
+        if !expected_state_code.is_empty() {
+            assert!(
+                html.contains(&format!("window.__PRESSMARK_INITIAL_STATE__ = \"{}\";", expected_state_code)),
+                "HTML for {} missing state code {}",
+                uri,
+                expected_state_code
+            );
+        }
+    }
+
+    // 4. Verify POST /api/v1/copilot resolves "West Virginia" as WV (not VA)
+    let copilot_req = Request::builder()
+        .uri("/api/v1/copilot")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"prompt":"Draft a West Virginia residential lease for 100 Capitol St, Charleston, WV 25301 at $1,650/mo"}"#))
+        .unwrap();
+    let copilot_res = router.clone().oneshot(copilot_req).await.unwrap();
+    assert_eq!(copilot_res.status(), StatusCode::OK);
+    let copilot_bytes = axum::body::to_bytes(copilot_res.into_body(), usize::MAX).await.unwrap();
+    let copilot_json: serde_json::Value = serde_json::from_slice(&copilot_bytes).unwrap();
+    assert_eq!(copilot_json["modified_state"]["state_code"], "WV");
+    assert_eq!(copilot_json["modified_state"]["doc_type"], "residential_lease");
+
+    // 5. Verify GET /sitemap.xml includes all 57 archetypes and all 51 state+DC residential lease routes
+    let sitemap_req = Request::builder()
+        .uri("/sitemap.xml")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let sitemap_res = router.clone().oneshot(sitemap_req).await.unwrap();
+    assert_eq!(sitemap_res.status(), StatusCode::OK);
+    let sitemap_xml = String::from_utf8(axum::body::to_bytes(sitemap_res.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap();
+    for dt in DocumentType::all() {
+        let expected_loc = format!("<loc>https://pressmark.dev/templates/{}</loc>", dt.url_slug());
+        assert!(sitemap_xml.contains(&expected_loc), "Sitemap missing archetype URL {}", expected_loc);
+    }
+    for sp in pressmark::state_laws::all_state_lease_profiles() {
+        let expected_state_loc = format!("<loc>https://pressmark.dev/templates/{}-residential-lease</loc>", sp.slug);
+        assert!(sitemap_xml.contains(&expected_state_loc), "Sitemap missing state URL {}", expected_state_loc);
+    }
+}
+
+#[test]
+fn test_infer_state_from_address_directional_and_street_name_traps() {
+    use pressmark::state_laws::infer_state_from_address;
+
+    assert_eq!(infer_state_from_address("123 NE 45th St, Seattle, WA 98105").map(|p| p.code), Some("WA"));
+    assert_eq!(infer_state_from_address("8500 LA Cienega Blvd, Los Angeles, CA 90048").map(|p| p.code), Some("CA"));
+    assert_eq!(infer_state_from_address("500 CO Rd 12, Austin, TX 78701").map(|p| p.code), Some("TX"));
+    assert_eq!(infer_state_from_address("100 MT Vernon Ave, Alexandria, VA 22301").map(|p| p.code), Some("VA"));
+    assert_eq!(infer_state_from_address("300 DE Kalb Ave, Brooklyn, NY 11205").map(|p| p.code), Some("NY"));
+    assert_eq!(infer_state_from_address("742 IN St, Denver, CO 80202").map(|p| p.code), Some("CO"));
+    assert_eq!(infer_state_from_address("100 Capitol St, Charleston, West Virginia 25301").map(|p| p.code), Some("WV"));
+    assert_eq!(infer_state_from_address("200 Main St, Richmond, Virginia 23219").map(|p| p.code), Some("VA"));
+}
+
+#[test]
+fn test_michigan_uppercase_conspicuous_notice_and_kpi_deduplication_and_combined_edge_cases() {
+    use pressmark::engine::generate_typst_markup;
+
+    // 1. Michigan MCL 554.634 requires uppercase conspicuous Truth in Renting notice
+    let mi_req = DocumentRequest {
+        doc_type: DocumentType::ResidentialLease,
+        state_code: Some("MI".to_string()),
+        from: PartyDetails { name: "Great Lakes Management LLC".to_string(), ..Default::default() },
+        to: PartyDetails { name: "Jordan Taylor".to_string(), ..Default::default() },
+        items: vec![LineItem { description: "Monthly Rent".to_string(), quantity: 1.0, unit_price: 1800.0, tax_rate: None, discount: None }],
+        ..Default::default()
+    };
+    let mi_markup = generate_typst_markup(&mi_req);
+    assert!(
+        mi_markup.contains("NOTICE: MICHIGAN LAW ESTABLISHES RIGHTS AND OBLIGATIONS FOR PARTIES TO RENTAL AGREEMENTS"),
+        "Expected Michigan conspicuous clause to be rendered in uppercase"
+    );
+
+    // 2. Verify KPI fields [0..4] in RealEstateDealAnalysis / ScheduleOfRealEstateOwned / ScheduleETaxWorksheet are not duplicated
+    let deal_req = DocumentRequest {
+        doc_type: DocumentType::RealEstateDealAnalysis,
+        from: PartyDetails { name: "Apex Capital".to_string(), ..Default::default() },
+        to: PartyDetails { name: "Investment Committee".to_string(), ..Default::default() },
+        custom_fields: vec![
+            CustomField { label: "Purchase Price".to_string(), value: "$425,000".to_string() },
+            CustomField { label: "Cap Rate".to_string(), value: "7.85%".to_string() },
+            CustomField { label: "Cash-on-Cash Return".to_string(), value: "12.40%".to_string() },
+            CustomField { label: "DSCR".to_string(), value: "1.42x".to_string() },
+            CustomField { label: "Exit Horizon".to_string(), value: "5-Year Refi".to_string() },
+        ],
+        items: vec![LineItem { description: "Gross Scheduled Rent".to_string(), quantity: 12.0, unit_price: 4200.0, tax_rate: None, discount: None }],
+        ..Default::default()
+    };
+    let deal_markup = generate_typst_markup(&deal_req);
+    assert_eq!(
+        deal_markup.matches("$425,000").count(),
+        1,
+        "First 4 KPI custom_fields should appear once in #deal-kpi-grid and not duplicate in card-box"
+    );
+    assert_eq!(deal_markup.matches("EXIT HORIZON").count(), 1);
+    assert_eq!(deal_markup.matches("5-Year Refi").count(), 1);
+
+    // 3. Verify 9pt contractual legibility on AgreementSow, RetainerAgreement, BillOfSale, RentRoll, ClosingSettlementStatement
+    for dt in [
+        DocumentType::AgreementSow,
+        DocumentType::RetainerAgreement,
+        DocumentType::BillOfSale,
+        DocumentType::RentRoll,
+        DocumentType::ClosingSettlementStatement,
+        DocumentType::PropertyManagementStatement,
+        DocumentType::PropertyInspectionChecklist,
+    ] {
+        let req = DocumentRequest {
+            doc_type: dt.clone(),
+            from: PartyDetails { name: "Issuer".to_string(), ..Default::default() },
+            to: PartyDetails { name: "Counterparty".to_string(), ..Default::default() },
+            terms: Some("Binding operative governance clause.".to_string()),
+            ..Default::default()
+        };
+        let markup = generate_typst_markup(&req);
+        assert_eq!(
+            markup.matches("Binding operative governance clause.").count(),
+            1,
+            "Expected req.terms to appear once (not duplicated in footer) for {:?}",
+            dt
+        );
+        assert!(
+            !markup.contains("#text(size: 7.5pt, fill: rgb(color-muted))[Binding operative governance clause.]"),
+            "Expected {:?} terms not to render in 7.5pt muted invoice footer",
+            dt
+        );
+    }
+
+    // 4. Combined edge case: recordable: true + lease_package_mode: true + multi-page sections on FL, WI, NY
+    for state in ["FL", "WI", "NY"] {
+        let combo_req = DocumentRequest {
+            doc_type: DocumentType::ResidentialLease,
+            state_code: Some(state.to_string()),
+            county: Some("Test County".to_string()),
+            recordable: Some(true),
+            notary_required: Some(true),
+            lease_package_mode: Some(true),
+            custom_fields: vec![
+                CustomField { label: "Parcel ID / APN".to_string(), value: "APN-991-002-44".to_string() },
+            ],
+            from: PartyDetails {
+                name: "Institutional Landlord Holdings LLC".to_string(),
+                address: Some("100 Brickell Ave, Suite 900, Miami, FL 33131".to_string()),
+                ..Default::default()
+            },
+            to: PartyDetails {
+                name: "Primary & Co-Tenant Lessees".to_string(),
+                address: Some("500 Ocean Dr, Unit 12A, Miami, FL 33139".to_string()),
+                ..Default::default()
+            },
+            items: vec![
+                LineItem { description: "Monthly Base Rent".to_string(), quantity: 1.0, unit_price: 3400.0, tax_rate: None, discount: None },
+                LineItem { description: "Security Deposit".to_string(), quantity: 1.0, unit_price: 3400.0, tax_rate: None, discount: None },
+            ],
+            sections: (1..=12)
+                .map(|i| DocumentSection {
+                    title: format!("Article {}. Extended Covenant & Statutory Undertaking", i),
+                    content: "Landlord and Tenant mutually covenant and agree to abide by all state, county, and municipal habitability, security deposit escrow, and environmental disclosure laws throughout the initial lease term and any renewal thereof.".repeat(3),
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let (pdf_bytes, _) = generate_pdf(&combo_req).unwrap_or_else(|e| panic!("Failed combined recordable + lease_package_mode PDF for {}: {}", state, e));
+        assert!(pdf_bytes.starts_with(b"%PDF-"));
+        assert!(pdf_bytes.len() > 5000);
+    }
+}
+
+
