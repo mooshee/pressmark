@@ -58,75 +58,75 @@ impl McpHandler {
             "doc_type": {
                 "type": "string",
                 "enum": Self::document_type_enum(),
-                "description": "Document archetype across 57 supported commercial, legal, and real estate templates (e.g., invoice, residential_lease, room_rental_lease, property_deed)."
+                "description": "Document archetype across 57 commercial, legal, and real estate templates (e.g., invoice, residential_lease)."
             },
             "state_code": {
                 "type": "string",
-                "description": "Optional 2-letter US state or DC code (e.g., 'TN', 'CA', 'NY', 'FL', 'TX') to activate the 4-layer 50-state + DC statutory lease and notice engine."
+                "description": "2-letter US state or DC code (e.g., 'TN', 'CA', 'NY') for 50-state statutory clauses."
             },
             "municipality": {
                 "type": "string",
-                "description": "Optional municipal sub-profile override (supports 'Chicago', 'Cook County', 'New York City', 'San Francisco', 'Seattle', 'Portland')."
+                "description": "Municipal sub-profile ('Chicago', 'Cook County', 'New York City', 'San Francisco', 'Seattle', 'Portland')."
             },
             "county": {
                 "type": "string",
-                "description": "County name for notarial jurat and County Register of Deeds recording cover headers (e.g., 'Hamilton')."
+                "description": "County name for notarial jurat and recording cover header (e.g., 'Hamilton')."
             },
             "recordable": {
                 "type": "boolean",
-                "description": "When true (or on property_deed), applies County Recorder 3.0-inch top margin header and official recording stamp reserve."
+                "description": "Applies County Recorder 3-inch top margin header and official stamp reserve."
             },
             "notary_required": {
                 "type": "boolean",
-                "description": "When true, renders a state-specific Notarial Acknowledgment & Jurat block."
+                "description": "Renders a state-specific Notarial Acknowledgment and Jurat block."
             },
             "year_built": {
                 "type": "integer",
-                "description": "Property construction year (when < 1978, triggers Federal Lead-Based Paint Disclosure under 42 U.S.C. § 4852d)."
+                "description": "Property construction year (< 1978 triggers Federal Lead-Based Paint disclosure)."
             },
             "lease_package_mode": {
                 "type": "boolean",
-                "description": "When true, appends mandatory standalone state attachment sheets (e.g., FL Flood, WI Nonstandard Rental Provisions, NY Good Cause, Move-In Checklists)."
+                "description": "Appends mandatory state statutory attachment sheets and move-in checklist."
             },
             "title": {
                 "type": "string",
-                "description": "Optional custom document heading override (e.g., 'TAX INVOICE' or 'RESIDENTIAL LEASE AGREEMENT')."
+                "description": "Custom document heading override (e.g., 'TAX INVOICE')."
             },
             "doc_number": {
                 "type": "string",
-                "description": "Unique document or invoice identifier (e.g., 'INV-2026-0042'). Auto-generated with archetype prefix when omitted."
+                "description": "Unique document identifier (e.g., 'INV-2026-0042'); auto-generated when omitted."
             },
             "issue_date": {
                 "type": "string",
-                "description": "Document issue date in YYYY-MM-DD format."
+                "description": "Document issue date (YYYY-MM-DD)."
             },
             "due_date": {
                 "type": "string",
-                "description": "Payment due date or expiration date in YYYY-MM-DD format."
+                "description": "Payment due or expiration date (YYYY-MM-DD)."
             },
             "from": {
                 "type": "object",
-                "description": "Issuer, seller, landlord, or service provider party details.",
+                "description": "Issuer, seller, landlord, or service provider details.",
                 "properties": {
-                    "name": { "type": "string", "description": "Full name or entity name of the issuer (required)." },
-                    "company": { "type": "string", "description": "Company or organization name." },
-                    "address": { "type": "string", "description": "Street and mailing address." },
-                    "email": { "type": "string", "description": "Contact email address." },
-                    "phone": { "type": "string", "description": "Contact telephone number." },
-                    "tax_id": { "type": "string", "description": "EIN, VAT, or tax identification number." }
+                    "name": { "type": "string", "description": "Issuer full or entity name (required)." },
+                    "company": { "type": "string", "description": "Issuer company name." },
+                    "address": { "type": "string", "description": "Issuer mailing address." },
+                    "email": { "type": "string", "description": "Issuer email address." },
+                    "phone": { "type": "string", "description": "Issuer phone number." },
+                    "tax_id": { "type": "string", "description": "Issuer EIN, VAT, or tax ID." }
                 },
                 "required": ["name"]
             },
             "to": {
                 "type": "object",
-                "description": "Recipient, buyer, client, or tenant counterparty details.",
+                "description": "Recipient, buyer, client, or tenant details.",
                 "properties": {
-                    "name": { "type": "string", "description": "Full name or entity name of the recipient (required)." },
-                    "company": { "type": "string", "description": "Recipient company or organization name." },
+                    "name": { "type": "string", "description": "Recipient full or entity name (required)." },
+                    "company": { "type": "string", "description": "Recipient company name." },
                     "address": { "type": "string", "description": "Recipient billing or property address." },
                     "email": { "type": "string", "description": "Recipient email address." },
-                    "phone": { "type": "string", "description": "Recipient telephone number." },
-                    "tax_id": { "type": "string", "description": "Recipient tax ID or registration number." }
+                    "phone": { "type": "string", "description": "Recipient phone number." },
+                    "tax_id": { "type": "string", "description": "Recipient tax ID." }
                 },
                 "required": ["name"]
             },
@@ -136,10 +136,10 @@ impl McpHandler {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "description": { "type": "string", "description": "Description of the deliverable, service, or charge." },
-                        "quantity": { "type": "number", "description": "Quantity of units, hours, or months (non-negative on standard invoices)." },
-                        "unit_price": { "type": "number", "description": "Unit rate or price per item (non-negative on standard invoices)." },
-                        "discount": { "type": "number", "description": "Optional line-level discount or deduction amount." }
+                        "description": { "type": "string", "description": "Deliverable, service, or charge description." },
+                        "quantity": { "type": "number", "description": "Quantity of units, hours, or months." },
+                        "unit_price": { "type": "number", "description": "Unit rate or price per item." },
+                        "discount": { "type": "number", "description": "Optional line-level discount amount." }
                     },
                     "required": ["description", "quantity", "unit_price"]
                 }
@@ -147,20 +147,20 @@ impl McpHandler {
             "currency": {
                 "type": "string",
                 "default": "USD",
-                "description": "ISO 4217 currency code or symbol (default 'USD'; supports USD, EUR, GBP, CAD, AUD, JPY, CHF, INR, BRL, SGD, NZD, SEK, NOK, DKK, AED, CNY)."
+                "description": "ISO 4217 currency code or symbol (default 'USD'; supports EUR, GBP, CAD, AUD, JPY, CHF)."
             },
             "tax_rate": {
                 "type": "number",
-                "description": "Percentage tax rate applied to subtotal (e.g., 8.25 for 8.25%)."
+                "description": "Percentage tax rate applied to subtotal (e.g., 8.25)."
             },
             "discount_amount": {
                 "type": "number",
-                "description": "Document-level flat discount subtracted before grand total."
+                "description": "Flat document-level discount subtracted before grand total."
             },
             "theme": {
                 "type": "string",
                 "enum": ["modern_slate", "executive_navy", "emerald", "crimson_legal", "warm_sand", "obsidian"],
-                "description": "Preset visual typography and color theme."
+                "description": "Visual typography and color theme preset."
             },
             "primary_color": {
                 "type": "string",
@@ -168,23 +168,23 @@ impl McpHandler {
             },
             "notes": {
                 "type": "string",
-                "description": "Customer-facing notes, remittance instructions, or project context."
+                "description": "Customer-facing notes or remittance instructions."
             },
             "terms": {
                 "type": "string",
-                "description": "Payment terms, late fee policy, or governing legal clauses."
+                "description": "Payment terms, late fee policy, or legal clauses."
             },
             "payment_link": {
                 "type": "string",
-                "description": "Optional HTTPS checkout URL embedded as a clickable link and vector QR code."
+                "description": "HTTPS checkout URL embedded as a link and vector QR code."
             },
             "payment_qr_code": {
                 "type": "boolean",
-                "description": "When true and payment_link is provided, embeds a vector SVG QR code for 1-scan mobile checkout."
+                "description": "Embeds a vector SVG QR code when payment_link is provided."
             },
             "is_paid": {
                 "type": "boolean",
-                "description": "Whether the document is marked PAID IN FULL."
+                "description": "Marks the document PAID IN FULL."
             },
             "execution_mode": {
                 "type": "string",
@@ -198,7 +198,7 @@ impl McpHandler {
             },
             "include_clerk_stamp": {
                 "type": "boolean",
-                "description": "Whether to reserve a County Clerk recording stamp zone on wet-ink jurats."
+                "description": "Reserves a County Clerk recording stamp zone on wet-ink jurats."
             },
             "currency_symbol_mode": {
                 "type": "string",
@@ -222,11 +222,11 @@ impl McpHandler {
             },
             "number_decimals": {
                 "type": "integer",
-                "description": "Number of decimal places for formatted amounts (default 2)."
+                "description": "Decimal places for formatted amounts (default 2)."
             },
             "unit_measure": {
                 "type": "string",
-                "description": "Optional unit suffix for quantities (e.g. 'hrs', 'days', 'mo', 'RSF')."
+                "description": "Unit suffix for quantities (e.g., 'hrs', 'mo', 'RSF')."
             },
             "custom_fields": {
                 "type": "array",
@@ -278,7 +278,7 @@ impl McpHandler {
             {
                 "name": "generate_document",
                 "title": "Generate Vector PDF Document",
-                "description": "Statelessly synthesize a publication-grade vector PDF document (invoice, estimate, receipt, credit note, contract, NDA, or real estate agreement) in under 25ms without mutating external server records.",
+                "description": "Statelessly synthesize a vector PDF document (invoice, receipt, contract, NDA, or lease) in <25ms without mutating server records. Example: generate_document({\"doc_type\":\"invoice\",\"from\":{\"name\":\"Acme\"},\"to\":{\"name\":\"Client\"}})",
                 "annotations": {
                     "title": "Generate Vector PDF Document",
                     "readOnlyHint": true,
@@ -305,7 +305,7 @@ impl McpHandler {
             {
                 "name": "preview_document",
                 "title": "Preview Document as PNG",
-                "description": "Statelessly render a 144-PPI PNG preview of the input document as a Base64 Data URI for visual inspection in chat without mutating server state.",
+                "description": "Statelessly render a 144-PPI PNG preview of a document as a Base64 data URI without mutating server records. Example: preview_document({\"doc_type\":\"invoice\",\"from\":{\"name\":\"Acme\"},\"to\":{\"name\":\"Client\"}})",
                 "annotations": {
                     "title": "Preview Document as PNG",
                     "readOnlyHint": true,
@@ -330,7 +330,7 @@ impl McpHandler {
             {
                 "name": "calculate_totals",
                 "title": "Calculate Document Totals",
-                "description": "Statelessly compute subtotal, tax amounts, discounts, grand total, and balance due for a document JSON payload without PDF synthesis or server state mutation.",
+                "description": "Statelessly compute subtotal, tax, discount, grand total, and balance due for a document payload without mutating server records. Example: calculate_totals({\"document\":{\"items\":[{\"quantity\":2,\"unit_price\":50}]}})",
                 "annotations": {
                     "title": "Calculate Document Totals",
                     "readOnlyHint": true,
@@ -365,7 +365,7 @@ impl McpHandler {
             {
                 "name": "get_pricing",
                 "title": "Get Pressmark Pricing Catalog",
-                "description": "Read static subscription tiers, single-pass microtransactions, and checkout links.",
+                "description": "Read static subscription tiers, single-pass unlocks, and checkout links without mutating server records. Example: get_pricing({})",
                 "annotations": {
                     "title": "Get Pressmark Pricing Catalog",
                     "readOnlyHint": true,
@@ -390,7 +390,7 @@ impl McpHandler {
             {
                 "name": "convert_document",
                 "title": "Stateless Document Lifecycle Conversion",
-                "description": "Perform stateless in-memory document transformation and PDF synthesis (converting an Estimate or Quote JSON into a new Tax Invoice, Receipt, or Credit Note JSON + Base64 PDF without mutating external server records).",
+                "description": "Stateless in-memory transformation and PDF synthesis converting an Estimate/Quote JSON into an Invoice, Receipt, or Credit Note without mutating server records. Example: convert_document({\"document\":{},\"target_type\":\"invoice\"})",
                 "annotations": {
                     "title": "Stateless Document Lifecycle Conversion",
                     "readOnlyHint": true,
@@ -423,7 +423,7 @@ impl McpHandler {
             {
                 "name": "record_payment",
                 "title": "Stateless Payment Receipt & Balance Synthesis",
-                "description": "Perform stateless in-memory payment calculation and PDF synthesis (applying a full or partial payment to an input invoice JSON and returning a new synthesized Receipt or updated Invoice JSON + Base64 PDF without mutating external server records).",
+                "description": "Stateless in-memory payment calculation and PDF synthesis returning a new Receipt or partial-payment Invoice JSON + PDF without mutating server records. Example: record_payment({\"document\":{},\"amount_paid\":100})",
                 "annotations": {
                     "title": "Stateless Payment Receipt & Balance Synthesis",
                     "readOnlyHint": true,
@@ -481,11 +481,11 @@ impl McpHandler {
                     .as_ref()
                     .and_then(|p| p.get("protocolVersion"))
                     .and_then(|v| v.as_str())
-                    .unwrap_or("2025-06-18");
+                    .unwrap_or("2026-07-28");
                 let negotiated = if SUPPORTED_MCP_PROTOCOLS.contains(&requested) {
                     requested
                 } else {
-                    "2025-06-18"
+                    "2026-07-28"
                 };
                 JsonRpcResponse {
                     jsonrpc: "2.0",
@@ -511,6 +511,8 @@ impl McpHandler {
                 id: req.id,
                 result: Some(json!({
                     "protocolVersion": "2026-07-28",
+                    "protocolVersions": SUPPORTED_MCP_PROTOCOLS,
+                    "supportedProtocolVersions": SUPPORTED_MCP_PROTOCOLS,
                     "resultType": "complete",
                     "capabilities": {
                         "tools": { "listChanged": false },

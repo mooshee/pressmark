@@ -1,13 +1,13 @@
 # Pressmark Vector Document Engine - Caddyfile Reverse Proxy
 # Author: Daniel Hallman
 
-pressmark.dev, www.pressmark.dev, pressmark.dev, www.pressmark.dev {
+pressmark.dev, www.pressmark.dev {
     # Automatic HTTPS with Let's Encrypt / ZeroSSL
     tls daniel@mooshworks.com
 
     # Security Headers
     header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "SAMEORIGIN"
         Referrer-Policy "strict-origin-when-cross-origin"

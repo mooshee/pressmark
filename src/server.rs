@@ -1208,7 +1208,10 @@ async fn handle_openai_apps_challenge() -> impl IntoResponse {
 async fn handle_mcp_get() -> impl IntoResponse {
     (
         StatusCode::OK,
-        [(header::HeaderName::from_static("x-mcp-protocol-version"), "2026-07-28")],
+        [
+            (header::HeaderName::from_static("mcp-protocol-version"), "2026-07-28"),
+            (header::HeaderName::from_static("x-mcp-protocol-version"), "2026-07-28"),
+        ],
         Json(serde_json::json!({
             "service": "pressmark",
             "title": "Pressmark Vector Document Engine",
@@ -1284,13 +1287,15 @@ async fn handle_mcp(
         "mcp_protocol"
     };
 
-    let client_proto = headers
-        .get("x-mcp-protocol-version")
-        .or_else(|| headers.get("mcp-protocol-version"))
+    let header_proto = headers
+        .get("mcp-protocol-version")
+        .or_else(|| headers.get("x-mcp-protocol-version"))
         .and_then(|v| v.to_str().ok())
-        .unwrap_or("2025-06-18")
-        .to_string();
-    let is_2026 = client_proto == "2026-07-28" || req.method == "server/discover";
+        .map(str::to_string);
+    let client_proto = header_proto
+        .clone()
+        .unwrap_or_else(|| "2026-07-28".to_string());
+    let is_2026 = header_proto.as_deref() == Some("2026-07-28") || req.method == "server/discover";
 
     let maybe_token = auth::extract_token_from_headers(&headers);
     let session = maybe_token
@@ -1352,9 +1357,10 @@ async fn handle_mcp(
     } else if crate::mcp::SUPPORTED_MCP_PROTOCOLS.contains(&client_proto.as_str()) {
         client_proto.as_str()
     } else {
-        "2025-06-18"
+        "2026-07-28"
     };
-    if let Ok(hv) = proto_header.parse() {
+    if let Ok(hv) = proto_header.parse::<header::HeaderValue>() {
+        resp_headers.insert("mcp-protocol-version", hv.clone());
         resp_headers.insert("x-mcp-protocol-version", hv);
     }
 
@@ -2457,7 +2463,7 @@ mod tests {
         let state = Arc::new(AppState::new("https://pressmark.dev".to_string()).with_storage(storage));
         let router = create_router(state);
 
-        // 1. GET /.well-known/owners.json
+        // 1. GET /.well-known/owners.json & /mcp/.well-known/owners.json
         let res_owners = router
             .clone()
             .oneshot(
@@ -2478,6 +2484,27 @@ mod tests {
         .unwrap();
         assert_eq!(owners_json["owners"][0]["type"], "github");
         assert_eq!(owners_json["owners"][0]["id"], "mooshee");
+
+        let res_mcp_owners = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/mcp/.well-known/owners.json")
+                    .method("GET")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res_mcp_owners.status(), StatusCode::OK);
+        let mcp_owners_json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(res_mcp_owners.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(mcp_owners_json["$schema"], "https://verifymcp.io/schemas/owners.json");
+        assert_eq!(mcp_owners_json["owners"][0], "daniel@mooshworks.com");
 
         // 2. GET /.well-known/glama.json
         let res_glama = router
@@ -2521,6 +2548,7 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
+        assert_eq!(agent_json["id"], "io.github.mooshee/pressmark");
         assert_eq!(agent_json["name"], "Pressmark");
         assert_eq!(agent_json["url"], "https://pressmark.dev");
         assert_eq!(agent_json["version"], env!("CARGO_PKG_VERSION"));
@@ -2555,7 +2583,7 @@ mod tests {
             assert_eq!(oauth_json["resource_documentation"], "https://pressmark.dev/docs");
         }
 
-        // 5. Verify all 5 MCP protocol versions negotiate cleanly
+        // 5. Verify all 5 MCP protocol versions negotiate cleanly & unknown version falls back to latest (2026-07-28)
         for proto in [
             "2026-07-28",
             "2025-11-25",
@@ -2574,7 +2602,28 @@ mod tests {
             assert_eq!(init_res["serverInfo"]["version"], "1.2.1");
         }
 
-        // 6. Verify every property description in tools_list() is < 250 characters
+        let fallback_resp = McpHandler::handle_request(JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: "initialize".to_string(),
+            params: Some(serde_json::json!({ "protocolVersion": "2099-01-01" })),
+        });
+        assert_eq!(fallback_resp.result.unwrap()["protocolVersion"], "2026-07-28");
+
+        let disc_resp = McpHandler::handle_request(JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: "server/discover".to_string(),
+            params: Some(serde_json::json!({})),
+        });
+        let disc_res = disc_resp.result.unwrap();
+        assert_eq!(disc_res["protocolVersion"], "2026-07-28");
+        assert!(disc_res["protocolVersions"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("2026-07-28")));
+
+        // 6. Verify every property description in tools_list() is < 250 characters and tools include Example:
         let tools = McpHandler::tools_list();
         for tool in tools.as_array().unwrap() {
             let tool_name = tool["name"].as_str().unwrap();
@@ -2584,6 +2633,12 @@ mod tests {
                 "Tool {} description length {} >= 250",
                 tool_name,
                 tool_desc.len()
+            );
+            assert!(
+                tool_desc.contains("Example:"),
+                "Tool {} description missing inline Example: {}",
+                tool_name,
+                tool_desc
             );
             let mut props = Vec::new();
             collect_property_descriptions(&tool["inputSchema"], &mut props, tool_name);
