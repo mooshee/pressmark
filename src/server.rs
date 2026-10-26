@@ -133,6 +133,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/.well-known/ai-plugin.json", get(handle_ai_plugin))
         .route("/.well-known/openai-apps-challenge", get(handle_openai_apps_challenge))
         .route("/.well-known/owners.json", get(handle_owners_json))
+        .route("/mcp/.well-known/owners.json", get(handle_mcp_owners_json))
         .route("/.well-known/glama.json", get(handle_glama_json))
         .route("/.well-known/oauth-protected-resource", get(handle_oauth_protected_resource))
         .route("/.well-known/oauth-protected-resource/mcp", get(handle_oauth_protected_resource))
@@ -928,6 +929,16 @@ async fn handle_owners_json() -> impl IntoResponse {
     )
 }
 
+async fn handle_mcp_owners_json() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "$schema": "https://verifymcp.io/schemas/owners.json",
+            "owners": ["daniel@mooshworks.com", "daniel.hallman@gmail.com"]
+        })),
+    )
+}
+
 async fn handle_glama_json() -> impl IntoResponse {
     (
         StatusCode::OK,
@@ -958,6 +969,7 @@ async fn handle_agent_card() -> impl IntoResponse {
     (
         StatusCode::OK,
         Json(serde_json::json!({
+            "id": "io.github.mooshee/pressmark",
             "name": "Pressmark",
             "description": "High-performance Rust vector PDF document synthesis engine and MCP server for 57 invoice, estimate, receipt, contract, and 50-state statutory real estate archetypes.",
             "url": "https://pressmark.dev",
