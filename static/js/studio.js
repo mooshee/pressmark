@@ -127,6 +127,7 @@
   let dataMode = 'my_data';
   let cachedUserDoc = null;
   let hasUserCustomizedData = false;
+  let hasUserCustomizedItems = false;
 
   // DOM Elements
   const previewImg = document.getElementById('previewImg');
@@ -1486,7 +1487,7 @@
       totalsZone.className = 'interactive-zone zone-totals';
       const totalsCard = createCard('totals', undefined, 'Financials', 'card-totals');
 
-      let subtotal = (state.items || []).reduce((s, it) => s + (it.quantity * it.unit_price - (it.discount || 0)), 0);
+      let subtotal = computeSubtotalUi();
       let tax = subtotal * (state.tax_rate / 100);
       let rawTotal = subtotal + tax - (state.discount_amount || 0);
       let grandTotal = allowsNegativeItems(state.doc_type) ? rawTotal : Math.max(0, rawTotal);
@@ -1902,6 +1903,83 @@
     return gross - (Number(item.discount) || 0);
   }
 
+  function isRatioMetricItem(item) {
+    const d = String(item.description || '').toLowerCase();
+    const amt = Math.abs(lineItemAmount(item));
+    if (amt > 100.0 || d.includes('noi') || (d.includes('rent') && !d.includes('multiplier')) || d.includes('income') || d.includes('expense')) {
+      return false;
+    }
+    return d.includes('dscr')
+      || d.includes('coverage ratio')
+      || d.includes('cap rate')
+      || d.includes('cash-on-cash')
+      || d.includes('ltv')
+      || d.includes('loan-to-value')
+      || d.includes('occupancy rate')
+      || d.includes('vacancy rate')
+      || d.includes('interest rate')
+      || d.includes('irr')
+      || d.includes('internal rate of return')
+      || d.includes('yield')
+      || d.includes('grm')
+      || d.includes('rent multiplier')
+      || d.includes('roi');
+  }
+
+  function isCapitalOrValuationItem(item) {
+    const d = String(item.description || '').toLowerCase();
+    if (d.includes('noi') || d.includes('net operating income') || (d.includes('rent') && !d.includes('multiplier')) || d.includes('cash flow') || d.includes('vacancy') || d.includes('expense') || d.includes('debt service')) {
+      return false;
+    }
+    return d.includes('purchase price')
+      || d.includes('acquisition price')
+      || d.includes('market value')
+      || d.includes('property value')
+      || d.includes('appraised value')
+      || d.includes('after-repair value')
+      || d.includes('arv')
+      || d.includes('rehab budget')
+      || d.includes('down payment')
+      || d.includes('closing cost')
+      || d.includes('senior debt')
+      || d.includes('total debt')
+      || d.includes('mortgage balance')
+      || d.includes('loan balance')
+      || d.includes('loan amount')
+      || d.includes('principal balance')
+      || d.includes('net equity')
+      || d.includes('total equity');
+  }
+
+  function computeSubtotalUi() {
+    const items = Array.isArray(state.items) ? state.items : [];
+    if (state.doc_type === 'rent_increase_notice' && items.length >= 2) {
+      const firstAmt = lineItemAmount(items[0]);
+      const secondAmt = lineItemAmount(items[1]);
+      if (firstAmt > 0 && secondAmt > 0) {
+        const secondDesc = String(items[1].description || '').toLowerCase();
+        const isNewBaseRow = secondAmt >= firstAmt
+          || secondDesc.includes('new')
+          || secondDesc.includes('proposed')
+          || secondDesc.includes('revised')
+          || secondDesc.includes('updated')
+          || secondDesc.includes('effective');
+        const extraFees = items.slice(2).reduce((s, it) => s + lineItemAmount(it), 0);
+        return isNewBaseRow ? (secondAmt + extraFees) : (firstAmt + secondAmt + extraFees);
+      }
+    }
+    if (state.doc_type === 'real_estate_deal_analysis' || state.doc_type === 'schedule_of_real_estate_owned') {
+      const nonRatio = items.filter(it => !isRatioMetricItem(it));
+      const hasOperating = nonRatio.some(it => !isCapitalOrValuationItem(it));
+      const hasCapital = nonRatio.some(it => isCapitalOrValuationItem(it));
+      if (hasOperating && hasCapital) {
+        return nonRatio.filter(it => !isCapitalOrValuationItem(it)).reduce((s, it) => s + lineItemAmount(it), 0);
+      }
+      return nonRatio.reduce((s, it) => s + lineItemAmount(it), 0);
+    }
+    return items.reduce((s, it) => s + lineItemAmount(it), 0);
+  }
+
   function normalizeComplianceMode(raw) {
     if (!raw) return 'none';
     const s = String(raw).trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -2272,7 +2350,9 @@
         initialVal = el.value;
       });
       el.addEventListener('input', (e) => {
-        hasUserCustomizedData = true;
+        if (targetObj === state.from || targetObj === state.to || ['title', 'header_subtitle', 'notes', 'terms'].includes(prop)) {
+          hasUserCustomizedData = true;
+        }
         targetObj[prop] = e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
         updateCalculations();
         schedulePreview();
@@ -2503,6 +2583,8 @@
     document.getElementById('btnClone').addEventListener('click', cloneDocument);
     document.getElementById('btnAddItem').addEventListener('click', () => {
       pushUndo('Add Line Item');
+      hasUserCustomizedData = true;
+      hasUserCustomizedItems = true;
       state.items.push({ description: 'New Professional Service Item', quantity: 1.0, unit_price: 150.0, discount: 0.0 });
       const newIdx = state.items.length - 1;
       renderLineItemsTable(newIdx);
@@ -2724,14 +2806,22 @@
       'credit_note'
     ].includes(type);
 
-    if (dataMode === 'sample_data' || !hasUserCustomizedData) {
+    if (dataMode === 'sample_data' || !hasUserCustomizedItems) {
+      const customFromSnapshot = (dataMode === 'my_data' && hasUserCustomizedData && state.from)
+        ? Object.assign({}, state.from)
+        : null;
       loadSampleDataForArchetype(type);
       if (dataMode === 'my_data' && localStorage.getItem(STORAGE_KEY_ISSUER)) {
         loadIssuerProfile();
+      } else if (customFromSnapshot) {
+        state.from = customFromSnapshot;
       }
     } else {
-      // In My Data mode after user customization, preserve typed party/client details
-      // while sanitizing incompatible financial/payment fields for the target archetype.
+      // In My Data mode after explicit line-item customization, preserve typed party/items
+      // while sanitizing incompatible financial/payment/legal fields for the target archetype.
+      state.amount_paid = null;
+      state.include_clerk_stamp = false;
+      state.execution_mode = null;
       if (!isPayableArchetype) {
         state.payment_qr_code = false;
         state.payment_link = '';
@@ -2739,6 +2829,9 @@
       if (!isTaxableCommercial) {
         state.tax_rate = 0;
         state.discount_amount = 0;
+        state.notes = '';
+        state.terms = '';
+        state.footer_text = '';
       }
       if (!allowsNegativeItems(type) && Array.isArray(state.items)) {
         state.items = state.items.map(it => ({
@@ -2973,9 +3066,10 @@
   }
 
   function loadSampleDataForArchetype(type) {
+    hasUserCustomizedItems = false;
     state.tax_rate = 0;
     state.discount_amount = 0;
-    state.amount_paid = undefined;
+    state.amount_paid = null;
     state.is_paid = (type === 'receipt');
     state.payment_status = state.is_paid ? 'paid' : 'unpaid';
     const isPayableArchetype = type.startsWith('invoice') || [
@@ -2990,6 +3084,11 @@
     state.notary_required = ['property_deed', 'mechanics_lien_waiver', 'tenant_estoppel'].includes(type);
     state.include_clerk_stamp = false;
     state.execution_mode = null;
+    state.notes = '';
+    state.terms = '';
+    state.footer_text = '';
+    state.sections = [];
+    state.signatures = [];
     if (type === 'residential_lease') {
       state.header_subtitle = 'Standard Fixed-Term Residential Tenancy Agreement';
       state.from = {
@@ -3080,8 +3179,8 @@
     } else if (type === 'property_management_statement') {
       state.header_subtitle = 'Owner Remittance & Portfolio Operating Summary';
       state.from = {
-        name: 'Beacon Hill Property Management LLC',
-        company: 'Brokerage Asset Management',
+        name: 'Evelyn Reed, CPM',
+        company: 'Beacon Hill Property Management LLC',
         address: '120 Commonwealth Ave, Boston, MA 02116',
         email: 'accounting@beaconhillpm.com',
         phone: '+1 (617) 555-0142',
@@ -3089,8 +3188,8 @@
         registration_number: 'Broker Lic #01884920'
       };
       state.to = {
-        name: 'Highland Real Estate Investors IV LLC',
-        company: 'Portfolio Owner',
+        name: 'Arthur Highland, Managing Partner',
+        company: 'Highland Real Estate Investors IV LLC',
         address: '75 State Street, Floor 22, Boston, MA 02109',
         email: 'assets@highlandrei.com',
         phone: '+1 (617) 555-9000'
@@ -3594,6 +3693,12 @@
         { description: 'Line 16 · Real Estate Property Taxes', quantity: 1.0, unit_price: -8200.00, discount: 0.0 },
         { description: 'Line 18 · Depreciation Expense (27.5-Yr Straight-Line)', quantity: 1.0, unit_price: -38900.00, discount: 0.0 }
       ];
+      state.sections = [
+        { title: 'Tax Preparer Reconciliation Notes', content: 'All operating expenses tie directly to general ledger bank statements and Form 1098 mortgage interest statements. Capital improvements placed in service during 2026 are depreciated separately on Form 4562.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Daniel Hallman', signer_title: 'Managing Principal, Hallman Capital Properties LLC', date: '2026-10-01' }
+      ];
     } else if (type === 'real_estate_deal_analysis') {
       state.header_subtitle = 'Institutional Investment Underwriting · Cap Rate, Cash-on-Cash, DSCR & BRRRR Pro Forma';
       state.from = { name: 'Acquisitions & Underwriting Team', company: 'Hallman Capital Properties LLC', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'acquisitions@hallmanproperties.com' };
@@ -3612,6 +3717,12 @@
         { description: 'Operating Expenses (Taxes, Insurance, Mgmt, CapEx Reserve)', quantity: 1.0, unit_price: -28320.00, discount: 0.0 },
         { description: 'Annual Senior Debt Service ($857,500 Refi @ 6.50%)', quantity: 1.0, unit_price: -62350.00, discount: 0.0 }
       ];
+      state.sections = [
+        { title: 'Underwriting & Value-Add Execution Thesis', content: 'Interior unit renovations ($14,375/unit across 8 units) bring in-place rents from $1,075/mo to market $1,350/mo within 9 months, supporting a 70% LTV agency refinance at stabilization.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Daniel Hallman', signer_title: 'Managing Principal, Acquisitions', date: '2026-10-01' }
+      ];
     } else if (type === 'sublease_agreement') {
       state.header_subtitle = 'Residential Subtenancy Agreement & Master Lease Flow-Through Consent';
       state.from = { name: 'Marcus Sterling', company: '', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
@@ -3624,6 +3735,13 @@
       state.items = [
         { description: 'Monthly Sublease Base Rent', quantity: 1.0, unit_price: 2650.00 },
         { description: 'Refundable Sublease Security Deposit', quantity: 1.0, unit_price: 2650.00 }
+      ];
+      state.sections = [
+        { title: 'Master Lease Incorporation & Flow-Through Covenants', content: 'Sublessee agrees to assume and comply with all tenant obligations under the Master Lease dated November 1, 2025. Sublessor remains secondarily liable to Master Landlord pursuant to the attached Prime Landlord Consent.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Marcus Sterling', signer_title: 'Sublessor (Prime Tenant)', date: '2026-10-01' },
+        { signer_name: 'Noah Takahashi', signer_title: 'Sublessee (Subtenant)', date: '2026-10-01' }
       ];
     } else if (type === 'rent_to_own_agreement') {
       state.header_subtitle = 'Residential Lease with Exclusive Irrevocable Option to Purchase Real Estate';
@@ -3638,6 +3756,14 @@
       state.items = [
         { description: 'Upfront Option Consideration Fee (Credited at Closing)', quantity: 1.0, unit_price: 14000.00 },
         { description: 'Monthly Base Lease Payment (Includes $350/mo Purchase Credit)', quantity: 1.0, unit_price: 2450.00 }
+      ];
+      state.sections = [
+        { title: 'Exclusive Option to Purchase & Rent Credit Application', content: 'Landlord/Optionor grants Tenant/Optionee the exclusive right and option to purchase the Premises at the Strike Price above. Provided rent is paid on or before the 5th day of each month, $350.00 per month plus 100% of the Upfront Option Fee shall be credited toward the purchase price at closing.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Elena Rostova', signer_title: 'Managing Director, Vance Residential Holdings LLC', date: '2026-10-01' },
+        { signer_name: 'Caleb Montgomery', signer_title: 'Tenant / Optionee', date: '2026-10-01' },
+        { signer_name: 'Hannah Montgomery', signer_title: 'Co-Tenant / Optionee', date: '2026-10-01' }
       ];
     } else if (type === 'property_management_agreement') {
       state.header_subtitle = 'Exclusive Agency Contract for Leasing, Rent Collection, Escrow & Maintenance';
@@ -3654,6 +3780,13 @@
         { description: 'Initial Owner Operating Reserve Deposit (Trust Account)', quantity: 1.0, unit_price: 2500.00 },
         { description: 'Estimated Monthly Management Fee (8% on $12,350 Gross Rent)', quantity: 1.0, unit_price: 988.00 }
       ];
+      state.sections = [
+        { title: 'Exclusive Agency Authority & Trust Accounting', content: 'Owner appoints Broker as exclusive managing agent to advertise, screen tenants, execute leases, collect rents, hold security deposits in a segregated statutory escrow account, and disburse net owner proceeds by the 10th of each month.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Marcus Sterling', signer_title: 'Principal Broker, Vance Property Management LLC', date: '2026-10-01' },
+        { signer_name: 'Arthur Highland', signer_title: 'Managing Member, Highland Crest Holdings LLC', date: '2026-10-01' }
+      ];
     } else if (type === 'real_estate_purchase_agreement') {
       state.header_subtitle = 'Definitive Contract for the Purchase & Sale of Real Property';
       state.from = { name: 'Arthur Highland, Managing Member', company: 'Highland Crest Holdings LLC', address: '412 Northshore Dr, Chattanooga, TN 37405', email: 'closings@highlandcrest.com' };
@@ -3669,6 +3802,13 @@
       state.items = [
         { description: 'Contract Purchase Price', quantity: 1.0, unit_price: 1650000.00, discount: 0.0 },
         { description: 'Earnest Money Deposit Credited at Closing', quantity: 1.0, unit_price: -35000.00, discount: 0.0 }
+      ];
+      state.sections = [
+        { title: 'Title, Prorations & Closing Deliveries', content: 'Seller shall convey marketable fee simple title by General Warranty Deed free and clear of monetary liens. Real estate taxes, collected rents, and tenant security deposits shall be prorated as of 11:59 PM on the day preceding Closing.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Arthur Highland', signer_title: 'Seller · Managing Member, Highland Crest Holdings LLC', date: '2026-10-01' },
+        { signer_name: 'Daniel Hallman', signer_title: 'Buyer · Managing Principal, Hallman Capital Properties LLC', date: '2026-10-01' }
       ];
     } else if (type === 'property_deed') {
       state.header_subtitle = 'Recordable Statutory Real Property Conveyance Instrument (3.0in Recorder Stamp Margin)';
@@ -3689,6 +3829,12 @@
       state.items = [
         { description: 'Actual Consideration Paid for Transfer Tax Valuation', quantity: 1.0, unit_price: 1650000.00 }
       ];
+      state.sections = [
+        { title: 'Statutory Granting Clause & Covenants of Warranty', content: 'FOR AND IN CONSIDERATION of the sum stated above paid in hand, Grantor does hereby grant, bargain, sell, and convey unto Grantee, its successors and assigns forever, in fee simple, the real property described herein, together with all appurtenances, and Grantor covenants that it is lawfully seized in fee simple and will forever warrant and defend the title against the lawful claims of all persons whomsoever.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Arthur Highland, Managing Member', signer_title: 'Grantor · Highland Crest Holdings LLC', date: '2026-10-01' }
+      ];
     } else if (type === 'mechanics_lien_waiver') {
       state.header_subtitle = 'Statutory Contractor & Subcontractor Waiver and Release Upon Progress or Final Payment';
       state.notary_required = true;
@@ -3702,6 +3848,12 @@
       ];
       state.items = [
         { description: 'Progress Draw #3 Payment Subject to Clearance of Funds', quantity: 1.0, unit_price: 38500.00 }
+      ];
+      state.sections = [
+        { title: 'Statutory Waiver & Release Upon Progress Payment', content: 'Upon receipt by the undersigned Claimant of a check or wire transfer in the amount set forth above properly endorsed and paid by the depository institution on which it is drawn, this document shall become effective to release any mechanic\'s lien, stop payment notice, or payment bond right Claimant has on the job of Owner located at the Project Property Address through the Through Date Covered.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Logan Mercer', signer_title: 'Project Executive · Canyon Peak Construction Co.', date: '2026-10-01' }
       ];
     } else if (type.includes('certificate')) {
       state.header_subtitle = 'Conferred for Demonstrated Technical Excellence & Innovation';
@@ -3867,7 +4019,7 @@
         { signer_name: 'Alexander Cross', signer_title: 'Managing Principal, Vanguard Systems', date: '2026-10-01' },
         { signer_name: 'Danielle Brooks', signer_title: 'VP of Operations, Horizon Logistics', date: '2026-10-01' }
       ];
-    } else if (type === 'nda' || type.includes('agreement')) {
+    } else if (type === 'nda') {
       state.header_subtitle = 'Mutual Confidentiality & Proprietary Rights Preservation';
       state.from = {
         name: 'Robert Vance',
@@ -4013,7 +4165,7 @@
       };
       state.to = {
         name: 'Highland Ridge Commercial Center',
-        company: 'Building Facilities Team',
+        company: 'Highland Ridge Properties LLC',
         address: '8800 E Arapahoe Rd, Centennial, CO 80112',
         phone: '+1 (303) 555-0144'
       };
@@ -4039,7 +4191,7 @@
       state.header_subtitle = 'Employee Business Expense Claim & Reconciliation';
       state.from = {
         name: 'Claire Sterling',
-        company: 'Corporate Engineering Division',
+        company: 'Global Enterprises Inc.',
         address: '100 Montgomery St, San Francisco, CA 94104',
         email: 'claire.sterling@example.com',
         phone: '+1 (415) 555-0177'
@@ -4140,6 +4292,8 @@
       if (type.startsWith('invoice')) {
         state.tax_rate = 8.25;
         state.discount_amount = 250.0;
+        state.notes = 'Thank you for your business. Payment is due within 30 calendar days of invoice date.';
+        state.terms = 'Late payments are subject to a 1.5% monthly administrative finance charge. All deliverables remain property of issuer until settled in full.';
       }
       state.header_subtitle = 'Enterprise Systems & Precision Infrastructure Retainer';
       state.from = {
@@ -4177,6 +4331,15 @@
       ];
       state.signatures = [
         { signer_name: 'Alexander Cross', signer_title: 'Managing Principal Architect', date: '2026-10-01' }
+      ];
+    }
+    if (!Array.isArray(state.signatures) || state.signatures.length === 0) {
+      state.signatures = [
+        {
+          signer_name: (state.from && state.from.name) ? state.from.name : 'Authorized Signatory',
+          signer_title: (state.from && state.from.company) ? state.from.company : 'Authorized Representative',
+          date: state.issue_date || '2026-10-01'
+        }
       ];
     }
   }
@@ -5723,6 +5886,8 @@
 
     itemsTbody.querySelectorAll('.item-desc').forEach(input => {
       input.addEventListener('input', (e) => {
+        hasUserCustomizedData = true;
+        hasUserCustomizedItems = true;
         state.items[e.target.dataset.idx].description = e.target.value;
         schedulePreview();
         renderInteractiveOverlay();
@@ -5731,6 +5896,8 @@
 
     itemsTbody.querySelectorAll('.item-qty').forEach(input => {
       input.addEventListener('input', (e) => {
+        hasUserCustomizedData = true;
+        hasUserCustomizedItems = true;
         const idx = e.target.dataset.idx;
         state.items[idx].quantity = parseFloat(e.target.value) || 0;
         const row = e.target.closest('tr');
@@ -5744,6 +5911,8 @@
 
     itemsTbody.querySelectorAll('.item-rate').forEach(input => {
       input.addEventListener('input', (e) => {
+        hasUserCustomizedData = true;
+        hasUserCustomizedItems = true;
         const idx = e.target.dataset.idx;
         const val = parseFloat(e.target.value) || 0;
         state.items[idx].unit_price = val;
@@ -5761,6 +5930,8 @@
 
     itemsTbody.querySelectorAll('.btn-delete-row').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        hasUserCustomizedData = true;
+        hasUserCustomizedItems = true;
         const idx = parseInt(e.target.dataset.idx);
         const tr = e.target.closest('tr');
         if (tr) tr.classList.add('anim-row-delete-crimson');
@@ -5851,7 +6022,7 @@
 
   // Financial Calculations
   function updateCalculations() {
-    const subtotal = state.items.reduce((sum, item) => sum + lineItemAmount(item), 0);
+    const subtotal = computeSubtotalUi();
     const tax = state.tax_rate ? subtotal * (state.tax_rate / 100.0) : 0.0;
     const discount = state.discount_amount || 0.0;
     const rawTotal = subtotal + tax - discount;

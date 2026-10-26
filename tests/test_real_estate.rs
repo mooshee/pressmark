@@ -1268,20 +1268,41 @@ async fn test_pro_qa_all_defect_fixes_and_visual_verification() {
     assert!(rent_inc_markup.contains("2,450.00"));
     assert!(!rent_inc_markup.contains("4,750.00"));
 
-    // Deal Analysis with Purchase Price + Rent + Expenses + DSCR ratio row
+    // 3-row RentIncreaseNotice (Prior Rent + New Rent + Parking Fee) must not sum Prior Rent + New Rent
+    let rent_inc_3row = DocumentRequest {
+        doc_type: DocumentType::RentIncreaseNotice,
+        from: PartyDetails { name: "Vance Residential Holdings LLC".to_string(), ..Default::default() },
+        to: PartyDetails { name: "Marcus Sterling".to_string(), ..Default::default() },
+        items: vec![
+            LineItem { description: "Prior Monthly Base Rent".to_string(), quantity: 1.0, unit_price: 2300.0, tax_rate: None, discount: None },
+            LineItem { description: "New Monthly Base Rent (Effective Jan 1, 2027)".to_string(), quantity: 1.0, unit_price: 2450.0, tax_rate: None, discount: None },
+            LineItem { description: "Assigned Covered Parking Fee".to_string(), quantity: 1.0, unit_price: 50.0, tax_rate: None, discount: None },
+        ],
+        ..Default::default()
+    };
+    assert!((rent_inc_3row.subtotal() - 2500.0).abs() < 0.005, "Expected $2,500.00 total new rent, got {}", rent_inc_3row.subtotal());
+    let rent_inc_3row_markup = generate_typst_markup(&rent_inc_3row);
+    assert!(rent_inc_3row_markup.contains("(+8.7\\%)"), "Expected percentage increase (+8.7%) in markup");
+    assert!(!rent_inc_3row_markup.contains("4,800.00"));
+
+    // Deal Analysis with Purchase Price + Down Payment + Closing Costs + Rent + Expenses + DSCR + IRR + GRM
     let deal_mixed = DocumentRequest {
         doc_type: DocumentType::RealEstateDealAnalysis,
         from: PartyDetails { name: "Hallman Capital Properties LLC".to_string(), ..Default::default() },
         to: PartyDetails { name: "Investment Committee".to_string(), ..Default::default() },
         items: vec![
             LineItem { description: "Purchase Price".to_string(), quantity: 1.0, unit_price: 850000.0, tax_rate: None, discount: None },
+            LineItem { description: "Down Payment (25% Equity)".to_string(), quantity: 1.0, unit_price: 212500.0, tax_rate: None, discount: None },
+            LineItem { description: "Closing Costs & Title Escrow".to_string(), quantity: 1.0, unit_price: 18500.0, tax_rate: None, discount: None },
             LineItem { description: "Gross Scheduled Rent".to_string(), quantity: 1.0, unit_price: 96000.0, tax_rate: None, discount: None },
             LineItem { description: "Operating Expenses".to_string(), quantity: 1.0, unit_price: -34000.0, tax_rate: None, discount: None },
             LineItem { description: "Debt Service Coverage Ratio (DSCR)".to_string(), quantity: 1.0, unit_price: 1.48, tax_rate: None, discount: None },
+            LineItem { description: "Gross Rent Multiplier (GRM)".to_string(), quantity: 1.0, unit_price: 8.85, tax_rate: None, discount: None },
+            LineItem { description: "5-Year Projected IRR".to_string(), quantity: 1.0, unit_price: 17.4, tax_rate: None, discount: None },
         ],
         ..Default::default()
     };
-    // Subtotal must only sum operating cash flow items (96,000 - 34,000 = 62,000), excluding Purchase Price (850,000) and DSCR (1.48)
+    // Subtotal must only sum operating cash flow items (96,000 - 34,000 = 62,000), excluding capital and ratio metrics
     assert!(
         (deal_mixed.subtotal() - 62000.0).abs() < 0.005,
         "Expected $62,000.00 NOI, got {}",
@@ -1289,6 +1310,8 @@ async fn test_pro_qa_all_defect_fixes_and_visual_verification() {
     );
     let deal_markup = generate_typst_markup(&deal_mixed);
     assert!(deal_markup.contains("1.48x"), "DSCR ratio item must format as 1.48x, not $1.48");
+    assert!(deal_markup.contains("8.85x"), "GRM ratio item must format as 8.85x, not $8.85");
+    assert!(deal_markup.contains("17.40\\%"), "IRR ratio item must format as 17.40%, not $17.40");
     assert!(deal_markup.contains("Projected Annual Cash Flow / NOI:"));
 
     // Schedule E Tax Worksheet label check
@@ -1406,7 +1429,7 @@ async fn test_pro_qa_all_defect_fixes_and_visual_verification() {
         assert_eq!(json["success"], true, "Endpoint {} must return \"success\": true", uri);
     }
 
-    // 6. Defect Group 3: Verify static/js/studio.js fixes
+    // 6. Defect Group 3 & 1: Verify static/js/studio.js fixes
     let studio_js = std::fs::read_to_string("static/js/studio.js").expect("Failed to read static/js/studio.js");
     let state_idx = studio_js.find("const requestedState =").expect("requestedState missing");
     let tmpl_idx = studio_js.find("const requestedTemplate =").expect("requestedTemplate missing");
@@ -1415,6 +1438,14 @@ async fn test_pro_qa_all_defect_fixes_and_visual_verification() {
     assert!(studio_js.contains("} else if (type === 'agreement_sow') {"));
     assert!(studio_js.contains("} else if (type === 'contractor_agreement') {"));
     assert!(studio_js.contains("} else if (type === 'retainer_agreement') {"));
+    assert!(studio_js.contains("} else if (type === 'nda') {"));
+    assert!(!studio_js.contains("} else if (type === 'nda' || type.includes('agreement')) {"));
+    assert!(studio_js.contains("state.amount_paid = null;"));
+    assert!(studio_js.contains("state.notes = '';"));
+    assert!(studio_js.contains("state.terms = '';"));
+    assert!(studio_js.contains("function computeSubtotalUi()"));
+    assert!(!studio_js.contains("company: 'Portfolio Owner'"));
+    assert!(!studio_js.contains("company: 'Building Facilities Team'"));
     assert_eq!(
         studio_js.matches("document.getElementById('btnZoomFit')").count(),
         1,
@@ -1426,6 +1457,7 @@ async fn test_pro_qa_all_defect_fixes_and_visual_verification() {
         ("deed", &deed_req),
         ("sched_e", &sched_e_req),
         ("rent_inc", &rent_inc_prior_new),
+        ("rent_inc_3row", &rent_inc_3row),
         ("deal", &deal_mixed),
         ("notice_entry", &notice_entry_req),
     ] {

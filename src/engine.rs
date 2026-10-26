@@ -451,32 +451,21 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
     markup.push_str("      stroke: none,\n");
     markup.push_str("      inset: (x: 4pt, y: 3.5pt),\n");
     markup.push_str("      align: (col, row) => if col == 0 { left + horizon } else { right + horizon },\n");
-    if req.doc_type == DocumentType::RentIncreaseNotice
-        && req.items.len() == 2
-        && req.items[0].amount() > 0.0
-        && req.items[1].amount() > 0.0
-    {
-        let (prior_rent, net_increase, _new_rent) = if req.items[1].amount() >= req.items[0].amount() {
-            (
-                req.items[0].amount(),
-                req.items[1].amount() - req.items[0].amount(),
-                req.items[1].amount(),
-            )
+    if let Some((prior_rent, net_increase, _new_rent)) = req.rent_increase_breakdown() {
+        let pct = if prior_rent > 0.0 {
+            (net_increase / prior_rent) * 100.0
         } else {
-            (
-                req.items[0].amount(),
-                req.items[1].amount(),
-                req.items[0].amount() + req.items[1].amount(),
-            )
+            0.0
         };
         markup.push_str(&format!(
             "      [#text(fill: color-slate-500)[Prior Monthly Rent:]], [#text(weight: \"bold\")[{}]],\n",
             req.format_amount_typst(prior_rent)
         ));
         markup.push_str(&format!(
-            "      [#text(fill: color-slate-500)[Net Monthly Increase:]], [#text(weight: \"bold\", fill: rgb(\"{}\"))[+{}]],\n",
+            "      [#text(fill: color-slate-500)[Net Monthly Increase:]], [#text(weight: \"bold\", fill: rgb(\"{}\"))[+{} (+{:.1}\\%)]],\n",
             accent_hex,
-            req.format_amount_typst(net_increase)
+            req.format_amount_typst(net_increase),
+            pct
         ));
     } else if !matches!(
         req.doc_type,
@@ -1452,7 +1441,11 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 for item in &req.items {
                     let formatted_val = if item.is_ratio_metric() {
                         let d = item.description.to_ascii_lowercase();
-                        if d.contains("dscr") || d.contains("coverage") {
+                        if d.contains("dscr")
+                            || d.contains("coverage")
+                            || d.contains("grm")
+                            || d.contains("multiplier")
+                        {
                             format!("{:.2}x", item.amount())
                         } else {
                             format!("{:.2}\\%", item.amount())

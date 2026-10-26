@@ -826,7 +826,7 @@ impl LineItem {
         let amt = self.amount().abs();
         if amt > 100.0
             || d.contains("noi")
-            || d.contains("rent")
+            || (d.contains("rent") && !d.contains("multiplier"))
             || d.contains("income")
             || d.contains("expense")
         {
@@ -839,13 +839,21 @@ impl LineItem {
             || d.contains("ltv")
             || d.contains("loan-to-value")
             || d.contains("occupancy rate")
+            || d.contains("vacancy rate")
+            || d.contains("interest rate")
+            || d.contains("irr")
+            || d.contains("internal rate of return")
+            || d.contains("yield")
+            || d.contains("grm")
+            || d.contains("rent multiplier")
+            || d.contains("roi")
     }
 
     pub fn is_capital_or_valuation_item(&self) -> bool {
         let d = self.description.to_ascii_lowercase();
         if d.contains("noi")
             || d.contains("net operating income")
-            || d.contains("rent")
+            || (d.contains("rent") && !d.contains("multiplier"))
             || d.contains("cash flow")
             || d.contains("vacancy")
             || d.contains("expense")
@@ -857,11 +865,20 @@ impl LineItem {
             || d.contains("acquisition price")
             || d.contains("market value")
             || d.contains("property value")
+            || d.contains("appraised value")
             || d.contains("after-repair value")
+            || d.contains("arv")
             || d.contains("rehab budget")
+            || d.contains("down payment")
+            || d.contains("closing cost")
             || d.contains("senior debt")
+            || d.contains("total debt")
             || d.contains("mortgage balance")
             || d.contains("loan balance")
+            || d.contains("loan amount")
+            || d.contains("principal balance")
+            || d.contains("net equity")
+            || d.contains("total equity")
     }
 }
 
@@ -1046,14 +1063,39 @@ impl DocumentRequest {
         self.doc_type.allows_negative_items()
     }
 
+    pub fn rent_increase_breakdown(&self) -> Option<(f64, f64, f64)> {
+        if self.doc_type != DocumentType::RentIncreaseNotice || self.items.len() < 2 {
+            return None;
+        }
+        let first_amt = self.items[0].amount();
+        let second_amt = self.items[1].amount();
+        if first_amt <= 0.0 || second_amt <= 0.0 {
+            return None;
+        }
+        let second_desc = self.items[1].description.to_ascii_lowercase();
+        let is_new_base_row = second_amt >= first_amt
+            || second_desc.contains("new")
+            || second_desc.contains("proposed")
+            || second_desc.contains("revised")
+            || second_desc.contains("updated")
+            || second_desc.contains("effective");
+        let extra_fees: f64 = self.items.get(2..).unwrap_or(&[]).iter().map(|i| i.amount()).sum();
+        if is_new_base_row {
+            let new_total = second_amt + extra_fees;
+            let net_increase = new_total - first_amt;
+            Some((first_amt, net_increase, new_total))
+        } else {
+            let net_increase = second_amt + extra_fees;
+            let new_total = first_amt + net_increase;
+            Some((first_amt, net_increase, new_total))
+        }
+    }
+
     pub fn subtotal(&self) -> f64 {
         match self.doc_type {
             DocumentType::RentIncreaseNotice => {
-                if self.items.len() == 2
-                    && self.items[0].amount() > 0.0
-                    && self.items[1].amount() >= self.items[0].amount()
-                {
-                    self.items[1].amount()
+                if let Some((_prior, _increase, new_total)) = self.rent_increase_breakdown() {
+                    new_total
                 } else {
                     self.items.iter().map(|item| item.amount()).sum()
                 }
