@@ -1,7 +1,7 @@
 # PRESSMARK · Sub-Millisecond Vector Document Engine & Interactive Studio
 
 [![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org/)
-[![Pressmark Engine](https://img.shields.io/badge/Pressmark%20Engine-v1.1.0-blue.svg)](https://pressmark.dev)
+[![Pressmark Engine](https://img.shields.io/badge/Pressmark%20Engine-v1.2.0-blue.svg)](https://pressmark.dev)
 [![Pressmark MCP server quality and maintenance on Glama](https://glama.ai/mcp/servers/mooshee/pressmark/badges/score.svg)](https://glama.ai/mcp/servers/mooshee/pressmark)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -72,31 +72,24 @@ Pressmark is an ultra-fast, publication-grade document synthesis engine, real-ti
 
 ---
 
-## 2. Comprehensive Library of 18 Document Archetypes
+## 2. Comprehensive Library of 57 Document Archetypes & 50-State Statutory Lease Engine
 
-### Invoicing & Commercial
-1. **Tax Invoice (`invoice` / `invoice_standard`)**: Full multi-currency calculation, itemized tax rates, payment terms, ACH/wire instructions, and status stamps.
-2. **Freelance & Consulting Invoice (`invoice_freelance`)**: Hourly rate structures, billable consulting hours, milestone references, and contractor details.
-3. **Construction Progress Billing (`invoice_construction`)**: Subcontractor draw applications, retainage calculations, job-site references, and work-completed percentages.
-4. **Clinical Services Superbill (`invoice_medical`)**: Healthcare provider billing, patient diagnostics, procedural codes (CPT/ICD-10), and insurance remittance.
-5. **SaaS & Subscription Invoice (`invoice_saas`)**: Cloud usage metrics, recurring seat licenses, enterprise tier charges, and metering periods.
-6. **Minimal Commercial Invoice (`invoice_minimal`)**: High-contrast, minimalist typographic layout for design studios and boutique agencies.
+### Invoicing & Commercial Billing (14 Archetypes)
+- `invoice`, `invoice_freelance`, `invoice_construction`, `invoice_medical`, `invoice_saas`, `invoice_minimal`, `proforma_invoice`, `recurring_invoice`, `retainer_invoice`, `timesheet_invoice`, `legal_retainer`, `real_estate_commission`, `hoa_assessment`, `utility_submetering`
 
-### Estimates, Quotes & Operations
-7. **Formal Estimate / Quote (`estimate`)**: Scope of work breakdowns, pricing estimates, expiration dates, and client acceptance blocks.
-8. **Payment Receipt (`receipt`)**: Settlement confirmations, transaction IDs, payment method tokens, and settled stamps.
-9. **Enterprise Purchase Order (`purchase_order`)**: Vendor routing, shipping addresses, procurement authorizations, and SKU tracking.
-10. **Packing Slip & BOL (`packing_slip`)**: Warehouse dispatch logs, box weights, carrier routing, and line-item shipment tallies.
-11. **Credit Memorandum (`credit_note`)**: Account adjustments, credit issuance, reference invoice linkage, and balance offsets.
+### Estimates, Quotes, Logistics & Operations (13 Archetypes)
+- `estimate`, `quotation_tender`, `receipt`, `purchase_order`, `packing_slip`, `credit_note`, `change_order`, `work_order`, `expense_report`, `statement_of_account`, `payment_demand`, `delivery_note`, `commercial_customs_invoice`
 
-### Legal, Contracts & Trust
-12. **Master Services Agreement (`agreement`)**: Operative SOW clauses, IP assignments, dispute arbitration terms, and dual signature blocks.
-13. **Statement of Work (`agreement_sow`)**: Milestone deliverables, project schedules, and client acceptance specifications.
-14. **Independent Contractor Agreement (`contractor_agreement`)**: W-9 contractor representations, confidentiality covenants, and non-solicitation clauses.
-15. **Mutual Non-Disclosure Agreement (`nda`)**: Confidentiality definitions, exclusions, non-use covenants, and dual-party execution lines.
-16. **Statutory Bill of Sale (`bill_of_sale`)**: Asset transfers, vehicle/equipment serial verification, warranty disclaimers, and consideration sums.
-17. **Certificate of Achievement (`certificate`)**: Formal typographic awards, honors, issuing authorities, and verification seal.
-18. **Condition & Inspection Report (`inspection_report`)**: Facility or property grading, defect checklists, inspector credentials, and sign-offs.
+### Legal, Corporate Governance & Contracts (11 Archetypes)
+- `agreement`, `agreement_sow`, `contractor_agreement`, `nda`, `bill_of_sale`, `certificate`, `inspection_report`, `mechanics_lien_waiver`, `board_resolution`, `promissory_note`, `employment_offer`
+
+### Real Estate, Leasing, Property Management & Investor Underwriting (29 Templates + 50-State + DC Engine)
+- **Leasing & Tenancy**: `residential_lease`, `month_to_month_rental_agreement`, `room_rental_agreement`, `sublease_agreement`, `lease_renewal_agreement`, `lease_amendment`, `lease_termination_agreement`, `commercial_lease`, `commercial_nnn_lease`, `short_term_vacation_rental`
+- **Addenda & Tenant Screening**: `rental_application`, `lease_guarantor_agreement`, `pet_addendum`, `lead_paint_disclosure`
+- **Statutory Property Notices**: `eviction_notice`, `notice_to_vacate`, `late_rent_notice`, `rent_increase_notice`, `notice_to_enter`, `lease_violation_notice`
+- **Move-In, Deposit & Operations**: `move_in_out_checklist`, `security_deposit_disposition`, `property_management_statement`, `property_management_agreement`, `rent_roll`
+- **Closing, Deeds & Investor Sheets**: `closing_settlement_statement`, `schedule_of_real_estate_owned`, `real_estate_deal_analysis`, `real_estate_purchase_agreement`, `property_deed` (`quitclaim_deed`, `warranty_deed`), `tenant_estoppel`, `letter_of_intent_cre`
+- **4-Layer Statutory Lease Engine (`GET /api/v1/states`)**: Compiles Federal HUD/EPA Lead-Based Paint & Fair Housing disclosures, 50-state + DC statutory security deposit caps, return windows, escrow rules, late fee caps, entry notice windows, state-conditional mandatory disclosures, and 6 municipal rent/housing ordinance riders (NYC, SF, LA, Chicago, Seattle, DC).
 
 ---
 

@@ -121,7 +121,7 @@ fn test_mcp_lifecycle_handshake_and_negative_validation() {
     let init_res = init_resp.result.expect("initialize should return result");
     assert_eq!(init_res["protocolVersion"], "2026-07-28");
     assert_eq!(init_res["serverInfo"]["name"], "pressmark");
-    assert_eq!(init_res["serverInfo"]["version"], "1.1.0");
+    assert_eq!(init_res["serverInfo"]["version"], "1.2.0");
 
     // 2. server/discover handshake
     let disc_req = JsonRpcRequest {
@@ -1363,7 +1363,71 @@ async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
     assert_eq!(ms_items[1]["unit_price"], 2400.0);
     assert_eq!(ms_items[2]["unit_price"], 1600.0);
 
-    // 5. Query /api/v1/analytics and verify recorded usage events
+    // 4b. Test MCP hyphenated doc_type normalization + compile_ms + crawler bot / probe segmentation
+    let mcp_gen_payload = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 99,
+        "method": "tools/call",
+        "params": {
+            "name": "generate_document",
+            "arguments": {
+                "doc_type": "security-deposit-disposition",
+                "from": { "name": "Harbor Property Mgmt" },
+                "to": { "name": "Alex Tenant" },
+                "items": [
+                    { "description": "Original Security Deposit Held", "quantity": 1.0, "unit_price": 2000.0 },
+                    { "description": "Less: Carpet Steam Cleaning", "quantity": 1.0, "unit_price": -150.0 }
+                ]
+            }
+        }
+    });
+    let req_mcp_gen = Request::builder()
+        .uri("/mcp")
+        .method("POST")
+        .header("content-type", "application/json")
+        .header("user-agent", "claude-code/1.0")
+        .body(Body::from(mcp_gen_payload.to_string()))
+        .unwrap();
+    let res_mcp_gen = router.clone().oneshot(req_mcp_gen).await.unwrap();
+    assert_eq!(res_mcp_gen.status(), StatusCode::OK);
+
+    // Crawler bot hitting /api/v1/checkout should NOT record checkout_init, while organic browser does
+    let req_bot_checkout = Request::builder()
+        .uri("/api/v1/checkout?plan=pass_single_unlock&redirect=true")
+        .method("GET")
+        .header("user-agent", "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)")
+        .body(Body::empty())
+        .unwrap();
+    let res_bot_checkout = router.clone().oneshot(req_bot_checkout).await.unwrap();
+    assert_eq!(res_bot_checkout.status(), StatusCode::SEE_OTHER);
+
+    let req_org_checkout = Request::builder()
+        .uri("/api/v1/checkout?plan=pass_single_unlock&redirect=true")
+        .method("GET")
+        .header("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
+        .body(Body::empty())
+        .unwrap();
+    let res_org_checkout = router.clone().oneshot(req_org_checkout).await.unwrap();
+    assert_eq!(res_org_checkout.status(), StatusCode::SEE_OTHER);
+
+    // Crawler bot and internal probe hitting /templates/residential-lease
+    let req_bot_tpl = Request::builder()
+        .uri("/templates/residential-lease")
+        .method("GET")
+        .header("user-agent", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")
+        .body(Body::empty())
+        .unwrap();
+    let _ = router.clone().oneshot(req_bot_tpl).await.unwrap();
+
+    let req_probe_tpl = Request::builder()
+        .uri("/templates/residential-lease")
+        .method("GET")
+        .header("user-agent", "product-doctor/1.0")
+        .body(Body::empty())
+        .unwrap();
+    let _ = router.clone().oneshot(req_probe_tpl).await.unwrap();
+
+    // 5. Query /api/v1/analytics and verify recorded usage events, canonical archetype, compile_ms, and actor breakdown
     let req_analytics = Request::builder()
         .uri("/api/v1/analytics")
         .method("GET")
@@ -1373,9 +1437,20 @@ async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
     assert_eq!(res_analytics.status(), StatusCode::OK);
     let analytics_bytes = axum::body::to_bytes(res_analytics.into_body(), 1024 * 1024).await.unwrap();
     let analytics_json: serde_json::Value = serde_json::from_slice(&analytics_bytes).unwrap();
-    assert!(analytics_json["total_usage_events"].as_i64().unwrap() >= 3);
+    let total_ev = analytics_json["total_usage_events"].as_i64().unwrap();
+    let organic_ev = analytics_json["external_organic_events"].as_i64().unwrap();
+    let bot_ev = analytics_json["crawler_bot_events"].as_i64().unwrap();
+    let probe_ev = analytics_json["internal_probe_events"].as_i64().unwrap();
+    assert!(total_ev >= 7);
+    assert_eq!(total_ev, organic_ev + bot_ev + probe_ev);
+    assert_eq!(bot_ev, 1);
+    assert_eq!(probe_ev, 1);
+    assert_eq!(analytics_json["events_by_type"]["checkout_init"], 1);
     assert_eq!(analytics_json["mcp_tool_calls"]["calculate_totals"], 1);
-    assert_eq!(analytics_json["top_archetypes"]["residential_lease"], 1);
+    assert_eq!(analytics_json["mcp_tool_calls"]["generate_document"], 1);
+    assert_eq!(analytics_json["top_archetypes"]["residential_lease"], 3);
+    assert_eq!(analytics_json["top_archetypes"]["security_deposit_disposition"], 1);
+    assert!(analytics_json["top_archetypes"].get("security-deposit-disposition").is_none());
 
     // 6. Verify static/index.html uses tracked /api/v1/checkout links and dialog ARIA attributes
     let html = std::fs::read_to_string("static/index.html").unwrap();

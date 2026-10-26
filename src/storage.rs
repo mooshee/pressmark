@@ -121,7 +121,8 @@ impl Storage {
             );
             CREATE INDEX IF NOT EXISTS idx_usage_events_type ON usage_events(event_type);
             CREATE INDEX IF NOT EXISTS idx_usage_events_created ON usage_events(created_at);
-            CREATE INDEX IF NOT EXISTS idx_usage_events_created_at ON usage_events(created_at);",
+            CREATE INDEX IF NOT EXISTS idx_usage_events_created_at ON usage_events(created_at);
+            UPDATE usage_events SET archetype = REPLACE(archetype, '-', '_') WHERE archetype IS NOT NULL AND archetype LIKE '%-%';",
         )?;
 
         Ok(())
@@ -365,6 +366,67 @@ impl Storage {
         (sessions as usize, stripe_events as usize, entitlements as usize)
     }
 
+    pub fn is_crawler_bot_ua(ua: &str) -> bool {
+        let lower = ua.to_ascii_lowercase();
+        const BOT_MARKERS: &[&str] = &[
+            "web_seo_bot",
+            "claudebot",
+            "googlebot",
+            "googleother",
+            "gptbot",
+            "oai-searchbot",
+            "bingbot",
+            "ahrefsbot",
+            "semrushbot",
+            "applebot",
+            "perplexitybot",
+            "bytespider",
+            "petalbot",
+            "yandexbot",
+            "baiduspider",
+            "duckduckbot",
+            "facebookexternalhit",
+            "twitterbot",
+            "linkedinbot",
+            "slackbot",
+            "discordbot",
+            "amazonbot",
+            "mj12bot",
+            "dotbot",
+            "crawler",
+            "spider",
+        ];
+        BOT_MARKERS.iter().any(|m| lower.contains(m))
+    }
+
+    pub fn is_internal_probe_ua(ua: &str) -> bool {
+        let lower = ua.to_ascii_lowercase();
+        const PROBE_MARKERS: &[&str] = &[
+            "web_seo_probe",
+            "stripe_probe",
+            "product-doctor",
+            "seo-audit",
+            "xh/",
+            "curl/",
+            "pressmark-smoke",
+            "hallman-lab-ops-heartbeats",
+            "uptime",
+        ];
+        PROBE_MARKERS.iter().any(|m| lower.contains(m))
+    }
+
+    pub fn classify_usage_actor(channel: &str, detail: Option<&str>) -> &'static str {
+        if Self::is_crawler_bot_ua(channel) || detail.map(Self::is_crawler_bot_ua).unwrap_or(false) {
+            "crawler_bot"
+        } else if Self::is_internal_probe_ua(channel)
+            || detail.map(Self::is_internal_probe_ua).unwrap_or(false)
+        {
+            "internal_probe"
+        } else {
+            "external_organic"
+        }
+    }
+
     pub fn record_usage_event(
         &self,
         event_type: &str,
@@ -374,13 +436,22 @@ impl Storage {
         compile_ms: Option<u64>,
     ) {
         let now = Utc::now().to_rfc3339();
+        let normalized_archetype = archetype.map(|a| {
+            crate::models::DocumentType::from_slug(a)
+                .map(|dt| dt.as_str().to_string())
+                .or_else(|| {
+                    crate::models::DocumentType::parse_state_prefixed_slug(a)
+                        .map(|(_, dt)| dt.as_str().to_string())
+                })
+                .unwrap_or_else(|| a.trim().to_lowercase().replace('-', "_"))
+        });
         if let Ok(lock) = self.conn.lock() {
             let _ = lock.execute(
                 "INSERT INTO usage_events (event_type, archetype, channel, detail, compile_ms, created_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6);",
                 params![
                     event_type,
-                    archetype,
+                    normalized_archetype.as_deref(),
                     channel,
                     detail,
                     compile_ms.map(|v| v as i64),
@@ -395,6 +466,26 @@ impl Storage {
         let total_events: i64 = lock
             .query_row("SELECT count(*) FROM usage_events;", [], |r| r.get(0))
             .unwrap_or(0);
+
+        let mut external_organic_events: i64 = 0;
+        let mut crawler_bot_events: i64 = 0;
+        let mut internal_probe_events: i64 = 0;
+        if let Ok(mut stmt) = lock.prepare(
+            "SELECT channel, detail, count(*) FROM usage_events GROUP BY channel, detail;",
+        ) {
+            if let Ok(mut rows) = stmt.query([]) {
+                while let Ok(Some(row)) = rows.next() {
+                    let ch: String = row.get(0).unwrap_or_default();
+                    let det: Option<String> = row.get(1).ok();
+                    let cnt: i64 = row.get(2).unwrap_or(0);
+                    match Self::classify_usage_actor(&ch, det.as_deref()) {
+                        "crawler_bot" => crawler_bot_events += cnt,
+                        "internal_probe" => internal_probe_events += cnt,
+                        _ => external_organic_events += cnt,
+                    }
+                }
+            }
+        }
 
         let mut by_type = serde_json::Map::new();
         if let Ok(mut stmt) = lock.prepare(
@@ -452,6 +543,14 @@ impl Storage {
 
         serde_json::json!({
             "total_usage_events": total_events,
+            "external_organic_events": external_organic_events,
+            "crawler_bot_events": crawler_bot_events,
+            "internal_probe_events": internal_probe_events,
+            "actor_breakdown": {
+                "external_organic": external_organic_events,
+                "crawler_bot": crawler_bot_events,
+                "internal_probe": internal_probe_events
+            },
             "events_by_type": by_type,
             "top_archetypes": by_archetype,
             "mcp_tool_calls": by_mcp_tool,

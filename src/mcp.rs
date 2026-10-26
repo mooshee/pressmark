@@ -10,7 +10,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-pub const MCP_SERVER_VERSION: &str = "1.1.0";
+pub const MCP_SERVER_VERSION: &str = "1.2.0";
 pub const SUPPORTED_MCP_PROTOCOLS: &[&str] = &[
     "2026-07-28",
     "2025-06-18",
@@ -578,8 +578,21 @@ impl McpHandler {
                                                 .map(str::to_string);
                                             if let Some(email_cl) = candidate_email {
                                                 if let Ok(rt) = tokio::runtime::Handle::try_current() {
-                                                    let doc_cl = doc_req.clone();
+                                                    let mut doc_cl = doc_req.clone();
                                                     rt.spawn(async move {
+                                                        let is_paid = crate::storage::Storage::default_db()
+                                                            .get_customer_entitlement(&email_cl)
+                                                            .is_some();
+                                                        if !is_paid
+                                                            && doc_cl
+                                                                .watermark
+                                                                .as_deref()
+                                                                .map(|w| w.trim().is_empty())
+                                                                .unwrap_or(true)
+                                                        {
+                                                            doc_cl.watermark =
+                                                                Some("PRESSMARK FREE TIER".to_string());
+                                                        }
                                                         let ghl = crate::ghl::GhlDispatcher::from_env();
                                                         if ghl.is_configured() {
                                                             let _ = ghl

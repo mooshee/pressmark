@@ -175,7 +175,7 @@ async fn handle_health() -> impl IntoResponse {
         "status": "healthy",
         "service": "pressmark",
         "engine": "pressmark-vector-v1",
-        "version": "1.1.0"
+        "version": "1.2.0"
     })))
 }
 
@@ -191,6 +191,7 @@ async fn handle_index() -> impl IntoResponse {
 
 async fn handle_template_landing(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(slug): Path<String>,
 ) -> Response {
     let (doc_type, maybe_state_profile) = if let Some(dt) = DocumentType::from_slug(&slug) {
@@ -222,11 +223,22 @@ async fn handle_template_landing(
         )
     };
     let canonical_url = format!("https://pressmark.dev/templates/{}", canonical_slug);
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let landing_channel = if crate::storage::Storage::is_crawler_bot_ua(user_agent) {
+        "web_seo_bot"
+    } else if crate::storage::Storage::is_internal_probe_ua(user_agent) {
+        "web_seo_probe"
+    } else {
+        "web_seo"
+    };
 
     state.storage.record_usage_event(
         "template_landing_view",
         Some(archetype_key),
-        "web_seo",
+        landing_channel,
         Some(&canonical_slug),
         None,
     );
@@ -535,7 +547,18 @@ async fn handle_generate(
                     .map(|s| s.to_string());
                 if let Some(email_cl) = candidate_email {
                     let mut doc_cl = doc_req.clone();
-                    if !is_chatgpt_subscriber && doc_cl.watermark.is_none() {
+                    let is_paid = is_chatgpt_subscriber
+                        || state
+                            .storage
+                            .get_customer_entitlement(&email_cl)
+                            .is_some();
+                    if !is_paid
+                        && doc_cl
+                            .watermark
+                            .as_deref()
+                            .map(|w| w.trim().is_empty())
+                            .unwrap_or(true)
+                    {
                         doc_cl.watermark = Some("PRESSMARK FREE TIER".to_string());
                     }
                     tokio::spawn(async move {
@@ -818,16 +841,26 @@ async fn handle_checkout_get(
     Query(req): Query<CheckoutRequest>,
 ) -> Response {
     let payload = resolve_checkout_response(&req);
-    let _user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
     let is_redirect = req.redirect.unwrap_or(false);
-    state.storage.record_usage_event(
-        "checkout_init",
-        None,
-        "stripe",
-        payload["plan_id"].as_str(),
-        None,
-    );
-    dispatch_checkout_to_ghl_if_configured(&state, &headers, &req, &payload);
+    if !crate::storage::Storage::is_crawler_bot_ua(user_agent) {
+        let checkout_channel = if crate::storage::Storage::is_internal_probe_ua(user_agent) {
+            "stripe_probe"
+        } else {
+            "stripe"
+        };
+        state.storage.record_usage_event(
+            "checkout_init",
+            None,
+            checkout_channel,
+            payload["plan_id"].as_str(),
+            None,
+        );
+        dispatch_checkout_to_ghl_if_configured(&state, &headers, &req, &payload);
+    }
     if is_redirect {
         if let Some(url) = payload["checkout_url"].as_str() {
             return axum::response::Redirect::to(url).into_response();
@@ -842,15 +875,25 @@ async fn handle_checkout_post(
     Json(req): Json<CheckoutRequest>,
 ) -> impl IntoResponse {
     let payload = resolve_checkout_response(&req);
-    let _user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
-    state.storage.record_usage_event(
-        "checkout_init",
-        None,
-        "stripe",
-        payload["plan_id"].as_str(),
-        None,
-    );
-    dispatch_checkout_to_ghl_if_configured(&state, &headers, &req, &payload);
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if !crate::storage::Storage::is_crawler_bot_ua(user_agent) {
+        let checkout_channel = if crate::storage::Storage::is_internal_probe_ua(user_agent) {
+            "stripe_probe"
+        } else {
+            "stripe"
+        };
+        state.storage.record_usage_event(
+            "checkout_init",
+            None,
+            checkout_channel,
+            payload["plan_id"].as_str(),
+            None,
+        );
+        dispatch_checkout_to_ghl_if_configured(&state, &headers, &req, &payload);
+    }
     (StatusCode::OK, Json(payload))
 }
 
@@ -1128,20 +1171,21 @@ async fn handle_mcp(
                 .or_else(|| a.get("target_type"))
         })
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+        .map(|s| {
+            DocumentType::from_slug(s)
+                .map(|dt| dt.as_str().to_string())
+                .or_else(|| {
+                    DocumentType::parse_state_prefixed_slug(s)
+                        .map(|(_, dt)| dt.as_str().to_string())
+                })
+                .unwrap_or_else(|| s.trim().to_lowercase().replace('-', "_"))
+        });
 
     let mcp_event_type = if mcp_method == "tools/call" {
         "mcp_tool_call"
     } else {
         "mcp_protocol"
     };
-    state.storage.record_usage_event(
-        mcp_event_type,
-        doc_type.as_deref(),
-        user_agent.unwrap_or("mcp"),
-        tool_name.as_deref(),
-        None,
-    );
 
     let client_proto = headers
         .get("x-mcp-protocol-version")
@@ -1152,6 +1196,19 @@ async fn handle_mcp(
     let is_2026 = client_proto == "2026-07-28" || req.method == "server/discover";
 
     let mut resp = McpHandler::handle_request(req);
+    let compile_ms = resp
+        .result
+        .as_ref()
+        .and_then(|r| r.get("compile_time_ms"))
+        .and_then(|v| v.as_u64());
+
+    state.storage.record_usage_event(
+        mcp_event_type,
+        doc_type.as_deref(),
+        user_agent.unwrap_or("mcp"),
+        tool_name.as_deref(),
+        compile_ms,
+    );
     if is_2026 {
         if let Some(ref mut result) = resp.result {
             if let Some(obj) = result.as_object_mut() {

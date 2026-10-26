@@ -1,6 +1,6 @@
 [package]
 name = "pressmark"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 authors = ["Daniel Hallman"]
 description = "High-performance vector document synthesis engine, interactive design studio, and ChatGPT plugin powered by the Pressmark Vector Engine."

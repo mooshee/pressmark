@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "Pressmark",
   "slug": "pressmark",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "High-performance vector document synthesis engine. Generate publication-grade invoices, estimates, receipts, contracts, NDAs, and real estate agreements in sub-25ms with vector QR code mobile payments.",
   "publisher": "Daniel Hallman",
   "website": "https://pressmark.dev",
