@@ -302,6 +302,7 @@ async fn handle_templates_catalog() -> impl IntoResponse {
     (
         StatusCode::OK,
         Json(serde_json::json!({
+            "success": true,
             "count": templates.len(),
             "templates": templates
         })),
@@ -314,6 +315,7 @@ async fn handle_states_catalog() -> impl IntoResponse {
     (
         StatusCode::OK,
         Json(serde_json::json!({
+            "success": true,
             "states_count": states.len(),
             "municipalities_count": municipalities.len(),
             "states": states,

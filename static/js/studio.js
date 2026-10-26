@@ -126,6 +126,7 @@
   // Data Persistence Mode: 'my_data' (stable & protected) vs 'sample_data' (exploring demo data)
   let dataMode = 'my_data';
   let cachedUserDoc = null;
+  let hasUserCustomizedData = false;
 
   // DOM Elements
   const previewImg = document.getElementById('previewImg');
@@ -2082,6 +2083,17 @@
       loadIssuerProfile();
     }
     const initUrlParams = new URLSearchParams(window.location.search);
+    const requestedState =
+      window.__PRESSMARK_INITIAL_STATE__ ||
+      initUrlParams.get('state') ||
+      initUrlParams.get('state_code');
+    if (requestedState) {
+      state.state_code = String(requestedState).trim().toUpperCase();
+    }
+    const requestedMuni = initUrlParams.get('municipality') || initUrlParams.get('city');
+    if (requestedMuni) {
+      state.municipality = String(requestedMuni).trim();
+    }
     const requestedTemplate =
       window.__PRESSMARK_INITIAL_ARCHETYPE__ ||
       initUrlParams.get('template') ||
@@ -2094,21 +2106,10 @@
         document.querySelectorAll('.template-pill').forEach(p => p.classList.remove('active'));
         targetPill.classList.add('active');
       }
-      if (!hasSavedDoc) {
+      if (!hasSavedDoc || state.doc_type !== normalizedType) {
         loadSampleDataForArchetype(normalizedType);
       }
       applyDocumentTypeDefaults(normalizedType);
-    }
-    const requestedState =
-      window.__PRESSMARK_INITIAL_STATE__ ||
-      initUrlParams.get('state') ||
-      initUrlParams.get('state_code');
-    if (requestedState) {
-      state.state_code = String(requestedState).trim().toUpperCase();
-    }
-    const requestedMuni = initUrlParams.get('municipality') || initUrlParams.get('city');
-    if (requestedMuni) {
-      state.municipality = String(requestedMuni).trim();
     }
     setupDynamicInteractions();
     adaptFormToArchetype(state.doc_type);
@@ -2271,6 +2272,7 @@
         initialVal = el.value;
       });
       el.addEventListener('input', (e) => {
+        hasUserCustomizedData = true;
         targetObj[prop] = e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
         updateCalculations();
         schedulePreview();
@@ -2702,20 +2704,50 @@
     state.doc_number = `${conf.prefix}2026-${Math.floor(1000 + Math.random() * 9000)}`;
     state.recordable = (type === 'property_deed');
     state.notary_required = ['property_deed', 'mechanics_lien_waiver', 'tenant_estoppel'].includes(type);
-    if (conf.is_paid) {
-      state.is_paid = true;
-      const isPaidCheck = document.getElementById('isPaidCheck');
-      if (isPaidCheck) isPaidCheck.checked = true;
-    }
+    state.is_paid = Boolean(conf.is_paid);
+    state.payment_status = state.is_paid ? 'paid' : 'unpaid';
+    const isPaidCheck = document.getElementById('isPaidCheck');
+    if (isPaidCheck) isPaidCheck.checked = state.is_paid;
 
-    if (dataMode === 'sample_data') {
+    const isPayableArchetype = type.startsWith('invoice') || [
+      'proforma_invoice',
+      'retainer_agreement',
+      'notice_to_vacate',
+      'tenant_rent_ledger'
+    ].includes(type);
+    const isTaxableCommercial = type.startsWith('invoice') || [
+      'estimate',
+      'quote',
+      'proforma_invoice',
+      'purchase_order',
+      'receipt',
+      'credit_note'
+    ].includes(type);
+
+    if (dataMode === 'sample_data' || !hasUserCustomizedData) {
       loadSampleDataForArchetype(type);
-    } else {
-      // In My Data mode, your company and client inputs are strictly protected!
-      // Only attach default boilerplate sections if none exist yet.
-      if (!state.sections || state.sections.length === 0) {
-        attachDefaultSectionsForArchetype(type);
+      if (dataMode === 'my_data' && localStorage.getItem(STORAGE_KEY_ISSUER)) {
+        loadIssuerProfile();
       }
+    } else {
+      // In My Data mode after user customization, preserve typed party/client details
+      // while sanitizing incompatible financial/payment fields for the target archetype.
+      if (!isPayableArchetype) {
+        state.payment_qr_code = false;
+        state.payment_link = '';
+      }
+      if (!isTaxableCommercial) {
+        state.tax_rate = 0;
+        state.discount_amount = 0;
+      }
+      if (!allowsNegativeItems(type) && Array.isArray(state.items)) {
+        state.items = state.items.map(it => ({
+          ...it,
+          quantity: Math.abs(Number(it.quantity) || 1),
+          unit_price: Math.abs(Number(it.unit_price) || 0)
+        }));
+      }
+      attachDefaultSectionsForArchetype(type, true);
     }
 
     const docTitleEl = document.getElementById('docTitle');
@@ -2727,7 +2759,7 @@
 
     adaptFormToArchetype(type);
     updateLifecycleUI();
-    if (dataMode === 'my_data') {
+    if (dataMode === 'my_data' && hasUserCustomizedData) {
       autoSaveUserDocument();
     }
   }
@@ -2911,6 +2943,7 @@
     const payMethod = document.getElementById('paymentMethodInput');
     if (payMethod) payMethod.value = state.payment_method || 'Stripe / Card / Apple Pay';
 
+    syncFormFromState();
     updateLifecycleUI();
     updateCalculations();
     adaptFormToArchetype(state.doc_type);
@@ -2918,8 +2951,8 @@
     showAiToast(`⚡ Document converted to ${state.title}`);
   }
 
-  function attachDefaultSectionsForArchetype(type) {
-    if (state.sections && state.sections.length > 0) return;
+  function attachDefaultSectionsForArchetype(type, replaceIfDefault = false) {
+    if (!replaceIfDefault && state.sections && state.sections.length > 0) return;
     state.sections = [];
     if (type.includes('lease') || type === 'notice_to_vacate') {
       state.sections.push({
@@ -2940,8 +2973,23 @@
   }
 
   function loadSampleDataForArchetype(type) {
+    state.tax_rate = 0;
+    state.discount_amount = 0;
+    state.amount_paid = undefined;
+    state.is_paid = (type === 'receipt');
+    state.payment_status = state.is_paid ? 'paid' : 'unpaid';
+    const isPayableArchetype = type.startsWith('invoice') || [
+      'proforma_invoice',
+      'retainer_agreement',
+      'notice_to_vacate',
+      'tenant_rent_ledger'
+    ].includes(type);
+    state.payment_qr_code = isPayableArchetype;
+    state.payment_link = isPayableArchetype ? 'https://buy.stripe.com/4gM3cu8jk4Psd095197wA04' : '';
     state.recordable = (type === 'property_deed');
     state.notary_required = ['property_deed', 'mechanics_lien_waiver', 'tenant_estoppel'].includes(type);
+    state.include_clerk_stamp = false;
+    state.execution_mode = null;
     if (type === 'residential_lease') {
       state.header_subtitle = 'Standard Fixed-Term Residential Tenancy Agreement';
       state.from = {
@@ -2955,7 +3003,7 @@
       };
       state.to = {
         name: 'Marcus & Eleanor Vance',
-        company: 'Residential Lessees',
+        company: '',
         address: '742 Evergreen Terrace, Unit 4B, San Francisco, CA 94107',
         email: 'marcus.vance@example.com',
         phone: '+1 (415) 555-0199'
@@ -3148,15 +3196,15 @@
     } else if (type === 'notice_to_vacate') {
       state.header_subtitle = 'Statutory Notice to Pay Rent or Quit Premises';
       state.from = {
-        name: 'Pacifica Property Management LLC',
-        company: 'Authorized Agent for Landlord',
+        name: 'Elena Rostova',
+        company: 'Pacifica Property Management LLC',
         address: '100 Montgomery St, San Francisco, CA 94104',
         email: 'management@pacificapm.com',
         phone: '+1 (415) 890-4421'
       };
       state.to = {
         name: 'Jordan Blake & All Occupants',
-        company: 'Tenants in Possession',
+        company: '',
         address: '880 Harrison St, Apt 302, San Francisco, CA 94107',
         phone: '+1 (415) 555-3391'
       };
@@ -3182,15 +3230,15 @@
     } else if (type === 'security_deposit_disposition') {
       state.header_subtitle = 'Statutory Accounting & Itemized Repair Deductions';
       state.from = {
-        name: 'Oceanview Residential Properties',
-        company: 'Property Management Department',
+        name: 'Marcus Sterling',
+        company: 'Oceanview Residential Properties LLC',
         address: '1420 4th Street, Santa Monica, CA 90401',
         email: 'accounting@oceanviewapts.com',
         phone: '+1 (310) 555-8291'
       };
       state.to = {
         name: 'Sophie Laurent',
-        company: 'Vacating Lessee',
+        company: '',
         address: '224 Ocean Ave, Apt 12, Santa Monica, CA 90402',
         email: 'sophie.laurent@example.com'
       };
@@ -3218,16 +3266,16 @@
     } else if (type === 'real_estate_commission') {
       state.header_subtitle = 'Brokerage Commission Disbursement & Transaction Reconciliation';
       state.from = {
-        name: 'Vanguard Realty Partners LLC',
-        company: 'Managing Brokerage Division',
+        name: 'Elizabeth Vance',
+        company: 'Vanguard Realty Partners LLC',
         address: '240 Mercer Street, New York, NY 10012',
         email: 'disbursements@vanguardrealty.com',
         phone: '+1 (212) 555-0912',
         tax_id: 'US-13-8849201'
       };
       state.to = {
-        name: 'First American Title & Escrow Division',
-        company: 'Escrow Settlement Fiduciary',
+        name: 'Diane Warren, Senior Escrow Officer',
+        company: 'First American Title & Escrow Co.',
         address: '666 Fifth Avenue, Floor 14, New York, NY 10103',
         email: 'escrow.ny@firstam.com'
       };
@@ -3255,15 +3303,15 @@
     } else if (type === 'property_inspection_checklist') {
       state.header_subtitle = 'Comprehensive Room-by-Room Condition & Inventory Verification';
       state.from = {
-        name: 'Lincoln Park Residential Management',
-        company: 'Property Inspection Services',
+        name: 'Elena Rostova',
+        company: 'Lincoln Park Residential Management LLC',
         address: '772 Lakeview Terrace, Chicago, IL 60614',
         email: 'inspections@lincolnparkpm.com',
         phone: '+1 (312) 555-8910'
       };
       state.to = {
         name: 'Alexander Wright',
-        company: 'Tenant Occupant',
+        company: '',
         address: '772 Lakeview Terrace, Unit 3, Chicago, IL 60614',
         email: 'alex.wright@example.com'
       };
@@ -3298,8 +3346,8 @@
         phone: '+1 (212) 555-8820'
       };
       state.to = {
-        name: 'Metropolitan Commercial Realty REIT',
-        company: 'Building Ownership Group',
+        name: 'Arthur Sterling, Senior VP of Leasing',
+        company: 'Metropolitan Commercial Realty REIT',
         address: '350 Fifth Avenue, Floor 44, New York, NY 10118',
         email: 'leasing@metrorealty.com'
       };
@@ -3333,8 +3381,8 @@
         phone: '+1 (312) 555-8833'
       };
       state.to = {
-        name: 'Park Place Realty Holdings & Capital Lenders',
-        company: 'Purchaser & Senior Lending Syndicate',
+        name: 'Commercial Closing & Underwriting Desk',
+        company: 'Park Place Realty Holdings LLC',
         address: '10 South Wacker Dr, Floor 32, Chicago, IL 60606',
         email: 'closing@parkplacerealty.com'
       };
@@ -3360,7 +3408,7 @@
     } else if (type === 'room_rental_lease') {
       state.header_subtitle = 'Individual Bedroom Lease & Shared Common-Area Utility Split Schedule';
       state.from = { name: 'Vance Residential Group', company: 'Vance Co-Living Properties LLC', address: '842 Valencia St, San Francisco, CA 94110', email: 'leasing@vanceresidential.com', phone: '+1 (415) 555-0190' };
-      state.to = { name: 'Liam Chen', company: 'Bedroom B Co-Tenant', address: '842 Valencia St, Bedroom B, San Francisco, CA 94110', email: 'liam.chen@example.com' };
+      state.to = { name: 'Liam Chen', company: '', address: '842 Valencia St, Bedroom B, San Francisco, CA 94110', email: 'liam.chen@example.com' };
       state.custom_fields = [
         { label: 'Leased Bedroom', value: 'Private Bedroom B (Upper Floor, Keyed Lock #B2)' },
         { label: 'Shared Common Areas', value: 'Kitchen, Living Room, Laundry & Patio' },
@@ -3378,7 +3426,7 @@
     } else if (type === 'lease_renewal_agreement') {
       state.header_subtitle = 'Statutory Lease Term Extension & Adjusted Monthly Rent Schedule';
       state.from = { name: 'Vance Residential Group', company: 'Vance Residential Holdings LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'renewals@vanceresidential.com' };
-      state.to = { name: 'Marcus & Elena Sterling', company: 'Renewing Residential Tenants', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.to = { name: 'Marcus & Elena Sterling', company: '', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
       state.custom_fields = [
         { label: 'Original Lease Date', value: 'November 1, 2025' },
         { label: 'Renewal Commencement', value: 'November 1, 2026' },
@@ -3396,7 +3444,7 @@
     } else if (type === 'lease_amendment') {
       state.header_subtitle = 'Mid-Term Lease Modification · Pet, Occupant & Parking Addendum';
       state.from = { name: 'Vance Residential Group', company: 'Vance Residential Holdings LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'leasing@vanceresidential.com' };
-      state.to = { name: 'Marcus & Elena Sterling', company: 'Residential Tenants', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.to = { name: 'Marcus & Elena Sterling', company: '', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
       state.custom_fields = [
         { label: 'Amendment Number', value: 'Amendment No. 1 (Pet & Parking Addendum)' },
         { label: 'Effective Date', value: 'November 1, 2026' },
@@ -3412,7 +3460,7 @@
     } else if (type === 'rental_application') {
       state.header_subtitle = 'Prospective Tenant Residency, Employment & FCRA Screening Application';
       state.from = { name: 'Vance Residential Group', company: 'Vance Property Management LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'screening@vanceresidential.com' };
-      state.to = { name: 'Sophia Alvarez', company: 'Primary Rental Applicant', address: '910 West 6th St, Apt 312, Austin, TX 78703', email: 'sophia.alvarez@example.com', phone: '+1 (512) 555-0144' };
+      state.to = { name: 'Sophia Alvarez', company: '', address: '910 West 6th St, Apt 312, Austin, TX 78703', email: 'sophia.alvarez@example.com', phone: '+1 (512) 555-0144' };
       state.custom_fields = [
         { label: 'Target Unit', value: '1420 South Congress Ave, Unit 6A, Austin, TX 78704' },
         { label: 'Desired Move-In Date', value: 'November 15, 2026' },
@@ -3429,7 +3477,7 @@
     } else if (type === 'adverse_action_notice') {
       state.header_subtitle = 'Statutory Fair Credit Reporting Act (15 U.S.C. § 1681m(a)) Consumer Disclosure';
       state.from = { name: 'Vance Compliance Department', company: 'Vance Property Management LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'compliance@vanceresidential.com' };
-      state.to = { name: 'Jordan Blake', company: 'Rental Applicant', address: '220 Barton Springs Rd, Austin, TX 78704', email: 'j.blake@example.com' };
+      state.to = { name: 'Jordan Blake', company: '', address: '220 Barton Springs Rd, Austin, TX 78704', email: 'j.blake@example.com' };
       state.custom_fields = [
         { label: 'Application Reference', value: 'APP-2026-8841 (Unit 3C)' },
         { label: 'Adverse Action Taken', value: 'Conditional Approval Requiring Co-Signer or Additional Deposit' },
@@ -3444,7 +3492,7 @@
     } else if (type === 'notice_of_entry') {
       state.header_subtitle = 'Statutory Advance Written Notice of Landlord Entry to Premises';
       state.from = { name: 'Vance Property Operations', company: 'Vance Property Management LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'maintenance@vanceresidential.com', phone: '+1 (512) 555-0188' };
-      state.to = { name: 'Marcus & Elena Sterling', company: 'Occupying Tenants', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.to = { name: 'Marcus & Elena Sterling', company: '', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
       state.custom_fields = [
         { label: 'Scheduled Entry Date', value: 'Thursday, October 29, 2026' },
         { label: 'Entry Time Window', value: '10:00 AM – 1:00 PM Local Time' },
@@ -3458,7 +3506,7 @@
     } else if (type === 'rent_increase_notice') {
       state.header_subtitle = 'Statutory Advance Written Notice of Monthly Rent Adjustment';
       state.from = { name: 'Vance Residential Group', company: 'Vance Residential Holdings LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'leasing@vanceresidential.com' };
-      state.to = { name: 'Marcus & Elena Sterling', company: 'Residential Tenants', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.to = { name: 'Marcus & Elena Sterling', company: '', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
       state.custom_fields = [
         { label: 'Effective Date of New Rent', value: 'January 1, 2027 (65+ Days Advance Notice)' },
         { label: 'Current Monthly Rent', value: '$2,650.00 / month' },
@@ -3475,7 +3523,7 @@
     } else if (type === 'mutual_lease_termination') {
       state.header_subtitle = 'Bilateral Early Lease Surrender, Release of Claims & Move-Out Settlement';
       state.from = { name: 'Vance Residential Group', company: 'Vance Residential Holdings LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'leasing@vanceresidential.com' };
-      state.to = { name: 'Marcus & Elena Sterling', company: 'Vacating Tenants', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.to = { name: 'Marcus & Elena Sterling', company: '', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
       state.custom_fields = [
         { label: 'Original Lease Expiration', value: 'May 31, 2027' },
         { label: 'Agreed Early Surrender Date', value: 'November 30, 2026 at 5:00 PM' },
@@ -3490,7 +3538,7 @@
     } else if (type === 'tenant_rent_ledger') {
       state.header_subtitle = 'Chronological Audit Trail of Charges, Payments, Late Fees & Running Balance';
       state.from = { name: 'Vance Accounting & Escrow', company: 'Vance Property Management LLC', address: '742 Evergreen Terrace, Suite 200, Austin, TX 78701', email: 'accounting@vanceresidential.com' };
-      state.to = { name: 'Marcus & Elena Sterling', company: 'Lease Account #RLA-2026-0402', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.to = { name: 'Marcus & Elena Sterling', company: '', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
       state.custom_fields = [
         { label: 'Audit Period', value: 'August 1, 2026 – October 25, 2026' },
         { label: 'Monthly Base Rent', value: '$2,650.00 (Due 1st · 5-Day Grace Period)' },
@@ -3528,8 +3576,8 @@
       ];
     } else if (type === 'schedule_e_tax_worksheet') {
       state.header_subtitle = 'IRS Form 1040 Schedule E (Part I) Rental Real Estate Income & Expense Summary';
-      state.from = { name: 'Hallman Capital Properties LLC', company: 'Tax Year 2026 Accounting Package', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'tax@hallmanproperties.com' };
-      state.to = { name: 'Vance & Associates CPAs LLP', company: 'Certified Public Accountants', address: '500 Chestnut St, Suite 900, Chattanooga, TN 37402', email: 'filings@vancecpa.com' };
+      state.from = { name: 'Daniel Hallman', company: 'Hallman Capital Properties LLC', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'tax@hallmanproperties.com' };
+      state.to = { name: 'Robert Vance, CPA', company: 'Vance & Associates CPAs LLP', address: '500 Chestnut St, Suite 900, Chattanooga, TN 37402', email: 'filings@vancecpa.com' };
       state.custom_fields = [
         { label: 'Property 1A Address', value: '412 Northshore Dr, Chattanooga, TN 37405 (Multi-Family)' },
         { label: 'Gross Rents Received (Line 3)', value: '$148,200.00' },
@@ -3549,7 +3597,7 @@
     } else if (type === 'real_estate_deal_analysis') {
       state.header_subtitle = 'Institutional Investment Underwriting · Cap Rate, Cash-on-Cash, DSCR & BRRRR Pro Forma';
       state.from = { name: 'Acquisitions & Underwriting Team', company: 'Hallman Capital Properties LLC', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'acquisitions@hallmanproperties.com' };
-      state.to = { name: 'Investment Committee & JV Partners', company: 'Series B Value-Add Multifamily Fund', address: 'Chattanooga, TN 37402', email: 'investors@hallmanproperties.com' };
+      state.to = { name: 'Investment Committee', company: 'Northshore Multifamily Partners LP', address: 'Chattanooga, TN 37402', email: 'investors@hallmanproperties.com' };
       state.custom_fields = [
         { label: 'Purchase Price & Rehab Budget', value: '$820,000 Purchase + $115,000 Value-Add Rehab ($935,000 All-In)' },
         { label: 'After-Repair Value (ARV)', value: '$1,225,000.00 (76.3% All-In LTV to ARV)' },
@@ -3566,8 +3614,8 @@
       ];
     } else if (type === 'sublease_agreement') {
       state.header_subtitle = 'Residential Subtenancy Agreement & Master Lease Flow-Through Consent';
-      state.from = { name: 'Marcus Sterling', company: 'Primary Master Tenant (Sublessor)', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
-      state.to = { name: 'Noah Takahashi', company: 'Incoming Subtenant (Sublessee)', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'noah.t@example.com' };
+      state.from = { name: 'Marcus Sterling', company: '', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'm.sterling@example.com' };
+      state.to = { name: 'Noah Takahashi', company: '', address: '1420 South Congress Ave, Unit 4B, Austin, TX 78704', email: 'noah.t@example.com' };
       state.custom_fields = [
         { label: 'Sublease Term', value: 'January 1, 2027 – May 31, 2027 (5 Months)' },
         { label: 'Master Landlord Consent', value: 'Vance Residential Holdings LLC (Written Consent Attached)' },
@@ -3579,8 +3627,8 @@
       ];
     } else if (type === 'rent_to_own_agreement') {
       state.header_subtitle = 'Residential Lease with Exclusive Irrevocable Option to Purchase Real Estate';
-      state.from = { name: 'Vance Residential Holdings LLC', company: 'Property Owner / Optionor (Seller)', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'closings@vanceresidential.com' };
-      state.to = { name: 'Caleb & Hannah Montgomery', company: 'Tenant-Buyers / Optionees', address: '1842 Lookout Mountain Trl, Chattanooga, TN 37409', email: 'montgomery.family@example.com' };
+      state.from = { name: 'Elena Rostova, Managing Director', company: 'Vance Residential Holdings LLC', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'closings@vanceresidential.com' };
+      state.to = { name: 'Caleb & Hannah Montgomery', company: '', address: '1842 Lookout Mountain Trl, Chattanooga, TN 37409', email: 'montgomery.family@example.com' };
       state.custom_fields = [
         { label: 'Agreed Option Strike Price', value: '$465,000.00 (Locked for 24 Months)' },
         { label: 'Upfront Non-Refundable Option Fee', value: '$14,000.00 (100% Credited Toward Purchase Price at Closing)' },
@@ -3593,8 +3641,8 @@
       ];
     } else if (type === 'property_management_agreement') {
       state.header_subtitle = 'Exclusive Agency Contract for Leasing, Rent Collection, Escrow & Maintenance';
-      state.from = { name: 'Vance Property Management LLC', company: 'Licensed Real Estate Brokerage #294810', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'agency@vanceresidential.com' };
-      state.to = { name: 'Highland Crest Holdings LLC', company: 'Property Owner Principal', address: '412 Northshore Dr, Chattanooga, TN 37405', email: 'owner@highlandcrest.com' };
+      state.from = { name: 'Marcus Sterling, Principal Broker', company: 'Vance Property Management LLC', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'agency@vanceresidential.com', registration_number: 'TN Broker Lic #294810' };
+      state.to = { name: 'Arthur Highland, Managing Member', company: 'Highland Crest Holdings LLC', address: '412 Northshore Dr, Chattanooga, TN 37405', email: 'owner@highlandcrest.com' };
       state.custom_fields = [
         { label: 'Managed Portfolio', value: '412 Northshore Dr (6-Unit Multifamily)' },
         { label: 'Monthly Management Fee', value: '8.0% of Gross Collected Rents' },
@@ -3608,8 +3656,8 @@
       ];
     } else if (type === 'real_estate_purchase_agreement') {
       state.header_subtitle = 'Definitive Contract for the Purchase & Sale of Real Property';
-      state.from = { name: 'Highland Crest Holdings LLC', company: 'Seller / Current Title Holder', address: '412 Northshore Dr, Chattanooga, TN 37405', email: 'closings@highlandcrest.com' };
-      state.to = { name: 'Hallman Capital Properties LLC', company: 'Purchaser / Acquiring Entity', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'acquisitions@hallmanproperties.com' };
+      state.from = { name: 'Arthur Highland, Managing Member', company: 'Highland Crest Holdings LLC', address: '412 Northshore Dr, Chattanooga, TN 37405', email: 'closings@highlandcrest.com' };
+      state.to = { name: 'Daniel Hallman, Managing Principal', company: 'Hallman Capital Properties LLC', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'acquisitions@hallmanproperties.com' };
       state.custom_fields = [
         { label: 'Property Address & APN', value: '412 Northshore Dr, Chattanooga, TN 37405 · APN 135K-A-014.00' },
         { label: 'Contract Purchase Price', value: '$1,650,000.00' },
@@ -3628,9 +3676,11 @@
       state.notary_required = true;
       state.county = 'Hamilton';
       state.state_code = state.state_code || 'TN';
-      state.from = { name: 'Highland Crest Holdings LLC', company: 'Grantor (Conveying Title Holder)', address: '412 Northshore Dr, Chattanooga, TN 37405', email: 'legal@highlandcrest.com' };
-      state.to = { name: 'Hallman Capital Properties LLC', company: 'Grantee (Acquiring Title Holder)', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'title@hallmanproperties.com' };
+      state.from = { name: 'Arthur Highland, Managing Member', company: 'Highland Crest Holdings LLC', address: '412 Northshore Dr, Chattanooga, TN 37405', email: 'legal@highlandcrest.com' };
+      state.to = { name: 'Daniel Hallman, Managing Principal', company: 'Hallman Capital Properties LLC', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'title@hallmanproperties.com' };
       state.custom_fields = [
+        { label: 'Prepared By', value: 'Daniel Hallman, Hallman Capital Properties LLC, 1200 Market St, Suite 400, Chattanooga, TN 37402' },
+        { label: 'Return To', value: 'Hallman Capital Properties LLC, 1200 Market St, Suite 400, Chattanooga, TN 37402' },
         { label: 'Conveyance Instrument Type', value: 'General Warranty Deed (Statutory Covenants of Title)' },
         { label: 'Assessor Parcel Number (APN)', value: '135K-A-014.00 (Hamilton County, Tennessee)' },
         { label: 'Legal Description', value: 'Lot 14, Block A, Northshore Subdivision, Plat Book 42, Page 118, Register\'s Office of Hamilton County, TN' },
@@ -3642,8 +3692,8 @@
     } else if (type === 'mechanics_lien_waiver') {
       state.header_subtitle = 'Statutory Contractor & Subcontractor Waiver and Release Upon Progress or Final Payment';
       state.notary_required = true;
-      state.from = { name: 'Canyon Peak Construction Co.', company: 'General Contractor / Lien Claimant', address: '4400 Industrial Blvd, Denver, CO 80216', email: 'billing@canyonpeak.com' };
-      state.to = { name: 'Hallman Capital Properties LLC', company: 'Property Owner & Construction Lender', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'draws@hallmanproperties.com' };
+      state.from = { name: 'Logan Mercer, Project Executive', company: 'Canyon Peak Construction Co.', address: '4400 Industrial Blvd, Denver, CO 80216', email: 'billing@canyonpeak.com' };
+      state.to = { name: 'Daniel Hallman, Managing Principal', company: 'Hallman Capital Properties LLC', address: '1200 Market St, Suite 400, Chattanooga, TN 37402', email: 'draws@hallmanproperties.com' };
       state.custom_fields = [
         { label: 'Waiver Type', value: 'Conditional Waiver and Release Upon Progress Payment (Draw #3)' },
         { label: 'Project Property Address', value: '412 Northshore Dr, Chattanooga, TN 37405' },
@@ -3664,7 +3714,7 @@
       };
       state.to = {
         name: 'Daniel Hallman',
-        company: 'Senior Software Engineer & Systems Architect',
+        company: 'Hallman Lab Systems',
         address: 'San Francisco, CA',
         email: 'daniel@example.com'
       };
@@ -3681,6 +3731,141 @@
       state.signatures = [
         { signer_name: 'Prof. Henrik Lindqvist', signer_title: 'Dean of Faculty, International Standards Board', date: '2026-10-01' },
         { signer_name: 'Beatrice Fontaine', signer_title: 'President, Pressmark Engineering Society', date: '2026-10-01' }
+      ];
+    } else if (type === 'agreement') {
+      state.header_subtitle = 'Enterprise Master Services Terms, Deliverables & Intellectual Property Governance';
+      state.from = {
+        name: 'Alexander Cross',
+        company: 'Vanguard Systems Architecture LLC',
+        address: '500 Howard Street, Suite 400, San Francisco, CA 94105',
+        email: 'legal@vanguardsystems.io',
+        phone: '+1 (415) 880-9120',
+        tax_id: 'US-94-8829104'
+      };
+      state.to = {
+        name: 'Danielle Brooks',
+        company: 'Horizon Logistics Global Inc.',
+        address: '1200 Avenue of the Americas, Floor 18, New York, NY 10036',
+        email: 'procurement@horizonlogistics.com',
+        phone: '+1 (212) 555-0182'
+      };
+      state.custom_fields = [
+        { label: 'Effective Date', value: 'October 1, 2026' },
+        { label: 'Initial Term', value: '12 Months (Auto-Renews Annually)' },
+        { label: 'Payment Terms', value: 'Net 30 Calendar Days from Invoice' },
+        { label: 'Governing Law', value: 'State of Delaware' }
+      ];
+      state.items = [
+        { description: 'Phase 1 · Distributed Platform Architecture & Security Blueprint', quantity: 1.0, unit_price: 18500.00 },
+        { description: 'Phase 2 · Core Rust Service Implementation & Load Verification', quantity: 1.0, unit_price: 34000.00 }
+      ];
+      state.sections = [
+        { title: '1. Scope of Services & Acceptance', content: 'Provider shall perform the engineering and advisory services itemized in this Master Service Agreement and any executed Statement of Work. Client shall have ten (10) business days from delivery to review and accept each milestone.' },
+        { title: '2. Intellectual Property Assignment', content: 'Upon receipt of full payment for applicable deliverables, Provider assigns to Client all right, title, and interest in custom work product created specifically for Client, excluding Provider pre-existing tooling.' },
+        { title: '3. Limitation of Liability', content: 'Neither party\'s aggregate liability under this Agreement shall exceed the total fees paid by Client to Provider during the twelve (12) months preceding the claim.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Alexander Cross', signer_title: 'Managing Principal, Vanguard Systems', date: '2026-10-01' },
+        { signer_name: 'Danielle Brooks', signer_title: 'VP of Operations, Horizon Logistics', date: '2026-10-01' }
+      ];
+    } else if (type === 'agreement_sow') {
+      state.header_subtitle = 'Technical Project Milestones, Acceptance Criteria & Fixed-Fee Delivery Schedule';
+      state.from = {
+        name: 'Alexander Cross',
+        company: 'Vanguard Systems Architecture LLC',
+        address: '500 Howard Street, Suite 400, San Francisco, CA 94105',
+        email: 'delivery@vanguardsystems.io',
+        phone: '+1 (415) 880-9120'
+      };
+      state.to = {
+        name: 'Danielle Brooks',
+        company: 'Horizon Logistics Global Inc.',
+        address: '1200 Avenue of the Americas, Floor 18, New York, NY 10036',
+        email: 'engineering@horizonlogistics.com'
+      };
+      state.custom_fields = [
+        { label: 'Parent MSA Reference', value: 'MSA-2026-0881' },
+        { label: 'SOW Project Code', value: 'SOW-2026-Q4-VECTOR' },
+        { label: 'Target Completion', value: 'December 18, 2026 (10 Weeks)' },
+        { label: 'Acceptance Window', value: '5 Business Days per Milestone' }
+      ];
+      state.items = [
+        { description: 'Milestone 1 · Schema & API Contract Specification (Week 2)', quantity: 1.0, unit_price: 9500.00 },
+        { description: 'Milestone 2 · High-Throughput Rust Worker & Queue Pipeline (Week 6)', quantity: 1.0, unit_price: 22000.00 },
+        { description: 'Milestone 3 · Production Cutover, Observability & Runbook Handover (Week 10)', quantity: 1.0, unit_price: 11500.00 }
+      ];
+      state.sections = [
+        { title: '1. Deliverable Acceptance Criteria', content: 'Each milestone deliverable shall pass automated integration tests, sustain p99 latency under 25ms at 500 RPS, and include complete runbook documentation prior to sign-off.' },
+        { title: '2. Change Order Procedure', content: 'Any additions or material modifications to the scope defined above require a written Change Order signed by authorized representatives of both parties.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Alexander Cross', signer_title: 'Principal Solutions Architect', date: '2026-10-01' },
+        { signer_name: 'Danielle Brooks', signer_title: 'VP of Engineering & Operations', date: '2026-10-01' }
+      ];
+    } else if (type === 'contractor_agreement') {
+      state.header_subtitle = 'Independent 1099 Engagement, Work-Made-for-Hire IP Assignment & Non-Solicitation';
+      state.from = {
+        name: 'Marcus Vance',
+        company: 'Vance Technical Advisory LLC',
+        address: '842 Valencia St, Suite 300, San Francisco, CA 94110',
+        email: 'marcus@vanceadvisory.io',
+        phone: '+1 (415) 555-0194',
+        tax_id: 'EIN 84-3920184'
+      };
+      state.to = {
+        name: 'Dr. Sarah Lin',
+        company: 'NeuralCloud Systems Inc.',
+        address: '500 Howard Street, Suite 800, San Francisco, CA 94105',
+        email: 'legal@neuralcloud.ai'
+      };
+      state.custom_fields = [
+        { label: 'Engagement Classification', value: 'Independent Contractor (IRS Form 1099-NEC)' },
+        { label: 'Contract Term', value: 'October 1, 2026 – March 31, 2027' },
+        { label: 'Authorized Rate & Cap', value: '$210.00 / hr (Up to 30 hrs/week)' },
+        { label: 'Invoicing Cadence', value: 'Bi-Weekly on Net 15 Terms' }
+      ];
+      state.items = [
+        { description: 'Senior Distributed Systems & Rust Engineering Services (Monthly Cap Est.)', quantity: 120.0, unit_price: 210.00 }
+      ];
+      state.sections = [
+        { title: '1. Independent Contractor Status', content: 'Contractor performs all services as an independent business entity and not as an employee, partner, or agent of Company. Contractor is solely responsible for all federal, state, and local self-employment taxes.' },
+        { title: '2. Invention & Work-Made-for-Hire Assignment', content: 'All code, designs, documentation, and inventions conceived or reduced to practice by Contractor in connection with the Services shall be the sole and exclusive property of Company.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Marcus Vance', signer_title: 'Managing Member, Vance Technical Advisory LLC', date: '2026-10-01' },
+        { signer_name: 'Dr. Sarah Lin', signer_title: 'Chief Executive Officer, NeuralCloud Systems Inc.', date: '2026-10-01' }
+      ];
+    } else if (type === 'retainer_agreement') {
+      state.header_subtitle = 'Dedicated Monthly Advisory Capacity, SLA Response Guarantees & Priority Access';
+      state.from = {
+        name: 'Alexander Cross',
+        company: 'Vanguard Systems Architecture LLC',
+        address: '500 Howard Street, Suite 400, San Francisco, CA 94105',
+        email: 'retainers@vanguardsystems.io',
+        phone: '+1 (415) 880-9120'
+      };
+      state.to = {
+        name: 'Danielle Brooks',
+        company: 'Horizon Logistics Global Inc.',
+        address: '1200 Avenue of the Americas, Floor 18, New York, NY 10036',
+        email: 'accounts.payable@horizonlogistics.com'
+      };
+      state.custom_fields = [
+        { label: 'Retainer Tier', value: 'Enterprise Principal Advisory (25 Dedicated Hours / Month)' },
+        { label: 'Response Time SLA', value: 'Under 2 Hours (24/7 P1 Incident Escalation)' },
+        { label: 'Monthly Billing Date', value: '1st Business Day of Each Calendar Month' },
+        { label: 'Overage Rate', value: '$225.00 / hr (Pre-Approved in Writing)' }
+      ];
+      state.items = [
+        { description: 'Monthly Executive Architecture & Reliability Retainer (25 Hours Included)', quantity: 1.0, unit_price: 5500.00 }
+      ];
+      state.sections = [
+        { title: '1. Reserved Capacity & Priority SLA', content: 'Advisor reserves twenty-five (25) hours per calendar month exclusively for Client architecture reviews, production incident response, and security audits with a two-hour SLA.' },
+        { title: '2. Rollover & Renewal Terms', content: 'Up to five (5) unused retainer hours may roll over to the immediately following calendar month. Either party may terminate renewal upon thirty (30) days prior written notice.' }
+      ];
+      state.signatures = [
+        { signer_name: 'Alexander Cross', signer_title: 'Managing Principal, Vanguard Systems', date: '2026-10-01' },
+        { signer_name: 'Danielle Brooks', signer_title: 'VP of Operations, Horizon Logistics', date: '2026-10-01' }
       ];
     } else if (type === 'nda' || type.includes('agreement')) {
       state.header_subtitle = 'Mutual Confidentiality & Proprietary Rights Preservation';
@@ -3952,6 +4137,10 @@
       ];
     } else {
       // Default Commercial Invoice / Estimate / Statement Preset
+      if (type.startsWith('invoice')) {
+        state.tax_rate = 8.25;
+        state.discount_amount = 250.0;
+      }
       state.header_subtitle = 'Enterprise Systems & Precision Infrastructure Retainer';
       state.from = {
         name: 'Alexander Cross',
@@ -5187,24 +5376,6 @@
           showUndoToast(pages.length > 1 ? `🖼️ Exported all ${pages.length} high-res PNG pages` : '🖼️ High-Res PNG Exported');
         } else {
           showUndoToast('⚠️ Please wait for preview to finish compiling');
-        }
-      });
-    }
-
-    const btnZoomFit = document.getElementById('btnZoomFit');
-    if (btnZoomFit) {
-      btnZoomFit.addEventListener('click', () => {
-        const viewport = document.getElementById('previewViewport');
-        const wrapper = document.getElementById('previewDocWrapper');
-        if (viewport && wrapper) {
-          const viewportWidth = viewport.clientWidth - 64;
-          const wrapperWidth = wrapper.offsetWidth || 780;
-          const targetZoom = Math.min(150, Math.max(50, Math.round((viewportWidth / wrapperWidth) * 100)));
-          currentZoom = targetZoom;
-          previewDocWrapper.style.transform = `scale(${currentZoom / 100})`;
-          const zoomDisp = document.getElementById('zoomDisplay');
-          if (zoomDisp) zoomDisp.innerText = `${currentZoom}%`;
-          showUndoToast(`Zoom: ${currentZoom}% (Fit Viewport)`);
         }
       });
     }

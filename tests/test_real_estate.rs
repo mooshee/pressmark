@@ -1072,4 +1072,369 @@ fn test_michigan_uppercase_conspicuous_notice_and_kpi_deduplication_and_combined
     }
 }
 
+#[tokio::test]
+async fn test_pro_qa_all_defect_fixes_and_visual_verification() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use pressmark::engine::generate_typst_markup;
+    use pressmark::models::SignatureBlock;
+    use pressmark::server::{create_router, AppState};
+    use pressmark::state_laws::get_state_lease_profile;
+    use pressmark::storage::Storage;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    // 1. Defect Group 1: Payment QR Gating on Non-Payable Archetypes
+    let non_payable = [
+        DocumentType::CreditNote,
+        DocumentType::Receipt,
+        DocumentType::PropertyDeed,
+        DocumentType::RealEstatePurchaseAgreement,
+        DocumentType::ScheduleETaxWorksheet,
+        DocumentType::ScheduleOfRealEstateOwned,
+        DocumentType::RealEstateDealAnalysis,
+        DocumentType::SecurityDepositDisposition,
+        DocumentType::MutualLeaseTermination,
+        DocumentType::PropertyInspectionChecklist,
+        DocumentType::RentalApplication,
+        DocumentType::AdverseActionNotice,
+        DocumentType::NoticeOfEntry,
+        DocumentType::RentIncreaseNotice,
+        DocumentType::TenantEstoppel,
+        DocumentType::LetterOfIntentCre,
+        DocumentType::MechanicsLienWaiver,
+        DocumentType::Nda,
+        DocumentType::Certificate,
+        DocumentType::CertificateCompletion,
+        DocumentType::CertificateInsurance,
+    ];
+    for dt in non_payable {
+        assert!(!dt.allows_payment_qr(), "{:?} must not allow payment QR", dt);
+        let req = DocumentRequest {
+            doc_type: dt.clone(),
+            payment_qr_code: Some(true),
+            payment_link: Some("https://buy.stripe.com/test_leak".to_string()),
+            from: PartyDetails { name: "Issuer".to_string(), ..Default::default() },
+            to: PartyDetails { name: "Recipient".to_string(), ..Default::default() },
+            items: vec![LineItem {
+                description: "Item".to_string(),
+                quantity: 1.0,
+                unit_price: 100.0,
+                tax_rate: None,
+                discount: None,
+            }],
+            ..Default::default()
+        };
+        let markup = generate_typst_markup(&req);
+        assert!(
+            !markup.contains("#payment-qr-block("),
+            "Non-payable archetype {:?} leaked #payment-qr-block",
+            dt
+        );
+    }
+
+    // Verify payable archetypes DO emit #payment-qr-block when requested
+    for dt in [
+        DocumentType::Invoice,
+        DocumentType::NoticeToVacate,
+        DocumentType::TenantRentLedger,
+        DocumentType::RetainerAgreement,
+    ] {
+        assert!(dt.allows_payment_qr(), "{:?} should allow payment QR", dt);
+        let req = DocumentRequest {
+            doc_type: dt.clone(),
+            payment_qr_code: Some(true),
+            payment_link: Some("https://buy.stripe.com/test_valid".to_string()),
+            from: PartyDetails { name: "Issuer".to_string(), ..Default::default() },
+            to: PartyDetails { name: "Recipient".to_string(), ..Default::default() },
+            items: vec![LineItem {
+                description: "Balance Due".to_string(),
+                quantity: 1.0,
+                unit_price: 500.0,
+                tax_rate: None,
+                discount: None,
+            }],
+            ..Default::default()
+        };
+        let markup = generate_typst_markup(&req);
+        assert!(
+            markup.contains("#payment-qr-block("),
+            "Payable archetype {:?} failed to emit #payment-qr-block",
+            dt
+        );
+    }
+
+    // 2. Defect Group 2: Layer 1 (VA/MN) & Layer 4 (FL/WI/NY) Statutory Scoping
+    let non_lease_notices = [
+        DocumentType::NoticeOfEntry,
+        DocumentType::SecurityDepositDisposition,
+        DocumentType::MutualLeaseTermination,
+        DocumentType::LeaseAmendment,
+    ];
+    for dt in non_lease_notices {
+        assert!(!dt.is_lease_agreement());
+        for state in ["VA", "MN", "FL", "WI", "NY"] {
+            let req = DocumentRequest {
+                doc_type: dt.clone(),
+                state_code: Some(state.to_string()),
+                lease_package_mode: Some(true),
+                from: PartyDetails { name: "Landlord".to_string(), ..Default::default() },
+                to: PartyDetails { name: "Tenant".to_string(), ..Default::default() },
+                ..Default::default()
+            };
+            let markup = generate_typst_markup(&req);
+            assert!(
+                !markup.contains("VIRGINIA STATUTORY PAGE-1 LEASE SUMMARY"),
+                "VA Page-1 Lease Summary leaked onto {:?}",
+                dt
+            );
+            assert!(
+                !markup.contains("MINNESOTA STATUTORY PAGE-1 LEASE SUMMARY"),
+                "MN Page-1 Lease Summary leaked onto {:?}",
+                dt
+            );
+            assert!(
+                !markup.contains("FLORIDA STATUTORY FLOOD DISCLOSURE"),
+                "FL standalone lease flood addendum leaked onto {:?}",
+                dt
+            );
+            assert!(
+                !markup.contains("WISCONSIN STATUTORY NONSTANDARD RENTAL PROVISIONS"),
+                "WI standalone lease addendum leaked onto {:?}",
+                dt
+            );
+            assert!(
+                !markup.contains("NEW YORK STATUTORY GOOD CAUSE EVICTION LAW NOTICE"),
+                "NY RPL 231-c rider leaked onto {:?}",
+                dt
+            );
+            assert!(
+                !markup.contains("SCHEDULE A: JOINT MOVE-IN / MOVE-OUT CONDITION CHECKLIST"),
+                "Move-In checklist leaked onto {:?}",
+                dt
+            );
+        }
+    }
+
+    // NY RPL § 231-c SHOULD attach on RentIncreaseNotice and NoticeToVacate, while FL/WI/VA Page-1 must NOT
+    for dt in [DocumentType::RentIncreaseNotice, DocumentType::NoticeToVacate] {
+        let ny_req = DocumentRequest {
+            doc_type: dt.clone(),
+            state_code: Some("NY".to_string()),
+            from: PartyDetails { name: "Landlord".to_string(), ..Default::default() },
+            to: PartyDetails { name: "Tenant".to_string(), ..Default::default() },
+            items: vec![LineItem { description: "Rent".to_string(), quantity: 1.0, unit_price: 2400.0, tax_rate: None, discount: None }],
+            ..Default::default()
+        };
+        let ny_markup = generate_typst_markup(&ny_req);
+        assert!(
+            ny_markup.contains("NEW YORK STATUTORY GOOD CAUSE EVICTION LAW NOTICE"),
+            "NY RPL 231-c rider should attach to {:?}",
+            dt
+        );
+
+        let fl_req = DocumentRequest {
+            doc_type: dt.clone(),
+            state_code: Some("FL".to_string()),
+            from: PartyDetails { name: "Landlord".to_string(), ..Default::default() },
+            to: PartyDetails { name: "Tenant".to_string(), ..Default::default() },
+            items: vec![LineItem { description: "Rent".to_string(), quantity: 1.0, unit_price: 2400.0, tax_rate: None, discount: None }],
+            ..Default::default()
+        };
+        let fl_markup = generate_typst_markup(&fl_req);
+        assert!(
+            !fl_markup.contains("FLORIDA STATUTORY FLOOD DISCLOSURE"),
+            "FL flood addendum must not attach to {:?}",
+            dt
+        );
+    }
+
+    // 3. Defect Group 4: RentIncreaseNotice Prior+New Rent vs Prior+Delta, Deal Analysis DSCR/Purchase Price, Schedule E Label
+    let rent_inc_prior_new = DocumentRequest {
+        doc_type: DocumentType::RentIncreaseNotice,
+        from: PartyDetails { name: "Vance Residential Holdings LLC".to_string(), ..Default::default() },
+        to: PartyDetails { name: "Marcus Sterling".to_string(), ..Default::default() },
+        items: vec![
+            LineItem { description: "Prior Monthly Base Rent".to_string(), quantity: 1.0, unit_price: 2300.0, tax_rate: None, discount: None },
+            LineItem { description: "New Monthly Base Rent (Effective Jan 1, 2027)".to_string(), quantity: 1.0, unit_price: 2450.0, tax_rate: None, discount: None },
+        ],
+        ..Default::default()
+    };
+    assert!((rent_inc_prior_new.subtotal() - 2450.0).abs() < 0.005, "Expected $2,450.00 new rent, got {}", rent_inc_prior_new.subtotal());
+    assert!((rent_inc_prior_new.grand_total() - 2450.0).abs() < 0.005);
+    let rent_inc_markup = generate_typst_markup(&rent_inc_prior_new);
+    assert!(rent_inc_markup.contains("Prior Monthly Rent:"));
+    assert!(rent_inc_markup.contains("Net Monthly Increase:"));
+    assert!(rent_inc_markup.contains("2,450.00"));
+    assert!(!rent_inc_markup.contains("4,750.00"));
+
+    // Deal Analysis with Purchase Price + Rent + Expenses + DSCR ratio row
+    let deal_mixed = DocumentRequest {
+        doc_type: DocumentType::RealEstateDealAnalysis,
+        from: PartyDetails { name: "Hallman Capital Properties LLC".to_string(), ..Default::default() },
+        to: PartyDetails { name: "Investment Committee".to_string(), ..Default::default() },
+        items: vec![
+            LineItem { description: "Purchase Price".to_string(), quantity: 1.0, unit_price: 850000.0, tax_rate: None, discount: None },
+            LineItem { description: "Gross Scheduled Rent".to_string(), quantity: 1.0, unit_price: 96000.0, tax_rate: None, discount: None },
+            LineItem { description: "Operating Expenses".to_string(), quantity: 1.0, unit_price: -34000.0, tax_rate: None, discount: None },
+            LineItem { description: "Debt Service Coverage Ratio (DSCR)".to_string(), quantity: 1.0, unit_price: 1.48, tax_rate: None, discount: None },
+        ],
+        ..Default::default()
+    };
+    // Subtotal must only sum operating cash flow items (96,000 - 34,000 = 62,000), excluding Purchase Price (850,000) and DSCR (1.48)
+    assert!(
+        (deal_mixed.subtotal() - 62000.0).abs() < 0.005,
+        "Expected $62,000.00 NOI, got {}",
+        deal_mixed.subtotal()
+    );
+    let deal_markup = generate_typst_markup(&deal_mixed);
+    assert!(deal_markup.contains("1.48x"), "DSCR ratio item must format as 1.48x, not $1.48");
+    assert!(deal_markup.contains("Projected Annual Cash Flow / NOI:"));
+
+    // Schedule E Tax Worksheet label check
+    let sched_e_req = DocumentRequest {
+        doc_type: DocumentType::ScheduleETaxWorksheet,
+        from: PartyDetails { name: "Hallman Capital Properties LLC".to_string(), ..Default::default() },
+        to: PartyDetails { name: "Vance & Associates CPAs LLP".to_string(), ..Default::default() },
+        items: vec![
+            LineItem { description: "Line 3 · Gross Rents Received".to_string(), quantity: 1.0, unit_price: 148200.0, tax_rate: None, discount: None },
+            LineItem { description: "Line 12 · Mortgage Interest Paid".to_string(), quantity: 1.0, unit_price: -21400.0, tax_rate: None, discount: None },
+            LineItem { description: "Line 18 · MACRS Depreciation".to_string(), quantity: 1.0, unit_price: -38900.0, tax_rate: None, discount: None },
+        ],
+        ..Default::default()
+    };
+    let sched_e_markup = generate_typst_markup(&sched_e_req);
+    assert!(sched_e_markup.contains("Net Rental Income / (Loss) (Schedule E):"));
+    assert!(!sched_e_markup.contains("Net Cash Remittance to Owner:"));
+
+    // Empty items on NoticeOfEntry must suppress the totals box
+    let notice_entry_req = DocumentRequest {
+        doc_type: DocumentType::NoticeOfEntry,
+        state_code: Some("TX".to_string()),
+        custom_fields: vec![
+            CustomField { label: "Service Method".to_string(), value: "Certified Mail".to_string() },
+        ],
+        from: PartyDetails { name: "Vance Property Management LLC".to_string(), ..Default::default() },
+        to: PartyDetails { name: "Marcus Sterling".to_string(), ..Default::default() },
+        items: vec![],
+        ..Default::default()
+    };
+    let notice_entry_markup = generate_typst_markup(&notice_entry_req);
+    assert!(!notice_entry_markup.contains("Total Due:"), "NoticeOfEntry with empty items must not render Total Due box");
+    assert!(
+        notice_entry_markup.contains("service-method: \"mail\""),
+        "NoticeOfEntry must pass service-method from CustomField to #certificate-of-service"
+    );
+
+    // 4. Defect Group 5: PropertyDeed Prepared By / Return To, Single Jurat Signer Deduplication, Michigan 14pt
+    let deed_req = DocumentRequest {
+        doc_type: DocumentType::PropertyDeed,
+        state_code: Some("TN".to_string()),
+        county: Some("Hamilton".to_string()),
+        recordable: Some(true),
+        notary_required: Some(true),
+        from: PartyDetails {
+            name: "Highland Crest Holdings LLC".to_string(),
+            address: Some("412 Northshore Dr, Chattanooga, TN 37405".to_string()),
+            ..Default::default()
+        },
+        to: PartyDetails {
+            name: "Hallman Capital Properties LLC".to_string(),
+            address: Some("1200 Market St, Suite 400, Chattanooga, TN 37402".to_string()),
+            ..Default::default()
+        },
+        custom_fields: vec![
+            CustomField {
+                label: "Prepared By".to_string(),
+                value: "Chambliss, Bahner & Stophel, P.C., 605 Chestnut St, Chattanooga, TN 37450".to_string(),
+            },
+            CustomField {
+                label: "Return To".to_string(),
+                value: "Pioneer Title & Escrow, 701 Market St, Chattanooga, TN 37402".to_string(),
+            },
+            CustomField {
+                label: "APN".to_string(),
+                value: "135K-A-014.00".to_string(),
+            },
+        ],
+        items: vec![
+            LineItem { description: "Consideration".to_string(), quantity: 1.0, unit_price: 1650000.0, tax_rate: None, discount: None },
+        ],
+        signatures: vec![
+            SignatureBlock {
+                signer_name: "Arthur Highland".to_string(),
+                signer_title: Some("Managing Member, Highland Crest Holdings LLC".to_string()),
+                date: Some("2026-10-25".to_string()),
+                signature_data: None,
+            },
+        ],
+        ..Default::default()
+    };
+    let deed_markup = generate_typst_markup(&deed_req);
+    assert!(deed_markup.contains("prepared-by: \"Chambliss, Bahner & Stophel, P.C., 605 Chestnut St, Chattanooga, TN 37450\""));
+    assert!(deed_markup.contains("return-to: \"Pioneer Title & Escrow, 701 Market St, Chattanooga, TN 37402\""));
+    assert!(deed_markup.contains("#jurat-box("));
+    assert!(
+        !deed_markup.contains("#signature-grid("),
+        "Single-signer notarized instrument must not duplicate signer in both #jurat-box and #signature-grid"
+    );
+
+    let mi_profile = get_state_lease_profile("MI").expect("MI profile must exist");
+    let mi_cc = mi_profile.conspicuous_clause.expect("MI conspicuous clause must exist");
+    assert_eq!(mi_cc.point_size, 14, "MCL 554.603 requires >= 4pt larger than 10pt body text (14pt)");
+
+    // 5. Defect Group 6: Real SHA-256 Audit Hash & API "success": true
+    let hash1 = deed_req.compute_audit_sha256();
+    let hash2 = sched_e_req.compute_audit_sha256();
+    assert_eq!(hash1.len(), 64);
+    assert!(hash1.chars().all(|c| c.is_ascii_hexdigit()));
+    assert_ne!(hash1, hash2, "Different documents must produce different SHA-256 hashes");
+    assert!(!hash1.starts_with("7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1f"));
+    assert!(deed_markup.contains(&hash1), "Markup must embed real SHA-256 digest");
+
+    // Verify /api/v1/templates and /api/v1/states include "success": true
+    let storage = Arc::new(Storage::new(":memory:").unwrap());
+    let app_state = Arc::new(AppState::default().with_storage(storage));
+    let router = create_router(app_state);
+
+    for uri in ["/api/v1/templates", "/api/v1/states"] {
+        let req = Request::builder().uri(uri).method("GET").body(Body::empty()).unwrap();
+        let res = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["success"], true, "Endpoint {} must return \"success\": true", uri);
+    }
+
+    // 6. Defect Group 3: Verify static/js/studio.js fixes
+    let studio_js = std::fs::read_to_string("static/js/studio.js").expect("Failed to read static/js/studio.js");
+    let state_idx = studio_js.find("const requestedState =").expect("requestedState missing");
+    let tmpl_idx = studio_js.find("const requestedTemplate =").expect("requestedTemplate missing");
+    assert!(state_idx < tmpl_idx, "requestedState must be assigned before requestedTemplate in init()");
+    assert!(studio_js.contains("} else if (type === 'agreement') {"));
+    assert!(studio_js.contains("} else if (type === 'agreement_sow') {"));
+    assert!(studio_js.contains("} else if (type === 'contractor_agreement') {"));
+    assert!(studio_js.contains("} else if (type === 'retainer_agreement') {"));
+    assert_eq!(
+        studio_js.matches("document.getElementById('btnZoomFit')").count(),
+        1,
+        "btnZoomFit listener must be registered exactly once"
+    );
+
+    // Compile visual QA previews for key fixed documents
+    for (name, req) in [
+        ("deed", &deed_req),
+        ("sched_e", &sched_e_req),
+        ("rent_inc", &rent_inc_prior_new),
+        ("deal", &deal_mixed),
+        ("notice_entry", &notice_entry_req),
+    ] {
+        let (pdf, _) = generate_pdf(req).unwrap_or_else(|e| panic!("PDF failed for {}: {}", name, e));
+        assert!(pdf.starts_with(b"%PDF-"));
+        let (png, _) = generate_preview_png(req, 144).unwrap_or_else(|e| panic!("PNG failed for {}: {}", name, e));
+        assert!(png.len() > 5000);
+    }
+}
+
+
 

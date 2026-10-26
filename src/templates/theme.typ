@@ -320,7 +320,8 @@
   ))
 }
 
-#let verification-seal(doc-number, primary-color: color-indigo-600, accent-color: color-cyan-600, surface-color: color-slate-50) = {
+#let verification-seal(doc-number, hash: "", primary-color: color-indigo-600, accent-color: color-cyan-600, surface-color: color-slate-50) = {
+  let effective-hash = if hash != "" { hash } else { doc-number }
   box(
     stroke: 0.75pt + accent-color.lighten(40%),
     radius: 4pt,
@@ -346,7 +347,7 @@
         [
           #text(size: 7pt, weight: "bold", fill: primary-color)[DIGITALLY VERIFIED DOCUMENT] \
           #text(size: 6pt, font: "Menlo", fill: color-slate-500)[ID: #doc-number] \
-          #text(size: 5.5pt, font: "Menlo", fill: color-slate-400)[SHA-256: 7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1f... · Pressmark Audit Node]
+          #text(size: 5.5pt, font: "Menlo", fill: color-slate-400)[SHA-256: #effective-hash · Pressmark Audit Node]
         ]
       )
     ]
@@ -799,34 +800,36 @@
 }
 
 #let signature-grid(items) = {
-  v(10pt)
-  let count = items.len()
-  if count == 1 {
-    align(right)[
-      #box(width: 200pt)[#items.at(0)]
-    ]
-  } else if count == 2 {
-    grid(
-      columns: (1fr, 1fr),
-      gutter: 24pt,
-      items.at(0),
-      items.at(1)
-    )
-  } else if count == 3 {
-    grid(
-      columns: (1fr, 1fr, 1fr),
-      gutter: 16pt,
-      items.at(0),
-      items.at(1),
-      items.at(2)
-    )
-  } else {
-    grid(
-      columns: (1fr, 1fr),
-      gutter: 18pt,
-      ..items
-    )
-  }
+  block(breakable: false, width: 100%)[
+    #v(10pt)
+    #let count = items.len()
+    #if count == 1 {
+      align(right)[
+        #box(width: 200pt)[#items.at(0)]
+      ]
+    } else if count == 2 {
+      grid(
+        columns: (1fr, 1fr),
+        gutter: 24pt,
+        items.at(0),
+        items.at(1)
+      )
+    } else if count == 3 {
+      grid(
+        columns: (1fr, 1fr, 1fr),
+        gutter: 16pt,
+        items.at(0),
+        items.at(1),
+        items.at(2)
+      )
+    } else {
+      grid(
+        columns: (1fr, 1fr),
+        gutter: 18pt,
+        ..items
+      )
+    }
+  ]
 }
 
 #let signature-block(
@@ -1217,141 +1220,143 @@
     signer-title
   }
 
-  rect(
-    width: 100%,
-    stroke: (dash: "dashed", paint: ink-muted, thickness: 0.75pt),
-    radius: 4pt,
-    fill: bg-tint-subtle,
-    inset: (x: 8pt, y: 6.5pt),
-    [
-      #if cross-reference != "" [
-        #rect(
-          width: 100%,
-          fill: bg-tint-highlight,
-          stroke: 0.5pt + navy-judicial,
-          radius: 2pt,
-          inset: (x: 4pt, y: 2.5pt),
-          text(font: font-mono, size: 6pt, weight: "bold", fill: navy-judicial)[
-            ATTACHMENT BINDING: #cross-reference
-          ]
-        )
-        #v(3pt)
-      ]
-
-      #text(font: font-sans, size: 7.5pt, weight: "bold", fill: ink-primary)[#upper(heading)]
-      #v(2pt)
-      #text(font: font-sans, size: 7pt, fill: ink-secondary)[#body-text]
-      #v(8pt)
-
-      #let is-wet = signature-type == "wet-ink" or signature-type == "wet_ink" or signature-type == "notarized_wet"
-      #let is-ron = signature-type == "ron" or signature-type == "notarized_ron"
-      #let is-esign = signature-type == "esign" or (not is-wet and not is-ron)
-
-      #grid(
-        columns: if include-clerk-stamp and is-wet {
-          (1.2fr, 0.8fr, auto)
-        } else {
-          (1.5fr, 1fr)
-        },
-        column-gutter: if include-clerk-stamp and is-wet { 14pt } else { 24pt },
-        [
-          #if is-esign [
-            #if signature-img != none [
-              #image(signature-img, height: 20pt)
-            ] else if signer-name != "" [
-              #text(font: font-serif, style: "italic", size: 12pt, fill: navy-judicial)[#signer-name]
-            ] else [
-              #text(font: font-serif, style: "italic", size: 12pt, fill: navy-judicial)[#signer-title]
+  block(breakable: false, width: 100%)[
+    #rect(
+      width: 100%,
+      stroke: (dash: "dashed", paint: ink-muted, thickness: 0.75pt),
+      radius: 4pt,
+      fill: bg-tint-subtle,
+      inset: (x: 8pt, y: 6.5pt),
+      [
+        #if cross-reference != "" [
+          #rect(
+            width: 100%,
+            fill: bg-tint-highlight,
+            stroke: 0.5pt + navy-judicial,
+            radius: 2pt,
+            inset: (x: 4pt, y: 2.5pt),
+            text(font: font-mono, size: 6pt, weight: "bold", fill: navy-judicial)[
+              ATTACHMENT BINDING: #cross-reference
             ]
-          ] else [
-            #v(14pt)
-          ]
-          #line(length: 100%, stroke: 1pt + border-dark)
-          #v(2pt)
-          #text(font: font-sans, size: 6.5pt, fill: ink-subtle)[#effective-title]
-        ],
-        [
-          #if is-esign and execution-date != "" [
-            #text(font: font-mono, size: 8.5pt, weight: "bold", fill: navy-judicial)[#execution-date]
-          ] else [
-            #v(14pt)
-          ]
-          #line(length: 100%, stroke: 1pt + border-dark)
-          #v(2pt)
-          #text(font: font-sans, size: 6.5pt, fill: ink-subtle)[Execution Date (YYYY-MM-DD)]
-        ],
-        if include-clerk-stamp and is-wet [
-          #date-stamp-zone(width: 1.8in, height: 0.75in)
+          )
+          #v(3pt)
         ]
-      )
 
-      #if is-esign and esign-audit-id != "" [
-        #v(5pt)
-        #rect(
-          width: 100%,
-          fill: rgb("#f0fdf4"),
-          stroke: 0.5pt + rgb("#86efac"),
-          radius: 2pt,
-          inset: (x: 6pt, y: 3pt),
-          [
-            #grid(
-              columns: (1fr, auto),
-              [
-                #text(font: font-mono, size: 5.5pt, weight: "bold", fill: green-savings)[
-                  CERTIFIED ELECTRONIC EXECUTION (15 U.S.C. § 7001 / UETA) · AUDIT ID: #esign-audit-id
-                ] \
-                #text(font: font-mono, size: 5pt, fill: ink-secondary)[
-                  DIGITALLY ATTESTED BY #upper(if signer-name != "" { signer-name } else { effective-title }) · IP: #if esign-ip != "" { esign-ip } else { "VERIFIED" }
-                ]
-              ],
-              align(right + horizon)[
-                #text(font: font-mono, size: 5pt, fill: ink-subtle)[#esign-timestamp]
-              ]
-            )
-          ]
-        )
-      ]
+        #text(font: font-sans, size: 7.5pt, weight: "bold", fill: ink-primary)[#upper(heading)]
+        #v(2pt)
+        #text(font: font-sans, size: 7pt, fill: ink-secondary)[#body-text]
+        #v(8pt)
 
-      #if is-ron or signature-type == "notarized_wet" or notary-required [
-        #v(6pt)
-        #line(length: 100%, stroke: 0.5pt + rgb("#e2e8f0"))
-        #v(4pt)
-        #text(font: font-sans, size: 6.5pt, weight: "bold", fill: navy-judicial)[NOTARIAL ACKNOWLEDGMENT (STATE OF #upper(state), COUNTY OF #upper(county))] \
-        #text(font: font-sans, size: 6pt, fill: ink-secondary)[
-          Subscribed, acknowledged, and sworn to before me this #if execution-date != "" { execution-date } else { "____ day of _________, 20____" }, by the subscriber proved to me through satisfactory evidence of identification.
-          #if is-ron [
-            Executed via two-way audio-video Remote Online Notarization (RON) pursuant to #ron-statute-citation #if ron-session-id != "" [ · Session ID: #ron-session-id].
-          ]
-        ]
-        #v(6pt)
+        #let is-wet = signature-type == "wet-ink" or signature-type == "wet_ink" or signature-type == "notarized_wet"
+        #let is-ron = signature-type == "ron" or signature-type == "notarized_ron"
+        #let is-esign = signature-type == "esign" or (not is-wet and not is-ron)
+
         #grid(
-          columns: (1.2fr, 0.8fr, 1.2fr),
-          gutter: 8pt,
+          columns: if include-clerk-stamp and is-wet {
+            (1.2fr, 0.8fr, auto)
+          } else {
+            (1.5fr, 1fr)
+          },
+          column-gutter: if include-clerk-stamp and is-wet { 14pt } else { 24pt },
           [
-            #v(14pt)
-            #line(length: 100%, stroke: 0.75pt + border-dark)
-            #text(font: font-sans, size: 5.5pt, fill: ink-subtle)[Signature of Notary Public]
-          ],
-          [
-            #v(14pt)
-            #line(length: 100%, stroke: 0.75pt + border-dark)
-            #text(font: font-sans, size: 5.5pt, fill: ink-subtle)[Commission Expiration]
-          ],
-          align(center + horizon)[
-            #rect(
-              width: 100%,
-              height: 28pt,
-              stroke: 0.5pt + ink-muted,
-              radius: 2pt,
-              align(center + horizon)[
-                #text(font: font-mono, size: 5pt, fill: ink-subtle)[AFFIX OFFICIAL NOTARY SEAL]
+            #if is-esign [
+              #if signature-img != none [
+                #image(signature-img, height: 20pt)
+              ] else if signer-name != "" [
+                #text(font: font-serif, style: "italic", size: 12pt, fill: navy-judicial)[#signer-name]
+              ] else [
+                #text(font: font-serif, style: "italic", size: 12pt, fill: navy-judicial)[#signer-title]
               ]
-            )
+            ] else [
+              #v(14pt)
+            ]
+            #line(length: 100%, stroke: 1pt + border-dark)
+            #v(2pt)
+            #text(font: font-sans, size: 6.5pt, fill: ink-subtle)[#effective-title]
+          ],
+          [
+            #if is-esign and execution-date != "" [
+              #text(font: font-mono, size: 8.5pt, weight: "bold", fill: navy-judicial)[#execution-date]
+            ] else [
+              #v(14pt)
+            ]
+            #line(length: 100%, stroke: 1pt + border-dark)
+            #v(2pt)
+            #text(font: font-sans, size: 6.5pt, fill: ink-subtle)[Execution Date (YYYY-MM-DD)]
+          ],
+          if include-clerk-stamp and is-wet [
+            #date-stamp-zone(width: 1.8in, height: 0.75in)
           ]
         )
+
+        #if is-esign and esign-audit-id != "" [
+          #v(5pt)
+          #rect(
+            width: 100%,
+            fill: rgb("#f0fdf4"),
+            stroke: 0.5pt + rgb("#86efac"),
+            radius: 2pt,
+            inset: (x: 6pt, y: 3pt),
+            [
+              #grid(
+                columns: (1fr, auto),
+                [
+                  #text(font: font-mono, size: 5.5pt, weight: "bold", fill: green-savings)[
+                    CERTIFIED ELECTRONIC EXECUTION (15 U.S.C. § 7001 / UETA) · AUDIT ID: #esign-audit-id
+                  ] \
+                  #text(font: font-mono, size: 5pt, fill: ink-secondary)[
+                    DIGITALLY ATTESTED BY #upper(if signer-name != "" { signer-name } else { effective-title }) · IP: #if esign-ip != "" { esign-ip } else { "VERIFIED" }
+                  ]
+                ],
+                align(right + horizon)[
+                  #text(font: font-mono, size: 5pt, fill: ink-subtle)[#esign-timestamp]
+                ]
+              )
+            ]
+          )
+        ]
+
+        #if is-ron or signature-type == "notarized_wet" or notary-required [
+          #v(6pt)
+          #line(length: 100%, stroke: 0.5pt + rgb("#e2e8f0"))
+          #v(4pt)
+          #text(font: font-sans, size: 6.5pt, weight: "bold", fill: navy-judicial)[NOTARIAL ACKNOWLEDGMENT (STATE OF #upper(state), COUNTY OF #upper(county))] \
+          #text(font: font-sans, size: 6pt, fill: ink-secondary)[
+            Subscribed, acknowledged, and sworn to before me this #if execution-date != "" { execution-date } else { "____ day of _________, 20____" }, by the subscriber proved to me through satisfactory evidence of identification.
+            #if is-ron [
+              Executed via two-way audio-video Remote Online Notarization (RON) pursuant to #ron-statute-citation #if ron-session-id != "" [ · Session ID: #ron-session-id].
+            ]
+          ]
+          #v(6pt)
+          #grid(
+            columns: (1.2fr, 0.8fr, 1.2fr),
+            gutter: 8pt,
+            [
+              #v(14pt)
+              #line(length: 100%, stroke: 0.75pt + border-dark)
+              #text(font: font-sans, size: 5.5pt, fill: ink-subtle)[Signature of Notary Public]
+            ],
+            [
+              #v(14pt)
+              #line(length: 100%, stroke: 0.75pt + border-dark)
+              #text(font: font-sans, size: 5.5pt, fill: ink-subtle)[Commission Expiration]
+            ],
+            align(center + horizon)[
+              #rect(
+                width: 100%,
+                height: 28pt,
+                stroke: 0.5pt + ink-muted,
+                radius: 2pt,
+                align(center + horizon)[
+                  #text(font: font-mono, size: 5pt, fill: ink-subtle)[AFFIX OFFICIAL NOTARY SEAL]
+                ]
+              )
+            ]
+          )
+        ]
       ]
-    ]
-  )
+    )
+  ]
 }
 
 /// Cryptographic verification slug at document base
@@ -1481,51 +1486,59 @@
   recipient-name: "Tenant(s) and All Occupants",
   premises-address: "",
   state-name: "Tennessee",
+  service-method: "personal",
 ) = {
-  rect(
-    width: 100%,
-    stroke: 0.75pt + border-dark,
-    radius: 3pt,
-    fill: bg-tint-subtle,
-    inset: 8pt,
-    [
-      #grid(
-        columns: (1fr, auto),
-        text(font: font-sans, size: 7.5pt, weight: "bold", fill: navy-judicial)[
-          CERTIFICATE & PROOF OF STATUTORY SERVICE (STATE OF #upper(state-name))
-        ],
-        badge("EVIDENTIARY PROOF OF SERVICE", bg: rgb("#dbeafe"), fg: navy-judicial)
-      )
-      #v(3pt)
-      #text(font: font-sans, size: 7pt, fill: ink-secondary)[
-        I, *#server-name*, hereby certify under penalty of perjury that on *#if service-date != "" { service-date } else { "____/____/20____" }*, I served a true and correct copy of the foregoing statutory notice upon *#recipient-name* at *#if premises-address != "" { premises-address } else { "the Premises" }* by the following statutorily authorized method(s):
-      ]
-      #v(4pt)
-      #grid(
-        columns: (1fr, 1fr),
-        gutter: 4pt,
-        text(font: font-sans, size: 6.8pt, fill: ink-primary)[`[X]` Personal Hand Delivery to Named Tenant],
-        text(font: font-sans, size: 6.8pt, fill: ink-primary)[`[ ]` Substitute Service on Competent Household Member],
-        text(font: font-sans, size: 6.8pt, fill: ink-primary)[`[X]` First-Class / Certified U.S. Mail (Return Receipt)],
-        text(font: font-sans, size: 6.8pt, fill: ink-primary)[`[ ]` Conspicuous Posting on Main Entry Door + Mail],
-      )
-      #v(8pt)
-      #grid(
-        columns: (1.5fr, 1fr),
-        gutter: 20pt,
-        [
-          #line(length: 100%, stroke: 0.75pt + border-dark)
-          #v(1pt)
-          #text(font: font-sans, size: 6pt, fill: ink-subtle)[Signature of Server / Declarant (#server-name)]
-        ],
-        [
-          #line(length: 100%, stroke: 0.75pt + border-dark)
-          #v(1pt)
-          #text(font: font-sans, size: 6pt, fill: ink-subtle)[Date & Time of Service]
+  let chk-personal = if service-method == "personal" or service-method == "personal_and_mail" { "[X]" } else { "[ ]" }
+  let chk-substitute = if service-method == "substitute" { "[X]" } else { "[ ]" }
+  let chk-mail = if service-method == "mail" or service-method == "personal_and_mail" { "[X]" } else { "[ ]" }
+  let chk-posting = if service-method == "posting" { "[X]" } else { "[ ]" }
+
+  block(breakable: false, width: 100%)[
+    #rect(
+      width: 100%,
+      stroke: 0.75pt + border-dark,
+      radius: 3pt,
+      fill: bg-tint-subtle,
+      inset: 8pt,
+      [
+        #grid(
+          columns: (1fr, auto),
+          text(font: font-sans, size: 7.5pt, weight: "bold", fill: navy-judicial)[
+            CERTIFICATE & PROOF OF STATUTORY SERVICE (STATE OF #upper(state-name))
+          ],
+          badge("EVIDENTIARY PROOF OF SERVICE", bg: rgb("#dbeafe"), fg: navy-judicial)
+        )
+        #v(3pt)
+        #text(font: font-sans, size: 7pt, fill: ink-secondary)[
+          I, *#server-name*, hereby certify under penalty of perjury that on *#if service-date != "" { service-date } else { "____/____/20____" }*, I served a true and correct copy of the foregoing statutory notice upon *#recipient-name* at *#if premises-address != "" { premises-address } else { "the Premises" }* by the following statutorily authorized method(s):
         ]
-      )
-    ]
-  )
+        #v(4pt)
+        #grid(
+          columns: (1fr, 1fr),
+          gutter: 4pt,
+          text(font: font-sans, size: 6.8pt, fill: ink-primary)[#raw(chk-personal) Personal Hand Delivery to Named Tenant],
+          text(font: font-sans, size: 6.8pt, fill: ink-primary)[#raw(chk-substitute) Substitute Service on Competent Household Member],
+          text(font: font-sans, size: 6.8pt, fill: ink-primary)[#raw(chk-mail) First-Class / Certified U.S. Mail (Return Receipt)],
+          text(font: font-sans, size: 6.8pt, fill: ink-primary)[#raw(chk-posting) Conspicuous Posting on Main Entry Door + Mail],
+        )
+        #v(8pt)
+        #grid(
+          columns: (1.5fr, 1fr),
+          gutter: 20pt,
+          [
+            #line(length: 100%, stroke: 0.75pt + border-dark)
+            #v(1pt)
+            #text(font: font-sans, size: 6pt, fill: ink-subtle)[Signature of Server / Declarant (#server-name)]
+          ],
+          [
+            #line(length: 100%, stroke: 0.75pt + border-dark)
+            #v(1pt)
+            #text(font: font-sans, size: 6pt, fill: ink-subtle)[Date & Time of Service]
+          ]
+        )
+      ]
+    )
+  ]
 }
 
 /// County Recorder 3.0-Inch Top Margin Header & Stamp Reserve for Recordable Deeds & Liens

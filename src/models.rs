@@ -634,6 +634,44 @@ impl DocumentType {
         )
     }
 
+    pub fn is_lease_agreement(&self) -> bool {
+        matches!(
+            self,
+            Self::ResidentialLease
+                | Self::RoomRentalLease
+                | Self::LeaseRenewalAgreement
+                | Self::SubleaseAgreement
+                | Self::RentToOwnAgreement
+        )
+    }
+
+    pub fn allows_payment_qr(&self) -> bool {
+        !matches!(
+            self,
+            Self::CreditNote
+                | Self::Receipt
+                | Self::PropertyDeed
+                | Self::RealEstatePurchaseAgreement
+                | Self::ScheduleETaxWorksheet
+                | Self::ScheduleOfRealEstateOwned
+                | Self::RealEstateDealAnalysis
+                | Self::SecurityDepositDisposition
+                | Self::MutualLeaseTermination
+                | Self::PropertyInspectionChecklist
+                | Self::RentalApplication
+                | Self::AdverseActionNotice
+                | Self::NoticeOfEntry
+                | Self::RentIncreaseNotice
+                | Self::TenantEstoppel
+                | Self::LetterOfIntentCre
+                | Self::MechanicsLienWaiver
+                | Self::Nda
+                | Self::Certificate
+                | Self::CertificateCompletion
+                | Self::CertificateInsurance
+        )
+    }
+
     pub fn seo_metadata(&self) -> (String, String) {
         let title_case = self
             .display_title()
@@ -781,6 +819,49 @@ impl LineItem {
         } else {
             gross - self.discount.unwrap_or(0.0)
         }
+    }
+
+    pub fn is_ratio_metric(&self) -> bool {
+        let d = self.description.to_ascii_lowercase();
+        let amt = self.amount().abs();
+        if amt > 100.0
+            || d.contains("noi")
+            || d.contains("rent")
+            || d.contains("income")
+            || d.contains("expense")
+        {
+            return false;
+        }
+        d.contains("dscr")
+            || d.contains("coverage ratio")
+            || d.contains("cap rate")
+            || d.contains("cash-on-cash")
+            || d.contains("ltv")
+            || d.contains("loan-to-value")
+            || d.contains("occupancy rate")
+    }
+
+    pub fn is_capital_or_valuation_item(&self) -> bool {
+        let d = self.description.to_ascii_lowercase();
+        if d.contains("noi")
+            || d.contains("net operating income")
+            || d.contains("rent")
+            || d.contains("cash flow")
+            || d.contains("vacancy")
+            || d.contains("expense")
+            || d.contains("debt service")
+        {
+            return false;
+        }
+        d.contains("purchase price")
+            || d.contains("acquisition price")
+            || d.contains("market value")
+            || d.contains("property value")
+            || d.contains("after-repair value")
+            || d.contains("rehab budget")
+            || d.contains("senior debt")
+            || d.contains("mortgage balance")
+            || d.contains("loan balance")
     }
 }
 
@@ -966,7 +1047,59 @@ impl DocumentRequest {
     }
 
     pub fn subtotal(&self) -> f64 {
-        self.items.iter().map(|item| item.amount()).sum()
+        match self.doc_type {
+            DocumentType::RentIncreaseNotice => {
+                if self.items.len() == 2
+                    && self.items[0].amount() > 0.0
+                    && self.items[1].amount() >= self.items[0].amount()
+                {
+                    self.items[1].amount()
+                } else {
+                    self.items.iter().map(|item| item.amount()).sum()
+                }
+            }
+            DocumentType::RealEstateDealAnalysis | DocumentType::ScheduleOfRealEstateOwned => {
+                let non_ratio: Vec<&LineItem> =
+                    self.items.iter().filter(|i| !i.is_ratio_metric()).collect();
+                let has_operating = non_ratio.iter().any(|i| !i.is_capital_or_valuation_item());
+                let has_capital = non_ratio.iter().any(|i| i.is_capital_or_valuation_item());
+                if has_operating && has_capital {
+                    non_ratio
+                        .into_iter()
+                        .filter(|i| !i.is_capital_or_valuation_item())
+                        .map(|i| i.amount())
+                        .sum()
+                } else {
+                    non_ratio.into_iter().map(|i| i.amount()).sum()
+                }
+            }
+            _ => self.items.iter().map(|item| item.amount()).sum(),
+        }
+    }
+
+    pub fn compute_audit_sha256(&self) -> String {
+        if let Some(ref h) = self.audit_hash {
+            let trimmed = h.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(self.doc_type.url_slug().as_bytes());
+        hasher.update(b"|");
+        hasher.update(self.effective_doc_number().as_bytes());
+        hasher.update(b"|");
+        hasher.update(self.issue_date.as_deref().unwrap_or("2026-10-01").as_bytes());
+        hasher.update(b"|");
+        hasher.update(self.from.name.as_bytes());
+        hasher.update(b"|");
+        hasher.update(self.to.name.as_bytes());
+        hasher.update(b"|");
+        hasher.update(format!("{:.2}", self.grand_total()).as_bytes());
+        hasher.update(b"|");
+        hasher.update(self.items.len().to_string().as_bytes());
+        hex::encode(hasher.finalize())
     }
 
     pub fn tax_total(&self) -> f64 {

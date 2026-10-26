@@ -421,6 +421,23 @@ pub fn escape_typst_string_literal(text: &str) -> String {
 
 
 fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &str, accent_hex: &str, surface_hex: &str, total_label: &str) {
+    if req.items.is_empty()
+        && matches!(
+            req.doc_type,
+            DocumentType::NoticeOfEntry
+                | DocumentType::RentalApplication
+                | DocumentType::AdverseActionNotice
+                | DocumentType::TenantEstoppel
+                | DocumentType::PropertyInspectionChecklist
+                | DocumentType::Nda
+                | DocumentType::LeaseAmendment
+                | DocumentType::MutualLeaseTermination
+                | DocumentType::PropertyDeed
+        )
+    {
+        return;
+    }
+
     let subtotal = req.subtotal();
     let tax_total = req.tax_total();
     let discount = req.discount_amount.unwrap_or(0.0);
@@ -428,21 +445,59 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
 
     markup.push_str("#v(4pt)\n");
     markup.push_str("#align(right)[\n");
-    markup.push_str("  #box(width: 250pt)[\n");
+    markup.push_str("  #box(width: 310pt)[\n");
     markup.push_str("    #table(\n");
-    markup.push_str("      columns: (auto, 1fr),\n");
+    markup.push_str("      columns: (1fr, auto),\n");
     markup.push_str("      stroke: none,\n");
     markup.push_str("      inset: (x: 4pt, y: 3.5pt),\n");
     markup.push_str("      align: (col, row) => if col == 0 { left + horizon } else { right + horizon },\n");
-    markup.push_str(&format!(
-        "      [#text(fill: color-slate-500)[Subtotal:]], [#text(weight: \"bold\")[{}]],\n",
-        req.format_amount_typst(subtotal)
-    ));
-    if let Some(rate) = req.tax_rate {
+    if req.doc_type == DocumentType::RentIncreaseNotice
+        && req.items.len() == 2
+        && req.items[0].amount() > 0.0
+        && req.items[1].amount() > 0.0
+    {
+        let (prior_rent, net_increase, _new_rent) = if req.items[1].amount() >= req.items[0].amount() {
+            (
+                req.items[0].amount(),
+                req.items[1].amount() - req.items[0].amount(),
+                req.items[1].amount(),
+            )
+        } else {
+            (
+                req.items[0].amount(),
+                req.items[1].amount(),
+                req.items[0].amount() + req.items[1].amount(),
+            )
+        };
         markup.push_str(&format!(
-            "      [#text(fill: color-slate-500)[Tax ({:.1}%):]], [#text(weight: \"bold\")[{}]],\n",
-            rate, req.format_amount_typst(tax_total)
+            "      [#text(fill: color-slate-500)[Prior Monthly Rent:]], [#text(weight: \"bold\")[{}]],\n",
+            req.format_amount_typst(prior_rent)
         ));
+        markup.push_str(&format!(
+            "      [#text(fill: color-slate-500)[Net Monthly Increase:]], [#text(weight: \"bold\", fill: rgb(\"{}\"))[+{}]],\n",
+            accent_hex,
+            req.format_amount_typst(net_increase)
+        ));
+    } else if !matches!(
+        req.doc_type,
+        DocumentType::RealEstateDealAnalysis
+            | DocumentType::ScheduleOfRealEstateOwned
+            | DocumentType::ScheduleETaxWorksheet
+    ) || req.tax_rate.is_some()
+        || discount > 0.0
+    {
+        markup.push_str(&format!(
+            "      [#text(fill: color-slate-500)[Subtotal:]], [#text(weight: \"bold\")[{}]],\n",
+            req.format_amount_typst(subtotal)
+        ));
+    }
+    if let Some(rate) = req.tax_rate {
+        if rate > 0.0 {
+            markup.push_str(&format!(
+                "      [#text(fill: color-slate-500)[Tax ({:.1}%):]], [#text(weight: \"bold\")[{}]],\n",
+                rate, req.format_amount_typst(tax_total)
+            ));
+        }
     }
     if discount > 0.0 {
         markup.push_str(&format!(
@@ -488,14 +543,14 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
         ));
     }
 
-    // 2. Vector Payment QR Code & Checkout Block (if payment_link or payment_qr_code is enabled and document is NOT fully paid or credit note)
+    // 2. Vector Payment QR Code & Checkout Block (only for payable archetypes that are NOT fully paid)
     let non_empty_payment_link = req
         .payment_link
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty());
     if !req.is_paid_state()
-        && req.doc_type != DocumentType::CreditNote
+        && req.doc_type.allows_payment_qr()
         && (req.payment_qr_code == Some(true) || non_empty_payment_link.is_some())
     {
         let raw_url = non_empty_payment_link.unwrap_or("https://buy.stripe.com/demo_checkout");
@@ -537,9 +592,12 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
     }
 
     if req.show_qr_seal.unwrap_or(false) {
+        let seal_hash = req.compute_audit_sha256();
+        let short_hash = &seal_hash[..seal_hash.len().min(40)];
         markup.push_str(&format!(
-            "#v(4pt)\n#verification-seal(\"{}\", primary-color: rgb(\"{}\"), accent-color: rgb(\"{}\"), surface-color: rgb(\"{}\"))\n#v(4pt)\n",
+            "#v(4pt)\n#verification-seal(\"{}\", hash: \"{}...\", primary-color: rgb(\"{}\"), accent-color: rgb(\"{}\"), surface-color: rgb(\"{}\"))\n#v(4pt)\n",
             escape_typst_string_literal(&req.effective_doc_number()),
+            escape_typst_string_literal(short_hash),
             primary_hex, accent_hex, surface_hex
         ));
     }
@@ -703,24 +761,48 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             .map(|p| p.name)
             .unwrap_or("Tennessee");
         let county_name = req.effective_county();
-        let prepared_by = format!(
-            "{}{}",
-            req.from.name,
-            req.from
-                .address
-                .as_deref()
-                .map(|a| format!(", {}", a.replace('\n', ", ")))
-                .unwrap_or_default()
-        );
-        let return_to = format!(
-            "{}{}",
-            req.to.name,
-            req.to
-                .address
-                .as_deref()
-                .map(|a| format!(", {}", a.replace('\n', ", ")))
-                .unwrap_or_default()
-        );
+        let custom_prepared_by = req
+            .custom_fields
+            .iter()
+            .find(|cf| {
+                let l = cf.label.to_ascii_lowercase();
+                l.contains("prepared by") || l.contains("preparer") || l.contains("drafted by")
+            })
+            .map(|cf| cf.value.trim())
+            .filter(|v| !v.is_empty());
+        let prepared_by = match custom_prepared_by {
+            Some(v) => v.to_string(),
+            None => format!(
+                "{}{}",
+                req.from.name,
+                req.from
+                    .address
+                    .as_deref()
+                    .map(|a| format!(", {}", a.replace('\n', ", ")))
+                    .unwrap_or_default()
+            ),
+        };
+        let custom_return_to = req
+            .custom_fields
+            .iter()
+            .find(|cf| {
+                let l = cf.label.to_ascii_lowercase();
+                l.contains("return to") || l.contains("recording return") || l.contains("after recording")
+            })
+            .map(|cf| cf.value.trim())
+            .filter(|v| !v.is_empty());
+        let return_to = match custom_return_to {
+            Some(v) => v.to_string(),
+            None => format!(
+                "{}{}",
+                req.to.name,
+                req.to
+                    .address
+                    .as_deref()
+                    .map(|a| format!(", {}", a.replace('\n', ", ")))
+                    .unwrap_or_default()
+            ),
+        };
         let parcel_id = req
             .custom_fields
             .iter()
@@ -858,15 +940,17 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
     // 5b. Layer 1: Page-1 State Statutory Mandates & Municipal Sub-Profile Box
     if req.doc_type.is_state_lease_instrument() {
         if let Some(state_profile) = req.effective_state_profile() {
-            // Render Page-1 Statutory Mandates for VA (§ 55.1-1204.1) & MN (§ 504B.120) first on Page 1
-            if let Some(mandate_text) = state_profile.page1_mandate {
-                markup.push_str(&format!(
-                    "#v(4pt)\n#rect(width: 100%, fill: rgb(\"#fef2f2\"), stroke: (left: 3.5pt + rgb(\"#dc2626\"), rest: 0.75pt + rgb(\"#fca5a5\")), radius: 3pt, inset: 8pt, [\n  #text(size: 8pt, weight: \"bold\", fill: rgb(\"#991b1b\"))[PAGE-1 STATUTORY MANDATE ({} · {})] \\\n  #v(2pt)\n  #text(size: 8pt, weight: \"medium\", fill: color-slate-900)[{}] \\\n  #v(3pt)\n  #text(size: 7.5pt, weight: \"bold\", fill: rgb(\"#991b1b\"))[Page-1 Itemized Total Commitment: {}]\n])\n#v(4pt)\n\n",
-                    escape_typst_text(state_profile.name),
-                    escape_typst_text(state_profile.governing_statute),
-                    escape_typst_text(mandate_text),
-                    req.format_amount_typst(req.grand_total())
-                ));
+            // Render Page-1 Statutory Mandates for VA (§ 55.1-1204.1) & MN (§ 504B.120) only on actual lease agreements
+            if req.doc_type.is_lease_agreement() {
+                if let Some(mandate_text) = state_profile.page1_mandate {
+                    markup.push_str(&format!(
+                        "#v(4pt)\n#rect(width: 100%, fill: rgb(\"#fef2f2\"), stroke: (left: 3.5pt + rgb(\"#dc2626\"), rest: 0.75pt + rgb(\"#fca5a5\")), radius: 3pt, inset: 8pt, [\n  #text(size: 8pt, weight: \"bold\", fill: rgb(\"#991b1b\"))[PAGE-1 STATUTORY MANDATE ({} · {})] \\\n  #v(2pt)\n  #text(size: 8pt, weight: \"medium\", fill: color-slate-900)[{}] \\\n  #v(3pt)\n  #text(size: 7.5pt, weight: \"bold\", fill: rgb(\"#991b1b\"))[Page-1 Itemized Total Commitment: {}]\n])\n#v(4pt)\n\n",
+                        escape_typst_text(state_profile.name),
+                        escape_typst_text(state_profile.governing_statute),
+                        escape_typst_text(mandate_text),
+                        req.format_amount_typst(req.grand_total())
+                    ));
+                }
             }
 
             let citation_str = format!(
@@ -1110,13 +1194,36 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 .address
                 .as_deref()
                 .unwrap_or("Premises Address on File");
+            let service_method = req
+                .custom_fields
+                .iter()
+                .find(|cf| {
+                    let l = cf.label.to_ascii_lowercase();
+                    l.contains("service method") || l.contains("delivery method") || l.contains("method of service")
+                })
+                .map(|cf| {
+                    let v = cf.value.to_ascii_lowercase();
+                    if (v.contains("personal") || v.contains("hand")) && v.contains("mail") {
+                        "personal_and_mail"
+                    } else if v.contains("post") || v.contains("door") || v.contains("nail") {
+                        "posting"
+                    } else if v.contains("sub") || v.contains("household") {
+                        "substitute"
+                    } else if v.contains("mail") || v.contains("certified") {
+                        "mail"
+                    } else {
+                        "personal"
+                    }
+                })
+                .unwrap_or("personal");
             markup.push_str(&format!(
-                "#v(6pt)\n#certificate-of-service(\n  server-name: \"{}\",\n  service-date: \"{}\",\n  recipient-name: \"{}\",\n  premises-address: \"{}\",\n  state-name: \"{}\"\n)\n#v(4pt)\n",
+                "#v(6pt)\n#certificate-of-service(\n  server-name: \"{}\",\n  service-date: \"{}\",\n  recipient-name: \"{}\",\n  premises-address: \"{}\",\n  state-name: \"{}\",\n  service-method: \"{}\"\n)\n#v(4pt)\n",
                 escape_typst_string_literal(&req.from.name),
                 escape_typst_string_literal(req.issue_date.as_deref().unwrap_or("2026-10-01")),
                 escape_typst_string_literal(&req.to.name),
                 escape_typst_string_literal(&premises_addr.replace('\n', ", ")),
-                escape_typst_string_literal(state_name)
+                escape_typst_string_literal(state_name),
+                service_method
             ));
         }
         DocumentType::SecurityDepositDisposition => {
@@ -1328,13 +1435,13 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                         "IRS Form 1040 Schedule E (Part I) Rental Income & Expense Reconciliation",
                         "IRS Schedule E Line / Stessa Operating Category",
                         "Annual Tax Amount",
-                        "Net Schedule E Rental Cash Flow / Taxable Income:",
+                        "Net Rental Income / (Loss) (Schedule E):",
                     ),
                     _ => (
                         "Real Estate Deal Underwriting, Acquisition, Rehab & Cash-Flow Pro-Forma",
                         "Underwriting Component / Pro-Forma Line Item",
                         "Projected Amount",
-                        "Net Deal Basis / Projected Annual Cash Flow:",
+                        "Projected Annual Cash Flow / NOI:",
                     ),
                 };
                 markup.push_str(&format!("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(2pt)\n", tbl_title));
@@ -1343,10 +1450,20 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     secondary_hex, secondary_hex, surface_hex, col1, col2
                 ));
                 for item in &req.items {
+                    let formatted_val = if item.is_ratio_metric() {
+                        let d = item.description.to_ascii_lowercase();
+                        if d.contains("dscr") || d.contains("coverage") {
+                            format!("{:.2}x", item.amount())
+                        } else {
+                            format!("{:.2}\\%", item.amount())
+                        }
+                    } else {
+                        req.format_amount_typst(item.amount())
+                    };
                     markup.push_str(&format!(
                         "  [{}], [{}],\n",
                         escape_typst_text(&item.description),
-                        req.format_amount_typst(item.amount())
+                        formatted_val
                     ));
                 }
                 markup.push_str(")\n#v(4pt)\n");
@@ -1783,12 +1900,32 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
     }
 
-    // 9. Signatures Block (Multi-Signatory Support)
+    // 9. Signatures Block (Multi-Signatory Support; avoid duplicating primary signer when #jurat-box is active or inline consent card emitted)
+    let notary_req = req.is_notary_required();
+    let jurat_active = req.execution_mode.is_some() || notary_req;
     if req.show_signature.unwrap_or(true) {
-        let signatures = req.effective_signatures();
-        if !signatures.is_empty() {
+        let all_signatures = req.effective_signatures();
+        let grid_signatures: Vec<_> = all_signatures
+            .iter()
+            .enumerate()
+            .skip(if jurat_active { 1 } else { 0 })
+            .filter(|(_, sig)| {
+                if req.doc_type == DocumentType::SubleaseAgreement {
+                    let t = sig.signer_title.as_deref().unwrap_or("").to_ascii_lowercase();
+                    let n = sig.signer_name.to_ascii_lowercase();
+                    !(t.contains("prime landlord")
+                        || t.contains("master lessor")
+                        || n.contains("prime landlord")
+                        || n.contains("master lessor"))
+                } else {
+                    true
+                }
+            })
+            .collect();
+
+        if !grid_signatures.is_empty() {
             markup.push_str("#signature-grid((\n");
-            for (idx, sig) in signatures.iter().enumerate() {
+            for (idx, sig) in grid_signatures {
                 let sig_asset = sig
                     .signature_data
                     .as_deref()
@@ -1816,8 +1953,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
     }
 
     // 10. Execution Jurat (if execution_mode is specified OR notary is required — fixes Bug C3)
-    let notary_req = req.is_notary_required();
-    if req.execution_mode.is_some() || notary_req {
+    if jurat_active {
         let em = if req.execution_mode.is_some() {
             req.normalized_execution_mode()
         } else if notary_req {
@@ -1863,17 +1999,16 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
     if req.doc_type.is_state_lease_instrument() {
         if let Some(state_profile) = req.effective_state_profile() {
             if let Some(ref att) = state_profile.standalone_attachment {
-                if matches!(
-                    req.doc_type,
-                    DocumentType::ResidentialLease
-                        | DocumentType::RoomRentalLease
-                        | DocumentType::SubleaseAgreement
-                        | DocumentType::RentToOwnAgreement
-                        | DocumentType::LeaseRenewalAgreement
-                        | DocumentType::LeaseAmendment
-                        | DocumentType::RentIncreaseNotice
-                        | DocumentType::NoticeToVacate
-                ) {
+                let should_attach_standalone = if state_profile.code == "NY" {
+                    req.doc_type.is_lease_agreement()
+                        || matches!(
+                            req.doc_type,
+                            DocumentType::RentIncreaseNotice | DocumentType::NoticeToVacate
+                        )
+                } else {
+                    req.doc_type.is_lease_agreement()
+                };
+                if should_attach_standalone {
                     markup.push_str(&format!(
                         "\n#pagebreak()\n#rect(width: 100%, fill: rgb(\"#f8fafc\"), stroke: 1pt + navy-judicial, radius: 4pt, inset: 12pt, [\n  #text(size: 11pt, weight: \"bold\", fill: navy-judicial)[{}] \\\n  #v(2pt)\n  #text(size: 8pt, weight: \"bold\", fill: color-slate-500)[STATUTORY AUTHORITY: {} · STANDALONE SEPARATE ATTACHMENT] \\\n  #v(8pt)\n  #line(length: 100%, stroke: 0.5pt + color-slate-300)\n  #v(8pt)\n  #text(size: 9pt, fill: color-slate-800)[\n    {}\n  ]\n  #v(16pt)\n  #grid(\n    columns: (1fr, 1fr),\n    gutter: 24pt,\n    [\n      #line(length: 100%, stroke: 0.75pt + color-slate-700)\n      #v(2pt)\n      #text(size: 7.5pt, weight: \"bold\", fill: color-slate-600)[Tenant / Lessee Separate Initials & Acknowledgment ({})]\n    ],\n    [\n      #line(length: 100%, stroke: 0.75pt + color-slate-700)\n      #v(2pt)\n      #text(size: 7.5pt, weight: \"bold\", fill: color-slate-600)[Landlord / Lessor Acknowledgment ({})]\n    ]\n  )\n])\n",
                         escape_typst_text(att.title),
@@ -1885,7 +2020,10 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 }
             }
 
-            if req.lease_package_mode.unwrap_or(false) && state_profile.requires_move_in_checklist {
+            if req.lease_package_mode.unwrap_or(false)
+                && state_profile.requires_move_in_checklist
+                && req.doc_type.is_lease_agreement()
+            {
                 markup.push_str(&format!(
                     "\n#pagebreak()\n#rect(width: 100%, fill: rgb(\"#ffffff\"), stroke: 0.75pt + color-slate-400, radius: 4pt, inset: 12pt, [\n  #text(size: 11pt, weight: \"bold\", fill: navy-judicial)[MANDATORY {} MOVE-IN / MOVE-OUT CONDITION INVENTORY CHECKLIST] \\\n  #v(2pt)\n  #text(size: 8pt, fill: color-slate-500)[Governing Statute: {} · Prerequisite to Security Deposit Collection / Retention] \\\n  #v(8pt)\n  #table(\n    columns: (1.2fr, 1fr, 1fr),\n    stroke: 0.5pt + color-slate-300,\n    inset: 6pt,\n    table.header([*Room / Fixture*], [*Move-In Condition*], [*Move-Out Condition*]),\n    [Living Room / Flooring / Walls], [Clean / Undamaged], [],\n    [Kitchen Appliances / Countertops / Sink], [Working / Clean], [],\n    [Bedrooms / Windows / Locks / Screens], [Working / Intact], [],\n    [Bathrooms / Plumbing / Exhaust Fan], [Working / Leak-Free], [],\n    [Smoke & Carbon Monoxide Detectors], [Tested & Operational], []\n  )\n])\n",
                     escape_typst_text(&state_profile.name.to_uppercase()),
@@ -1895,13 +2033,8 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
     }
 
-    // 11. Tamper-Evident Cryptographic Audit Slug
-    let audit_hash = req.audit_hash.clone().unwrap_or_else(|| {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        std::hash::Hash::hash(&req.effective_doc_number(), &mut hasher);
-        std::hash::Hash::hash(&req.grand_total().to_bits(), &mut hasher);
-        format!("{:016x}c4ca4238a0b923820dcc509a6f75849b", std::hash::Hasher::finish(&hasher))
-    });
+    // 11. Tamper-Evident Cryptographic Audit Slug (real SHA-256 hex digest)
+    let audit_hash = req.compute_audit_sha256();
     let issue_date = req.issue_date.as_deref().unwrap_or("2026-10-01");
     markup.push_str(&format!(
         "\n#v(4pt)\n#audit-slug(parcel-id: \"{}\", hash: \"{}\", engine-version: \"Pressmark Vector Engine v1.0.0\", timestamp: \"{}T00:00:00Z\")\n",
