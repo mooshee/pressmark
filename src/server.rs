@@ -100,6 +100,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/pricing", get(handle_index))
         .route("/demo", get(handle_index))
         .route("/templates", get(handle_index))
+        .route("/templates/", get(handle_index))
         .route("/templates/:slug", get(handle_template_landing))
         .route("/favicon.ico", get(handle_favicon))
         .route("/favicon.svg", get(handle_favicon))

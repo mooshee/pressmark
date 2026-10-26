@@ -43,5 +43,5 @@ Use this skill when the user requests generating, previewing, designing, or calc
 
 4. **Monetization & Direct Unlock Links**:
    - Community tier exports include Pressmark attribution, and `generate_document` returns `unlock_checkout_url` and `pro_checkout_url` in its structured response.
-   - For unwatermarked exports, surface `unlock_checkout_url` (Single Document Pass, $2.99) or `https://pressmark.dev/pricing` (Solo Pro, $15/mo), or link directly to `https://pressmark.dev/templates/<slug>`.
+   - For unwatermarked exports, surface `unlock_checkout_url` (Single Document Pass, $2.99) or `https://pressmark.dev/pricing` (Solo Pro, $15/mo), or link directly to `https://pressmark.dev/templates/invoice`.
 
