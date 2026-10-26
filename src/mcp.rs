@@ -278,7 +278,7 @@ impl McpHandler {
             {
                 "name": "generate_document",
                 "title": "Generate Vector PDF Document",
-                "description": "Statelessly synthesize a vector PDF document (invoice, receipt, contract, NDA, or lease) in <25ms without mutating server records. Example: generate_document({\"doc_type\":\"invoice\",\"from\":{\"name\":\"Acme\"},\"to\":{\"name\":\"Client\"}})",
+                "description": "Statelessly synthesize a vector PDF document (invoice, receipt, contract, NDA, or lease) without mutating server records. Example: generate_document({\"doc_type\":\"invoice\",\"from\":{\"name\":\"Acme\"},\"to\":{\"name\":\"Client\"}})",
                 "annotations": {
                     "title": "Generate Vector PDF Document",
                     "readOnlyHint": true,
@@ -381,8 +381,8 @@ impl McpHandler {
                     "type": "object",
                     "properties": {
                         "currency": { "type": "string", "description": "Pricing catalog currency (USD)." },
-                        "plans": { "type": "array", "description": "Available Pressmark subscription tiers and features." },
-                        "microtransactions": { "type": "array", "description": "Single-pass document unlock options." }
+                        "plans": { "type": "array", "description": "Available Pressmark subscription tiers and features.", "items": { "type": "object" } },
+                        "microtransactions": { "type": "array", "description": "Single-pass document unlock options.", "items": { "type": "object" } }
                     },
                     "required": ["currency", "plans", "microtransactions"]
                 }
@@ -510,10 +510,11 @@ impl McpHandler {
                 jsonrpc: "2.0",
                 id: req.id,
                 result: Some(json!({
+                    "resultType": "complete",
+                    "supportedVersions": SUPPORTED_MCP_PROTOCOLS,
                     "protocolVersion": "2026-07-28",
                     "protocolVersions": SUPPORTED_MCP_PROTOCOLS,
                     "supportedProtocolVersions": SUPPORTED_MCP_PROTOCOLS,
-                    "resultType": "complete",
                     "capabilities": {
                         "tools": { "listChanged": false },
                         "prompts": { "listChanged": false },
@@ -525,7 +526,17 @@ impl McpHandler {
                         "version": MCP_SERVER_VERSION
                     },
                     "ttlMs": 300_000,
-                    "cacheScope": "public-anonymous"
+                    "cacheScope": "public",
+                    "_meta": {
+                        "io.modelcontextprotocol/serverInfo": {
+                            "name": "pressmark",
+                            "title": "Pressmark Vector Document Engine",
+                            "version": MCP_SERVER_VERSION
+                        },
+                        "protocolVersion": "2026-07-28",
+                        "streamingSupported": true,
+                        "cacheTtlMs": 300_000
+                    }
                 })),
                 error: None,
             },

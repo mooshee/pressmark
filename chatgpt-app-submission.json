@@ -3,8 +3,8 @@
   "schema_version": 1,
   "app_info": {
     "display_name": "Pressmark",
-    "subtitle": "Instant Invoices & Contracts",
-    "description": "High-performance vector document synthesis engine. Generate publication-grade invoices, estimates, receipts, contracts, NDAs, and real estate agreements in sub-25ms with vector QR code mobile payments.",
+    "subtitle": "PDF Invoices & Contracts",
+    "description": "Vector document synthesis engine for generating PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links.",
     "category": "PRODUCTIVITY",
     "homepage": "https://pressmark.dev",
     "privacy_policy_url": "https://pressmark.dev/privacy",
