@@ -1,5 +1,6 @@
 ---
 name: document-lifecycle
+version: 1.2.1
 description: Transitions documents through their operational billing lifecycle—converting estimates into tax invoices, recording partial or full payments, recalculating balances due, issuing paid receipts, and generating credit notes.
 ---
 

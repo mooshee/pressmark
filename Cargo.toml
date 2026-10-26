@@ -1,10 +1,17 @@
 [package]
 name = "pressmark"
-version = "1.2.0"
+version = "1.2.1"
 edition = "2021"
 authors = ["Daniel Hallman"]
 description = "High-performance vector document synthesis engine, interactive design studio, and ChatGPT plugin powered by the Pressmark Vector Engine."
 default-run = "pressmark"
+license = "MIT"
+repository = "https://github.com/mooshee/pressmark"
+homepage = "https://pressmark.dev"
+documentation = "https://pressmark.dev/docs"
+readme = "README.md"
+keywords = ["mcp", "pdf", "invoice", "real-estate", "typst"]
+categories = ["command-line-utilities", "template-engine", "web-programming::http-server"]
 
 [dependencies]
 tokio = { version = "1.38", features = ["full"] }

@@ -1,7 +1,7 @@
 # PRESSMARK · Sub-Millisecond Vector Document Engine & Interactive Studio
 
 [![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org/)
-[![Pressmark Engine](https://img.shields.io/badge/Pressmark%20Engine-v1.2.0-blue.svg)](https://pressmark.dev)
+[![Pressmark Engine](https://img.shields.io/badge/Pressmark%20Engine-v1.2.1-blue.svg)](https://pressmark.dev)
 [![Pressmark MCP server quality and maintenance on Glama](https://glama.ai/mcp/servers/mooshee/pressmark/badges/score.svg)](https://glama.ai/mcp/servers/mooshee/pressmark)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -14,7 +14,13 @@ Pressmark is an ultra-fast, publication-grade document synthesis engine, real-ti
 ## Quick start
 
 1. Open [Pressmark Studio](https://pressmark.dev) to design, preview, and download vector PDFs in your browser.
-2. Connect any MCP client (Claude Code, Cursor, Codex, Grok, Gemini CLI, Hermes) to `https://pressmark.dev/mcp` (`streamable-http`), or download the pre-packaged plugin bundles from [GitHub Releases](https://github.com/mooshee/pressmark/releases).
+2. Connect any MCP client to `https://pressmark.dev/mcp` (`streamable-http`), or install directly:
+   - **VS Code (1-Click MCP)**: [Install Pressmark MCP in VS Code](https://insiders.vscode.dev/redirect/mcp/install?name=pressmark&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fpressmark.dev%2Fmcp%22%7D)
+   - **Claude Code**: `/plugin marketplace add mooshee/pressmark` then `/plugin install pressmark@pressmark`
+   - **Gemini CLI**: `gemini extensions install https://github.com/mooshee/pressmark`
+   - **Devin CLI**: `devin plugins install mooshee/pressmark`
+   - **Vercel Skills (`skills.sh`)**: `npx skills add mooshee/pressmark`
+   - **Homebrew**: `brew install mooshee/tap/pressmark`
 
 ---
 

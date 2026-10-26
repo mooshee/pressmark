@@ -99,6 +99,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/", get(handle_index))
         .route("/pricing", get(handle_index))
         .route("/demo", get(handle_index))
+        .route("/docs", get(handle_index))
         .route("/templates", get(handle_index))
         .route("/templates/", get(handle_index))
         .route("/templates/:slug", get(handle_template_landing))
@@ -131,14 +132,17 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/webhooks/stripe", post(handle_stripe_webhook))
         .route("/.well-known/ai-plugin.json", get(handle_ai_plugin))
         .route("/.well-known/openai-apps-challenge", get(handle_openai_apps_challenge))
+        .route("/.well-known/owners.json", get(handle_owners_json))
+        .route("/.well-known/glama.json", get(handle_glama_json))
         .route("/.well-known/oauth-protected-resource", get(handle_oauth_protected_resource))
         .route("/.well-known/oauth-protected-resource/mcp", get(handle_oauth_protected_resource))
+        .route("/mcp/.well-known/oauth-protected-resource", get(handle_oauth_protected_resource))
         .route("/.well-known/mcp/server-card.json", get(handle_mcp_server_card))
         .route("/.well-known/mcp.json", get(handle_mcp_server_card))
-        .route("/.well-known/agent-card.json", get(handle_mcp_server_card))
-        .route("/.well-known/agent.json", get(handle_mcp_server_card))
-        .route("/mcp/.well-known/agent.json", get(handle_mcp_server_card))
-        .route("/mcp/.well-known/agent-card.json", get(handle_mcp_server_card))
+        .route("/.well-known/agent-card.json", get(handle_agent_card))
+        .route("/.well-known/agent.json", get(handle_agent_card))
+        .route("/mcp/.well-known/agent.json", get(handle_agent_card))
+        .route("/mcp/.well-known/agent-card.json", get(handle_agent_card))
         // Universal Authentication
         .route("/api/v1/auth/session", get(handle_chatgpt_session))
         .route("/api/v1/auth/guest", post(handle_guest_login))
@@ -159,6 +163,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/mcp", get(handle_mcp_get).post(handle_mcp))
         .route("/api/v1/mcp/tools.json", get(handle_mcp_tools))
         // Static assets
+        .nest_service("/static", ServeDir::new("static"))
         .nest_service("/assets", ServeDir::new("static/assets"))
         .nest_service("/css", ServeDir::new("static/css"))
         .nest_service("/js", ServeDir::new("static/js"))
@@ -176,7 +181,7 @@ async fn handle_health() -> impl IntoResponse {
         "status": "healthy",
         "service": "pressmark",
         "engine": "pressmark-vector-v1",
-        "version": "1.2.0"
+        "version": "1.2.1"
     })))
 }
 
@@ -909,16 +914,86 @@ async fn handle_favicon() -> impl IntoResponse {
     )
 }
 
-async fn handle_oauth_protected_resource(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let base = state.base_url.trim_end_matches('/');
+async fn handle_owners_json() -> impl IntoResponse {
     (
         StatusCode::OK,
         Json(serde_json::json!({
-            "resource": format!("{}/mcp", base),
-            "authorization_servers": [crate::auth::OPENAI_AUTH_SERVER],
+            "owners": [
+                {
+                    "type": "github",
+                    "id": "mooshee"
+                }
+            ]
+        })),
+    )
+}
+
+async fn handle_glama_json() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "$schema": "https://glama.ai/mcp/schemas/connector.json",
+            "maintainers": [
+                {
+                    "email": "daniel@mooshworks.com",
+                    "github": "mooshee"
+                }
+            ]
+        })),
+    )
+}
+
+async fn handle_oauth_protected_resource() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "resource": "https://pressmark.dev/mcp",
             "bearer_methods_supported": ["header"],
-            "scopes_supported": ["openid", "profile", "email", "model.request", "agent:mcp", "developer:api"],
-            "resource_documentation": format!("{}/api/v1/openapi.json", base)
+            "resource_documentation": "https://pressmark.dev/docs"
+        })),
+    )
+}
+
+async fn handle_agent_card() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "name": "Pressmark",
+            "description": "High-performance Rust vector PDF document synthesis engine and MCP server for 57 invoice, estimate, receipt, contract, and 50-state statutory real estate archetypes.",
+            "url": "https://pressmark.dev",
+            "version": env!("CARGO_PKG_VERSION"),
+            "provider": {
+                "organization": "Moosh Works",
+                "url": "https://pressmark.dev"
+            },
+            "documentationUrl": "https://pressmark.dev/docs",
+            "capabilities": {
+                "streaming": true,
+                "pushNotifications": false,
+                "stateTransitionHistory": false
+            },
+            "defaultInputModes": ["application/json", "text/plain"],
+            "defaultOutputModes": ["application/pdf", "image/png", "application/json"],
+            "skills": [
+                {
+                    "id": "invoice-generation",
+                    "name": "Invoice & Document Generation",
+                    "description": "Synthesize vector PDF invoices, estimates, receipts, contracts, NDAs, and 57 business and real estate document archetypes in sub-25ms with 144-PPI PNG previews and QR code mobile payments.",
+                    "tags": ["invoice", "pdf", "estimate", "receipt", "contract", "typst"]
+                },
+                {
+                    "id": "document-lifecycle",
+                    "name": "Document Lifecycle & Billing",
+                    "description": "Statelessly transition documents across their billing lifecycle (estimate to invoice, receipt, or credit note) and record partial or full payments.",
+                    "tags": ["billing", "lifecycle", "invoice", "receipt", "credit-note"]
+                },
+                {
+                    "id": "real-estate-agreements",
+                    "name": "Real Estate & Statutory Leases",
+                    "description": "Typeset 29 leasing, property management, investor analysis, and deed archetypes with a 50-state + DC + 6 municipal 4-layer statutory lease engine.",
+                    "tags": ["real-estate", "lease", "deed", "property-management", "statutory"]
+                }
+            ]
         })),
     )
 }
@@ -1252,7 +1327,21 @@ async fn handle_mcp(
     }
 
     let mut resp_headers = HeaderMap::new();
-    let proto_header = if is_2026 { "2026-07-28" } else { "2025-06-18" };
+    let negotiated_proto = resp
+        .result
+        .as_ref()
+        .and_then(|r| r.get("protocolVersion"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let proto_header = if is_2026 {
+        "2026-07-28"
+    } else if let Some(ref np) = negotiated_proto {
+        np.as_str()
+    } else if crate::mcp::SUPPORTED_MCP_PROTOCOLS.contains(&client_proto.as_str()) {
+        client_proto.as_str()
+    } else {
+        "2025-06-18"
+    };
     if let Ok(hv) = proto_header.parse() {
         resp_headers.insert("x-mcp-protocol-version", hv);
     }
@@ -2324,3 +2413,178 @@ async fn handle_stripe_webhook(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::Request;
+    use tower::ServiceExt;
+
+    fn collect_property_descriptions(val: &serde_json::Value, out: &mut Vec<(String, String)>, prefix: &str) {
+        if let Some(props) = val.get("properties").and_then(|p| p.as_object()) {
+            for (k, v) in props {
+                let path = if prefix.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{}.{}", prefix, k)
+                };
+                if let Some(desc) = v.get("description").and_then(|d| d.as_str()) {
+                    out.push((path.clone(), desc.to_string()));
+                }
+                collect_property_descriptions(v, out, &path);
+                if let Some(items) = v.get("items") {
+                    collect_property_descriptions(items, out, &format!("{}[]", path));
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_well_known_discovery_routes_and_mcp_protocol_negotiation() {
+        let storage = Arc::new(crate::storage::Storage::new(":memory:").unwrap());
+        let state = Arc::new(AppState::new("https://pressmark.dev".to_string()).with_storage(storage));
+        let router = create_router(state);
+
+        // 1. GET /.well-known/owners.json
+        let res_owners = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/.well-known/owners.json")
+                    .method("GET")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res_owners.status(), StatusCode::OK);
+        let owners_json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(res_owners.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(owners_json["owners"][0]["type"], "github");
+        assert_eq!(owners_json["owners"][0]["id"], "mooshee");
+
+        // 2. GET /.well-known/glama.json
+        let res_glama = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/.well-known/glama.json")
+                    .method("GET")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res_glama.status(), StatusCode::OK);
+        let glama_json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(res_glama.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(glama_json["$schema"], "https://glama.ai/mcp/schemas/connector.json");
+        assert_eq!(glama_json["maintainers"][0]["email"], "daniel@mooshworks.com");
+        assert_eq!(glama_json["maintainers"][0]["github"], "mooshee");
+
+        // 3. GET /.well-known/agent-card.json
+        let res_agent = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/.well-known/agent-card.json")
+                    .method("GET")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res_agent.status(), StatusCode::OK);
+        let agent_json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(res_agent.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(agent_json["name"], "Pressmark");
+        assert_eq!(agent_json["url"], "https://pressmark.dev");
+        assert_eq!(agent_json["version"], env!("CARGO_PKG_VERSION"));
+        assert!(agent_json["capabilities"].is_object());
+        assert_eq!(agent_json["skills"].as_array().unwrap().len(), 3);
+
+        // 4. GET /.well-known/oauth-protected-resource & /mcp/.well-known/oauth-protected-resource
+        for oauth_uri in [
+            "/.well-known/oauth-protected-resource",
+            "/mcp/.well-known/oauth-protected-resource",
+        ] {
+            let res_oauth = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(oauth_uri)
+                        .method("GET")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(res_oauth.status(), StatusCode::OK);
+            let oauth_json: serde_json::Value = serde_json::from_slice(
+                &axum::body::to_bytes(res_oauth.into_body(), usize::MAX)
+                    .await
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(oauth_json["resource"], "https://pressmark.dev/mcp");
+            assert_eq!(oauth_json["bearer_methods_supported"], serde_json::json!(["header"]));
+            assert_eq!(oauth_json["resource_documentation"], "https://pressmark.dev/docs");
+        }
+
+        // 5. Verify all 5 MCP protocol versions negotiate cleanly
+        for proto in [
+            "2026-07-28",
+            "2025-11-25",
+            "2025-06-18",
+            "2025-03-26",
+            "2024-11-05",
+        ] {
+            let init_resp = McpHandler::handle_request(JsonRpcRequest {
+                jsonrpc: "2.0".to_string(),
+                id: Some(serde_json::json!(1)),
+                method: "initialize".to_string(),
+                params: Some(serde_json::json!({ "protocolVersion": proto })),
+            });
+            let init_res = init_resp.result.unwrap();
+            assert_eq!(init_res["protocolVersion"], proto);
+            assert_eq!(init_res["serverInfo"]["version"], "1.2.1");
+        }
+
+        // 6. Verify every property description in tools_list() is < 250 characters
+        let tools = McpHandler::tools_list();
+        for tool in tools.as_array().unwrap() {
+            let tool_name = tool["name"].as_str().unwrap();
+            let tool_desc = tool["description"].as_str().unwrap();
+            assert!(
+                tool_desc.len() < 250,
+                "Tool {} description length {} >= 250",
+                tool_name,
+                tool_desc.len()
+            );
+            let mut props = Vec::new();
+            collect_property_descriptions(&tool["inputSchema"], &mut props, tool_name);
+            collect_property_descriptions(&tool["outputSchema"], &mut props, &format!("{}.output", tool_name));
+            for (prop_path, desc) in props {
+                assert!(
+                    desc.len() < 250,
+                    "Property {} description length {} >= 250: {}",
+                    prop_path,
+                    desc.len(),
+                    desc
+                );
+            }
+        }
+    }
+}

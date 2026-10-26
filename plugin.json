@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "pressmark",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Publication-grade vector PDF invoices, estimates, receipts, contracts, and proposals with instant previews, custom branding, and 1-scan QR code mobile payments.",
   "author": {
     "name": "Daniel Hallman",

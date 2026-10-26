@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "pressmark": {
+      "type": "streamable-http",
+      "url": "https://pressmark.dev/mcp"
+    }
+  }
+}

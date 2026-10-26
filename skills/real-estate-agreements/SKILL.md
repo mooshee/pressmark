@@ -1,5 +1,6 @@
 ---
 name: real-estate-agreements
+version: 1.2.1
 description: Typesets publication-grade real estate agreements across 29 leasing, property management, investor analysis, and deed archetypes with a 50-state + DC + 6 municipal 4-layer statutory lease engine.
 ---
 

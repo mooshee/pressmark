@@ -10,9 +10,10 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-pub const MCP_SERVER_VERSION: &str = "1.2.0";
+pub const MCP_SERVER_VERSION: &str = "1.2.1";
 pub const SUPPORTED_MCP_PROTOCOLS: &[&str] = &[
     "2026-07-28",
+    "2025-11-25",
     "2025-06-18",
     "2025-03-26",
     "2024-11-05",
@@ -57,11 +58,11 @@ impl McpHandler {
             "doc_type": {
                 "type": "string",
                 "enum": Self::document_type_enum(),
-                "description": "The archetype or category of document to synthesize across all 57 supported commercial, legal, and real estate templates (e.g., invoice, residential_lease, room_rental_lease, real_estate_deal_analysis, property_deed)."
+                "description": "Document archetype across 57 supported commercial, legal, and real estate templates (e.g., invoice, residential_lease, room_rental_lease, property_deed)."
             },
             "state_code": {
                 "type": "string",
-                "description": "Optional 2-letter US state or DC jurisdiction code (e.g., 'TN', 'CA', 'NY', 'FL', 'TX', 'VA', 'MN', 'WI') to activate the 4-layer 50-state + DC statutory lease & notice engine."
+                "description": "Optional 2-letter US state or DC code (e.g., 'TN', 'CA', 'NY', 'FL', 'TX') to activate the 4-layer 50-state + DC statutory lease and notice engine."
             },
             "municipality": {
                 "type": "string",
@@ -81,11 +82,11 @@ impl McpHandler {
             },
             "year_built": {
                 "type": "integer",
-                "description": "Property construction year (when < 1978, automatically triggers Federal Lead-Based Paint Disclosure under 42 U.S.C. § 4852d)."
+                "description": "Property construction year (when < 1978, triggers Federal Lead-Based Paint Disclosure under 42 U.S.C. § 4852d)."
             },
             "lease_package_mode": {
                 "type": "boolean",
-                "description": "When true, appends mandatory standalone state attachment sheets (e.g., FL § 83.512 Flood, WI ATCP 134.09 Nonstandard Rental Provisions, NY RPL § 231-c Good Cause Eviction, and Move-In Checklists)."
+                "description": "When true, appends mandatory standalone state attachment sheets (e.g., FL Flood, WI Nonstandard Rental Provisions, NY Good Cause, Move-In Checklists)."
             },
             "title": {
                 "type": "string",
@@ -136,8 +137,8 @@ impl McpHandler {
                     "type": "object",
                     "properties": {
                         "description": { "type": "string", "description": "Description of the deliverable, service, or charge." },
-                        "quantity": { "type": "number", "description": "Quantity of units, hours, or months (must be non-negative on standard invoices)." },
-                        "unit_price": { "type": "number", "description": "Unit rate or price per item (must be non-negative on standard invoices)." },
+                        "quantity": { "type": "number", "description": "Quantity of units, hours, or months (non-negative on standard invoices)." },
+                        "unit_price": { "type": "number", "description": "Unit rate or price per item (non-negative on standard invoices)." },
                         "discount": { "type": "number", "description": "Optional line-level discount or deduction amount." }
                     },
                     "required": ["description", "quantity", "unit_price"]
@@ -146,7 +147,7 @@ impl McpHandler {
             "currency": {
                 "type": "string",
                 "default": "USD",
-                "description": "ISO 4217 currency code or symbol (default 'USD', supports 'USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CHF', 'INR', 'BRL', 'SGD', 'NZD', 'SEK', 'NOK', 'DKK', 'AED', 'CNY')."
+                "description": "ISO 4217 currency code or symbol (default 'USD'; supports USD, EUR, GBP, CAD, AUD, JPY, CHF, INR, BRL, SGD, NZD, SEK, NOK, DKK, AED, CNY)."
             },
             "tax_rate": {
                 "type": "number",
@@ -175,7 +176,7 @@ impl McpHandler {
             },
             "payment_link": {
                 "type": "string",
-                "description": "Optional HTTPS checkout URL (e.g., Stripe Payment Link) embedded as a clickable link and vector QR code."
+                "description": "Optional HTTPS checkout URL embedded as a clickable link and vector QR code."
             },
             "payment_qr_code": {
                 "type": "boolean",
@@ -233,8 +234,8 @@ impl McpHandler {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "label": { "type": "string" },
-                        "value": { "type": "string" }
+                        "label": { "type": "string", "description": "Metadata field label." },
+                        "value": { "type": "string", "description": "Metadata field value." }
                     },
                     "required": ["label", "value"]
                 }
@@ -245,8 +246,8 @@ impl McpHandler {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "title": { "type": "string" },
-                        "content": { "type": "string" }
+                        "title": { "type": "string", "description": "Section heading." },
+                        "content": { "type": "string", "description": "Section body text." }
                     },
                     "required": ["title", "content"]
                 }
@@ -257,14 +258,18 @@ impl McpHandler {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "signer_name": { "type": "string" },
-                        "signer_title": { "type": "string" },
-                        "date": { "type": "string" }
+                        "signer_name": { "type": "string", "description": "Signer full name." },
+                        "signer_title": { "type": "string", "description": "Signer title or role." },
+                        "date": { "type": "string", "description": "Signature date." }
                     },
                     "required": ["signer_name"]
                 }
             }
         })
+    }
+
+    pub fn tools_list() -> Value {
+        Self::get_tools()
     }
 
     pub fn get_tools() -> Value {
@@ -273,8 +278,9 @@ impl McpHandler {
             {
                 "name": "generate_document",
                 "title": "Generate Vector PDF Document",
-                "description": "Generate a publication-ready vector PDF document (invoice, estimate, receipt, credit note, contract, NDA, purchase order, certificate, or real estate agreement) in under 25ms.",
+                "description": "Statelessly synthesize a publication-grade vector PDF document (invoice, estimate, receipt, credit note, contract, NDA, or real estate agreement) in under 25ms without mutating external server records.",
                 "annotations": {
+                    "title": "Generate Vector PDF Document",
                     "readOnlyHint": true,
                     "destructiveHint": false,
                     "idempotentHint": true,
@@ -299,8 +305,9 @@ impl McpHandler {
             {
                 "name": "preview_document",
                 "title": "Preview Document as PNG",
-                "description": "Render a high-resolution 144-PPI PNG preview of the document as a Base64 Data URI for immediate visual inspection in chat.",
+                "description": "Statelessly render a 144-PPI PNG preview of the input document as a Base64 Data URI for visual inspection in chat without mutating server state.",
                 "annotations": {
+                    "title": "Preview Document as PNG",
                     "readOnlyHint": true,
                     "destructiveHint": false,
                     "idempotentHint": true,
@@ -323,8 +330,9 @@ impl McpHandler {
             {
                 "name": "calculate_totals",
                 "title": "Calculate Document Totals",
-                "description": "Calculate subtotal, tax amounts, discounts, grand total, and balance due for a document without full PDF synthesis.",
+                "description": "Statelessly compute subtotal, tax amounts, discounts, grand total, and balance due for a document JSON payload without PDF synthesis or server state mutation.",
                 "annotations": {
+                    "title": "Calculate Document Totals",
                     "readOnlyHint": true,
                     "destructiveHint": false,
                     "idempotentHint": true,
@@ -335,7 +343,7 @@ impl McpHandler {
                     "properties": {
                         "document": {
                             "type": "object",
-                            "description": "The document payload containing items, tax_rate, discount_amount, and optional amount_paid."
+                            "description": "Input document JSON payload containing items, tax_rate, discount_amount, and optional amount_paid."
                         }
                     },
                     "required": ["document"]
@@ -357,8 +365,9 @@ impl McpHandler {
             {
                 "name": "get_pricing",
                 "title": "Get Pressmark Pricing Catalog",
-                "description": "Get current subscription tiers, single-pass microtransactions, and checkout links.",
+                "description": "Read static subscription tiers, single-pass microtransactions, and checkout links.",
                 "annotations": {
+                    "title": "Get Pressmark Pricing Catalog",
                     "readOnlyHint": true,
                     "destructiveHint": false,
                     "idempotentHint": true,
@@ -380,9 +389,10 @@ impl McpHandler {
             },
             {
                 "name": "convert_document",
-                "title": "Convert Document Lifecycle State",
-                "description": "Convert an existing document (e.g. Estimate or Quote) to a Tax Invoice, Receipt, or Credit Note, preserving all line items, parties, and calculations.",
+                "title": "Stateless Document Lifecycle Conversion",
+                "description": "Perform stateless in-memory document transformation and PDF synthesis (converting an Estimate or Quote JSON into a new Tax Invoice, Receipt, or Credit Note JSON + Base64 PDF without mutating external server records).",
                 "annotations": {
+                    "title": "Stateless Document Lifecycle Conversion",
                     "readOnlyHint": true,
                     "destructiveHint": false,
                     "idempotentHint": true,
@@ -391,19 +401,19 @@ impl McpHandler {
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "document": { "type": "object", "description": "The current document payload to convert." },
+                        "document": { "type": "object", "description": "Stateless input document JSON payload to transform (returns a new synthesized document without mutating server records)." },
                         "target_type": { "type": "string", "enum": ["invoice", "receipt", "estimate", "credit_note", "refund"], "description": "Target lifecycle document type (invoice, receipt, estimate, credit_note, refund)." },
                         "due_days": { "type": "integer", "description": "Number of days until payment is due (for invoice conversion)." },
-                        "payment_link": { "type": "string", "description": "Optional customer checkout/payment URL to embed as vector QR code and clickable link." },
+                        "payment_link": { "type": "string", "description": "Optional checkout URL to embed as a vector QR code and clickable link." },
                         "payment_qr_code": { "type": "boolean", "description": "Whether to render an SVG vector QR code for 1-scan mobile payment." },
-                        "credit_reason": { "type": "string", "description": "Reason for issuing credit note / refund (e.g. Overbilling, Customer cancellation)." }
+                        "credit_reason": { "type": "string", "description": "Reason for issuing credit note or refund (e.g. Overbilling, Cancellation)." }
                     },
                     "required": ["document", "target_type"]
                 },
                 "outputSchema": {
                     "type": "object",
                     "properties": {
-                        "document": { "type": "object", "description": "Converted document state." },
+                        "document": { "type": "object", "description": "Newly synthesized converted document JSON." },
                         "pdf_base64": { "type": "string", "description": "Base64-encoded vector PDF of the converted document." },
                         "compile_time_ms": { "type": "integer", "description": "Vector compilation latency in milliseconds." }
                     },
@@ -412,9 +422,10 @@ impl McpHandler {
             },
             {
                 "name": "record_payment",
-                "title": "Record Invoice Payment & Issue Receipt",
-                "description": "Record a full or partial payment against an invoice and instantly generate an official Receipt or updated partial-payment Invoice with remaining balance tracking.",
+                "title": "Stateless Payment Receipt & Balance Synthesis",
+                "description": "Perform stateless in-memory payment calculation and PDF synthesis (applying a full or partial payment to an input invoice JSON and returning a new synthesized Receipt or updated Invoice JSON + Base64 PDF without mutating external server records).",
                 "annotations": {
+                    "title": "Stateless Payment Receipt & Balance Synthesis",
                     "readOnlyHint": true,
                     "destructiveHint": false,
                     "idempotentHint": true,
@@ -423,18 +434,18 @@ impl McpHandler {
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "document": { "type": "object", "description": "The current invoice payload." },
-                        "payment_method": { "type": "string", "description": "Method of payment, e.g. Stripe, Apple Pay, Bank Wire." },
+                        "document": { "type": "object", "description": "Stateless input invoice JSON payload to compute payment against (returns a new synthesized document without mutating server records)." },
+                        "payment_method": { "type": "string", "description": "Method of payment (e.g., Stripe, Apple Pay, Bank Wire)." },
                         "transaction_reference": { "type": "string", "description": "Transaction or checkout reference ID." },
                         "paid_date": { "type": "string", "description": "Date payment was received (YYYY-MM-DD)." },
-                        "amount_paid": { "type": "number", "description": "Amount received. Defaults to grand total (marks PAID IN FULL). If less, records partial payment." }
+                        "amount_paid": { "type": "number", "description": "Amount paid; defaults to grand total (PAID IN FULL) or computes partial balance due." }
                     },
                     "required": ["document"]
                 },
                 "outputSchema": {
                     "type": "object",
                     "properties": {
-                        "document": { "type": "object", "description": "Updated receipt or partial-payment invoice state." },
+                        "document": { "type": "object", "description": "Newly synthesized receipt or partial-payment invoice JSON." },
                         "pdf_base64": { "type": "string", "description": "Base64-encoded vector PDF." },
                         "compile_time_ms": { "type": "integer", "description": "Vector compilation latency in milliseconds." }
                     },
@@ -443,6 +454,7 @@ impl McpHandler {
             }
         ])
     }
+
 
     pub fn validate_document_request(doc_req: &DocumentRequest) -> Result<(), String> {
         if doc_req.from.name.trim().is_empty() || doc_req.to.name.trim().is_empty() {

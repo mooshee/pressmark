@@ -1,0 +1,16 @@
+name: io.github.mooshee/pressmark
+displayName: Pressmark Vector Document Engine
+description: High-performance vector PDF document synthesis engine for 57 invoice, estimate, receipt, contract, NDA, and 50-state statutory real estate archetypes.
+version: 1.2.1
+homepage: https://pressmark.dev
+repository: https://github.com/mooshee/pressmark
+license: MIT
+remotes:
+  - type: streamable-http
+    url: https://pressmark.dev/mcp
+startCommand:
+  type: http
+  url: https://pressmark.dev/mcp
+  configSchema:
+    type: object
+    properties: {}
