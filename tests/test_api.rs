@@ -1422,7 +1422,7 @@ async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
     let req_probe_tpl = Request::builder()
         .uri("/templates/residential-lease")
         .method("GET")
-        .header("user-agent", "product-doctor/1.0")
+        .header("user-agent", "HallmanLab-ProductDoctor/1.0")
         .body(Body::empty())
         .unwrap();
     let _ = router.clone().oneshot(req_probe_tpl).await.unwrap();
@@ -1451,6 +1451,80 @@ async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
     assert_eq!(analytics_json["top_archetypes"]["residential_lease"], 3);
     assert_eq!(analytics_json["top_archetypes"]["security_deposit_disposition"], 1);
     assert!(analytics_json["top_archetypes"].get("security-deposit-disposition").is_none());
+
+    // Verify classification of real production User-Agents (HallmanLab-ProductDoctor/1.0 & MCP directory scanners)
+    assert!(Storage::is_internal_probe_ua("HallmanLab-ProductDoctor/1.0"));
+    assert_eq!(
+        Storage::classify_usage_actor("rest_api", Some("HallmanLab-ProductDoctor/1.0")),
+        "internal_probe"
+    );
+    assert_eq!(
+        Storage::classify_usage_actor(
+            "mcpbeat/0.1 (+https://mcpbeat.com/bot/; liveness check)",
+            Some("tools/list")
+        ),
+        "crawler_bot"
+    );
+    assert_eq!(
+        Storage::classify_usage_actor(
+            "Go-http-client/2.0",
+            Some("__verifymcp_auth_probe_e4d987cedfba3bef__")
+        ),
+        "crawler_bot"
+    );
+
+    // Verify free-tier vs paid-entitlement GHL watermark edge cases (None, "", "none", "false", "DRAFT")
+    for empty_sentinel in [None, Some(""), Some("none"), Some("false")] {
+        let mut free_doc = pressmark::models::DocumentRequest::default();
+        free_doc.watermark = empty_sentinel.map(str::to_string);
+        free_doc.apply_free_tier_ghl_watermark(false);
+        assert_eq!(
+            free_doc.watermark.as_deref(),
+            Some("PRESSMARK FREE TIER"),
+            "Unentitled doc with watermark {:?} must default to PRESSMARK FREE TIER",
+            empty_sentinel
+        );
+
+        let mut paid_doc = pressmark::models::DocumentRequest::default();
+        paid_doc.watermark = empty_sentinel.map(str::to_string);
+        paid_doc.apply_free_tier_ghl_watermark(true);
+        assert_eq!(
+            paid_doc.watermark, None,
+            "Paid doc with watermark {:?} must remain None",
+            empty_sentinel
+        );
+    }
+    let mut custom_free_doc = pressmark::models::DocumentRequest::default();
+    custom_free_doc.watermark = Some("DRAFT".to_string());
+    custom_free_doc.apply_free_tier_ghl_watermark(false);
+    assert_eq!(
+        custom_free_doc.watermark.as_deref(),
+        Some("DRAFT"),
+        "Custom watermark DRAFT on free doc must never be overwritten"
+    );
+    let mut custom_paid_doc = pressmark::models::DocumentRequest::default();
+    custom_paid_doc.watermark = Some("DRAFT".to_string());
+    custom_paid_doc.apply_free_tier_ghl_watermark(true);
+    assert_eq!(
+        custom_paid_doc.watermark.as_deref(),
+        Some("DRAFT"),
+        "Custom watermark DRAFT on paid doc must never be overwritten"
+    );
+
+    // Verify all 3 SKILL.md files use canonical DocumentType slugs, state_code, and REC- prefix
+    let re_skill = std::fs::read_to_string("skills/real-estate-agreements/SKILL.md").unwrap();
+    let inv_skill = std::fs::read_to_string("skills/invoice-generation/SKILL.md").unwrap();
+    let lc_skill = std::fs::read_to_string("skills/document-lifecycle/SKILL.md").unwrap();
+    assert!(re_skill.contains("state_code") && !re_skill.contains("governing_state"));
+    assert!(inv_skill.contains("state_code") && !inv_skill.contains("governing_state"));
+    assert!(lc_skill.contains("REC-") && !lc_skill.contains("RCT-"));
+    for dt in pressmark::models::DocumentType::all() {
+        assert!(
+            inv_skill.contains(&format!("`{}`", dt.as_str())),
+            "skills/invoice-generation/SKILL.md missing canonical archetype `{}`",
+            dt.as_str()
+        );
+    }
 
     // 6. Verify static/index.html uses tracked /api/v1/checkout links and dialog ARIA attributes
     let html = std::fs::read_to_string("static/index.html").unwrap();

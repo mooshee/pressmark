@@ -541,10 +541,20 @@ async fn handle_generate(
                 let candidate_email = session
                     .as_ref()
                     .map(|s| s.user.email.as_str())
-                    .filter(|e| !e.ends_with("@pressmark.local") && !e.ends_with("@example.com"))
+                    .filter(|e| {
+                        !e.ends_with("@pressmark.local")
+                            && !e.ends_with("@example.com")
+                            && !e.ends_with("@example.org")
+                    })
                     .or_else(|| doc_req.from.email.as_deref())
                     .or_else(|| doc_req.to.email.as_deref())
-                    .filter(|e| e.contains('@') && !e.ends_with("@example.com"))
+                    .map(str::trim)
+                    .filter(|e| {
+                        e.contains('@')
+                            && !e.ends_with("@pressmark.local")
+                            && !e.ends_with("@example.com")
+                            && !e.ends_with("@example.org")
+                    })
                     .map(|s| s.to_string());
                 if let Some(email_cl) = candidate_email {
                     let mut doc_cl = doc_req.clone();
@@ -553,15 +563,7 @@ async fn handle_generate(
                             .storage
                             .get_customer_entitlement(&email_cl)
                             .is_some();
-                    if !is_paid
-                        && doc_cl
-                            .watermark
-                            .as_deref()
-                            .map(|w| w.trim().is_empty())
-                            .unwrap_or(true)
-                    {
-                        doc_cl.watermark = Some("PRESSMARK FREE TIER".to_string());
-                    }
+                    doc_cl.apply_free_tier_ghl_watermark(is_paid);
                     tokio::spawn(async move {
                         let ghl = crate::ghl::GhlDispatcher::from_env();
                         if ghl.is_configured() {
@@ -1162,14 +1164,21 @@ async fn handle_mcp(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
         .or_else(|| Some(mcp_method.clone()));
+    fn extract_doc_type_field(obj: &serde_json::Value) -> Option<&serde_json::Value> {
+        obj.get("doc_type")
+            .or_else(|| obj.get("archetype"))
+            .or_else(|| obj.get("type"))
+            .or_else(|| obj.get("template"))
+            .or_else(|| obj.get("document_type"))
+    }
     let doc_type = req
         .params
         .as_ref()
         .and_then(|p| p.get("arguments"))
         .and_then(|a| {
-            a.get("doc_type")
-                .or_else(|| a.get("document").and_then(|d| d.get("doc_type")))
-                .or_else(|| a.get("target_type"))
+            a.get("target_type")
+                .or_else(|| extract_doc_type_field(a))
+                .or_else(|| a.get("document").and_then(extract_doc_type_field))
         })
         .and_then(|v| v.as_str())
         .map(|s| {
@@ -1196,7 +1205,19 @@ async fn handle_mcp(
         .to_string();
     let is_2026 = client_proto == "2026-07-28" || req.method == "server/discover";
 
-    let mut resp = McpHandler::handle_request(req);
+    let maybe_token = auth::extract_token_from_headers(&headers);
+    let session = maybe_token
+        .as_deref()
+        .and_then(|t| state.auth_mgr.get_session(t));
+    let is_paid_session = session.as_ref().map(|s| s.user.is_subscriber).unwrap_or(false);
+    let session_email = session.as_ref().map(|s| s.user.email.as_str());
+
+    let mut resp = McpHandler::handle_request_with_context(
+        req,
+        Some(&state.storage),
+        is_paid_session,
+        session_email,
+    );
     let compile_ms = resp
         .result
         .as_ref()

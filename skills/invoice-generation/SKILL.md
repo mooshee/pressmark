@@ -20,10 +20,10 @@ Use this skill when the user requests generating, previewing, designing, or calc
 - `calculate_totals`: Computes line-item subtotals, tax calculations, credit/deduction offsets, and grand totals across 13 currencies (`USD`, `EUR`, `GBP`, `CHF`, `CAD`, `AUD`, `JPY`, `INR`, `SGD`, `AED`, `BRL`, `MXN`, `NZD`).
 
 ## Document Archetypes (57 Total Templates)
-- **Invoicing & Billing**: `invoice`, `invoice_freelance`, `invoice_construction`, `invoice_medical`, `invoice_saas`, `invoice_minimal`, `proforma_invoice`, `recurring_invoice`, `retainer_invoice`, `timesheet_invoice`, `legal_retainer`, `real_estate_commission`, `hoa_assessment`, `utility_submetering`
-- **Estimates, Procurement & Logistics**: `estimate`, `quotation_tender`, `receipt`, `purchase_order`, `packing_slip`, `credit_note`, `change_order`, `work_order`, `expense_report`, `statement_of_account`, `payment_demand`, `delivery_note`, `commercial_customs_invoice`
-- **Contracts, Legal & Operations**: `agreement`, `agreement_sow`, `contractor_agreement`, `nda`, `bill_of_sale`, `certificate`, `inspection_report`, `mechanics_lien_waiver`, `board_resolution`, `promissory_note`, `employment_offer`
-- **Real Estate, Leasing & Property Management (29 Templates + 50-State Statutory Engine)**: `residential_lease`, `month_to_month_rental_agreement`, `room_rental_agreement`, `sublease_agreement`, `lease_renewal_agreement`, `lease_amendment`, `lease_termination_agreement`, `commercial_lease`, `commercial_nnn_lease`, `short_term_vacation_rental`, `rental_application`, `lease_guarantor_agreement`, `pet_addendum`, `lead_paint_disclosure`, `eviction_notice`, `notice_to_vacate`, `late_rent_notice`, `rent_increase_notice`, `notice_to_enter`, `lease_violation_notice`, `move_in_out_checklist`, `security_deposit_disposition`, `property_management_statement`, `property_management_agreement`, `rent_roll`, `closing_settlement_statement`, `schedule_of_real_estate_owned`, `real_estate_deal_analysis`, `real_estate_purchase_agreement`, `property_deed`
+- **Invoicing & Billing (8)**: `invoice`, `invoice_standard`, `invoice_freelance`, `invoice_construction`, `invoice_medical`, `invoice_saas`, `invoice_minimal`, `proforma_invoice`
+- **Estimates, Procurement & Financial Operations (9)**: `estimate`, `quotation_tender`, `receipt`, `purchase_order`, `packing_slip`, `credit_note`, `work_order`, `expense_report`, `delivery_receipt`
+- **Contracts, Legal & Certificates (11)**: `commercial_lease`, `agreement`, `agreement_sow`, `contractor_agreement`, `retainer_agreement`, `nda`, `bill_of_sale`, `certificate`, `certificate_insurance`, `certificate_completion`, `inspection_report`
+- **Real Estate, Leasing & Property Management (29 Templates + 50-State + DC Statutory Engine)**: `residential_lease`, `room_rental_lease`, `sublease_agreement`, `rent_to_own_agreement`, `lease_renewal_agreement`, `lease_amendment`, `mutual_lease_termination`, `commercial_nnn_lease`, `rental_application`, `adverse_action_notice`, `notice_to_vacate`, `notice_of_entry`, `rent_increase_notice`, `tenant_estoppel`, `property_inspection_checklist`, `security_deposit_disposition`, `property_management_statement`, `property_management_agreement`, `rent_roll`, `tenant_rent_ledger`, `schedule_e_tax_worksheet`, `real_estate_deal_analysis`, `schedule_of_real_estate_owned`, `letter_of_intent_cre`, `real_estate_purchase_agreement`, `closing_settlement_statement`, `property_deed`, `real_estate_commission`, `mechanics_lien_waiver`
 
 ## Execution Workflow
 
@@ -31,7 +31,7 @@ Use this skill when the user requests generating, previewing, designing, or calc
    - Extract Issuer/Seller metadata (`from`: name, company, address, email, tax_id/VAT).
    - Extract Recipient/Client metadata (`to`: name, company, address, email).
    - Extract line items (`description`, `quantity`, `unit_price`, optional line-level `discount` or `tax_rate`).
-   - Extract document-level financial and payment details (`tax_rate`, `discount_amount`, `due_date`, `currency`, optional `governing_state`, optional Stripe `payment_link`).
+   - Extract document-level financial and payment details (`tax_rate`, `discount_amount`, `due_date`, `currency`, optional `state_code`, optional `municipality`, optional Stripe `payment_link`).
 
 2. **Visual Preview**:
    - Call `preview_document` first with the structured document parameters.

@@ -453,6 +453,15 @@ impl McpHandler {
     }
 
     pub fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
+        Self::handle_request_with_context(req, None, false, None)
+    }
+
+    pub fn handle_request_with_context(
+        req: JsonRpcRequest,
+        storage: Option<&crate::storage::Storage>,
+        is_paid_session: bool,
+        session_email: Option<&str>,
+    ) -> JsonRpcResponse {
         match req.method.as_str() {
             "initialize" => {
                 let requested = req
@@ -564,35 +573,36 @@ impl McpHandler {
                                 match generate_pdf(&doc_req) {
                                     Ok((pdf_bytes, ms)) => {
                                         if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
-                                            let candidate_email = doc_req
-                                                .from
-                                                .email
-                                                .as_deref()
+                                            let candidate_email = session_email
+                                                .filter(|e| {
+                                                    !e.ends_with("@pressmark.local")
+                                                        && !e.ends_with("@example.com")
+                                                        && !e.ends_with("@example.org")
+                                                })
+                                                .or_else(|| doc_req.from.email.as_deref())
                                                 .or_else(|| doc_req.to.email.as_deref())
                                                 .map(str::trim)
                                                 .filter(|e| {
                                                     e.contains('@')
                                                         && !e.ends_with("@pressmark.local")
                                                         && !e.ends_with("@example.com")
+                                                        && !e.ends_with("@example.org")
                                                 })
                                                 .map(str::to_string);
                                             if let Some(email_cl) = candidate_email {
-                                                if let Ok(rt) = tokio::runtime::Handle::try_current() {
-                                                    let mut doc_cl = doc_req.clone();
-                                                    rt.spawn(async move {
-                                                        let is_paid = crate::storage::Storage::default_db()
+                                                let is_paid = is_paid_session
+                                                    || match storage {
+                                                        Some(st) => st
                                                             .get_customer_entitlement(&email_cl)
-                                                            .is_some();
-                                                        if !is_paid
-                                                            && doc_cl
-                                                                .watermark
-                                                                .as_deref()
-                                                                .map(|w| w.trim().is_empty())
-                                                                .unwrap_or(true)
-                                                        {
-                                                            doc_cl.watermark =
-                                                                Some("PRESSMARK FREE TIER".to_string());
-                                                        }
+                                                            .is_some(),
+                                                        None => crate::storage::Storage::default_db()
+                                                            .get_customer_entitlement(&email_cl)
+                                                            .is_some(),
+                                                    };
+                                                let mut doc_cl = doc_req.clone();
+                                                doc_cl.apply_free_tier_ghl_watermark(is_paid);
+                                                if let Ok(rt) = tokio::runtime::Handle::try_current() {
+                                                    rt.spawn(async move {
                                                         let ghl = crate::ghl::GhlDispatcher::from_env();
                                                         if ghl.is_configured() {
                                                             let _ = ghl

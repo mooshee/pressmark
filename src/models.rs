@@ -434,7 +434,7 @@ impl DocumentType {
             "mutual_nda" | "non_disclosure_agreement" => Some(Self::Nda),
             "coi" | "certificate_of_insurance" => Some(Self::CertificateInsurance),
             "certificate_of_completion" => Some(Self::CertificateCompletion),
-            "lease" | "standard_lease" => Some(Self::ResidentialLease),
+            "lease" | "standard_lease" | "month_to_month_rental_agreement" | "short_term_vacation_rental" => Some(Self::ResidentialLease),
             "nnn_lease" | "triple_net_lease" => Some(Self::CommercialNnnLease),
             "owner_statement" | "property_statement" => Some(Self::PropertyManagementStatement),
             "closing_statement" | "settlement_statement" => Some(Self::ClosingSettlementStatement),
@@ -442,6 +442,8 @@ impl DocumentType {
             | "pay_or_quit"
             | "pay_or_quit_notice"
             | "cure_or_quit"
+            | "late_rent_notice"
+            | "lease_violation_notice"
             | "14_day_rent_demand"
             | "3_day_notice_to_pay_or_quit"
             | "5_day_notice_to_pay_or_quit"
@@ -449,17 +451,25 @@ impl DocumentType {
             | "vawa_termination" => Some(Self::NoticeToVacate),
             "security_deposit" | "deposit_disposition" => Some(Self::SecurityDepositDisposition),
             "commission_statement" | "brokerage_commission" => Some(Self::RealEstateCommission),
-            "move_in_checklist" | "move_out_checklist" => Some(Self::PropertyInspectionChecklist),
+            "move_in_checklist" | "move_out_checklist" | "move_in_out_checklist" => Some(Self::PropertyInspectionChecklist),
             "loi" | "letter_of_intent" => Some(Self::LetterOfIntentCre),
             "estoppel" | "estoppel_certificate" => Some(Self::TenantEstoppel),
-            "room_lease" | "coliving_lease" | "co_living_lease" | "roommate_agreement" => Some(Self::RoomRentalLease),
+            "room_lease" | "room_rental_agreement" | "coliving_lease" | "co_living_lease" | "roommate_agreement" => Some(Self::RoomRentalLease),
             "lease_renewal" | "lease_extension" => Some(Self::LeaseRenewalAgreement),
-            "lease_addendum" | "pet_addendum" | "cosigner_guaranty" | "lease_guaranty" => Some(Self::LeaseAmendment),
+            "lease_addendum"
+            | "pet_addendum"
+            | "cosigner_guaranty"
+            | "lease_guaranty"
+            | "lease_guarantor_agreement"
+            | "lead_paint_disclosure" => Some(Self::LeaseAmendment),
             "tenant_application" | "screening_application" => Some(Self::RentalApplication),
             "fcra_adverse_action" | "tenant_denial_notice" => Some(Self::AdverseActionNotice),
-            "intent_to_enter" | "entry_notice" => Some(Self::NoticeOfEntry),
+            "intent_to_enter" | "entry_notice" | "notice_to_enter" => Some(Self::NoticeOfEntry),
             "rent_increase" | "rent_adjustment_notice" => Some(Self::RentIncreaseNotice),
-            "cash_for_keys" | "lease_surrender" | "early_termination_agreement" => Some(Self::MutualLeaseTermination),
+            "cash_for_keys"
+            | "lease_surrender"
+            | "early_termination_agreement"
+            | "lease_termination_agreement" => Some(Self::MutualLeaseTermination),
             "rent_ledger" | "tenant_ledger" => Some(Self::TenantRentLedger),
             "sreo" | "reo_schedule" | "real_estate_portfolio" => Some(Self::ScheduleOfRealEstateOwned),
             "schedule_e" | "t12_income_statement" | "rental_tax_worksheet" => Some(Self::ScheduleETaxWorksheet),
@@ -483,6 +493,8 @@ impl DocumentType {
             | "tod_deed"
             | "beneficiary_deed" => Some(Self::PropertyDeed),
             "lien_waiver" | "conditional_lien_waiver" | "unconditional_lien_waiver" => Some(Self::MechanicsLienWaiver),
+            "delivery_note" => Some(Self::DeliveryReceipt),
+            "retainer_invoice" | "legal_retainer" => Some(Self::RetainerAgreement),
             _ => None,
         }
     }
@@ -974,7 +986,7 @@ pub struct DocumentRequest {
     pub paid_at: Option<String>,
     pub transaction_reference: Option<String>,
     pub amount_paid: Option<f64>,
-    #[serde(default, alias = "state", alias = "jurisdiction")]
+    #[serde(default, alias = "state", alias = "jurisdiction", alias = "governing_state")]
     pub state_code: Option<String>,
     pub municipality: Option<String>,
     pub county: Option<String>,
@@ -985,6 +997,23 @@ pub struct DocumentRequest {
 }
 
 impl DocumentRequest {
+    /// Normalizes watermark state before HighLevel CRM sync so unentitled free-tier exports
+    /// default to `PRESSMARK FREE TIER` while preserving custom watermarks (`DRAFT`, `CONFIDENTIAL`)
+    /// and stripping default free-tier watermarks for paid users.
+    pub fn apply_free_tier_ghl_watermark(&mut self, is_paid: bool) {
+        let trimmed = self.watermark.as_deref().map(str::trim).unwrap_or("");
+        let is_empty_or_sentinel = trimmed.is_empty()
+            || trimmed.eq_ignore_ascii_case("false")
+            || trimmed.eq_ignore_ascii_case("none");
+        let is_default_free_wm = trimmed.eq_ignore_ascii_case("PRESSMARK FREE TIER")
+            || trimmed.eq_ignore_ascii_case("PRESSMARK PREVIEW");
+        if !is_paid && is_empty_or_sentinel {
+            self.watermark = Some("PRESSMARK FREE TIER".to_string());
+        } else if is_paid && (is_empty_or_sentinel || is_default_free_wm) {
+            self.watermark = None;
+        }
+    }
+
     pub fn normalized_currency_code(&self) -> &str {
         let raw = self.currency.as_deref().map(str::trim).unwrap_or("");
         match raw.to_ascii_uppercase().as_str() {

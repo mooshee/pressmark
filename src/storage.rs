@@ -122,7 +122,9 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_usage_events_type ON usage_events(event_type);
             CREATE INDEX IF NOT EXISTS idx_usage_events_created ON usage_events(created_at);
             CREATE INDEX IF NOT EXISTS idx_usage_events_created_at ON usage_events(created_at);
-            UPDATE usage_events SET archetype = REPLACE(archetype, '-', '_') WHERE archetype IS NOT NULL AND archetype LIKE '%-%';",
+            UPDATE usage_events SET archetype = REPLACE(archetype, '-', '_') WHERE archetype IS NOT NULL AND archetype LIKE '%-%';
+            UPDATE usage_events SET channel = 'web_seo_probe' WHERE event_type = 'template_landing_view' AND channel = 'web_seo' AND substr(created_at, 1, 19) IN (SELECT DISTINCT substr(created_at, 1, 19) FROM usage_events WHERE detail LIKE '%ProductDoctor%' OR channel LIKE '%ProductDoctor%');
+            UPDATE usage_events SET channel = 'stripe_probe' WHERE event_type = 'checkout_init' AND channel = 'stripe' AND substr(created_at, 1, 19) IN (SELECT DISTINCT substr(created_at, 1, 19) FROM usage_events WHERE detail LIKE '%ProductDoctor%' OR channel LIKE '%ProductDoctor%');",
         )?;
 
         Ok(())
@@ -395,6 +397,19 @@ impl Storage {
             "dotbot",
             "crawler",
             "spider",
+            "mcpbeat",
+            "faceabot",
+            "agentrankprobe",
+            "everymcp",
+            "mcphub-probe",
+            "catalog-probe",
+            "smallprint-probe",
+            "teppi-probe",
+            "agent-collector",
+            "mcp-health",
+            "registry-survey",
+            "sarnai.dev/bot",
+            "verifymcp_auth_probe",
         ];
         BOT_MARKERS.iter().any(|m| lower.contains(m))
     }
@@ -404,8 +419,11 @@ impl Storage {
         const PROBE_MARKERS: &[&str] = &[
             "web_seo_probe",
             "stripe_probe",
+            "productdoctor",
             "product-doctor",
+            "hallmanlab",
             "seo-audit",
+            "seo_audit",
             "xh/",
             "curl/",
             "pressmark-smoke",
@@ -416,12 +434,14 @@ impl Storage {
     }
 
     pub fn classify_usage_actor(channel: &str, detail: Option<&str>) -> &'static str {
-        if Self::is_crawler_bot_ua(channel) || detail.map(Self::is_crawler_bot_ua).unwrap_or(false) {
-            "crawler_bot"
-        } else if Self::is_internal_probe_ua(channel)
+        if Self::is_internal_probe_ua(channel)
             || detail.map(Self::is_internal_probe_ua).unwrap_or(false)
         {
             "internal_probe"
+        } else if Self::is_crawler_bot_ua(channel)
+            || detail.map(Self::is_crawler_bot_ua).unwrap_or(false)
+        {
+            "crawler_bot"
         } else {
             "external_organic"
         }
