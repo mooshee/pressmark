@@ -498,7 +498,9 @@ impl DocumentType {
                 | Self::TenantRentLedger
                 | Self::ScheduleETaxWorksheet
                 | Self::RealEstateDealAnalysis
+                | Self::LeaseAmendment
                 | Self::RentIncreaseNotice
+                | Self::MutualLeaseTermination
                 | Self::RealEstatePurchaseAgreement
         )
     }
@@ -774,8 +776,11 @@ impl Default for LineItem {
 impl LineItem {
     pub fn amount(&self) -> f64 {
         let gross = self.quantity * self.unit_price;
-        let discount = self.discount.unwrap_or(0.0);
-        gross - discount
+        if self.unit_price < 0.0 {
+            gross
+        } else {
+            gross - self.discount.unwrap_or(0.0)
+        }
     }
 }
 
@@ -956,14 +961,31 @@ impl DocumentRequest {
         }
     }
 
+    pub fn allows_negative_items(&self) -> bool {
+        self.doc_type.allows_negative_items()
+    }
+
     pub fn subtotal(&self) -> f64 {
         self.items.iter().map(|item| item.amount()).sum()
     }
 
     pub fn tax_total(&self) -> f64 {
-        let sub = self.subtotal();
-        if let Some(rate) = self.tax_rate {
-            sub * (rate / 100.0)
+        if self.items.iter().any(|i| i.tax_rate.is_some()) {
+            self.items
+                .iter()
+                .map(|i| {
+                    let rate = i.tax_rate.unwrap_or_else(|| {
+                        if i.amount() < 0.0 {
+                            0.0
+                        } else {
+                            self.tax_rate.unwrap_or(0.0)
+                        }
+                    });
+                    i.amount() * (rate / 100.0)
+                })
+                .sum()
+        } else if let Some(rate) = self.tax_rate {
+            self.subtotal() * (rate / 100.0)
         } else {
             0.0
         }
@@ -974,7 +996,7 @@ impl DocumentRequest {
         let tax = self.tax_total();
         let discount = self.discount_amount.unwrap_or(0.0);
         let raw = sub + tax - discount;
-        if sub < 0.0 && self.doc_type.allows_negative_items() {
+        if self.doc_type.allows_negative_items() {
             raw
         } else {
             raw.max(0.0)
@@ -1653,9 +1675,20 @@ impl DocumentRequest {
             }
         }
         let allow_neg = self.doc_type.allows_negative_items();
-        for (idx, item) in self.items.iter().enumerate() {
+        for (idx, item) in self.items.iter_mut().enumerate() {
             if !item.quantity.is_finite() || !item.unit_price.is_finite() {
                 return Err(format!("Line item #{} has non-finite quantity or unit_price.", idx + 1));
+            }
+            if !allow_neg && (item.quantity < 0.0 || item.unit_price < 0.0) {
+                return Err(format!(
+                    "Line item #{} ('{}') cannot have negative quantity or unit_price on a '{}' document.",
+                    idx + 1,
+                    item.description,
+                    self.doc_type.as_str()
+                ));
+            }
+            if item.unit_price < 0.0 {
+                item.discount = None;
             }
             if let Some(d) = item.discount {
                 if !d.is_finite() || d < 0.0 {
@@ -1666,14 +1699,6 @@ impl DocumentRequest {
                 if !tr.is_finite() || !(0.0..=100.0).contains(&tr) {
                     return Err(format!("Line item #{} has invalid tax_rate.", idx + 1));
                 }
-            }
-            if !allow_neg && (item.quantity < 0.0 || item.unit_price < 0.0) {
-                return Err(format!(
-                    "Line item #{} ('{}') cannot have negative quantity or unit_price on a '{}' document.",
-                    idx + 1,
-                    item.description,
-                    self.doc_type.as_str()
-                ));
             }
         }
         if let Some(dec) = self.number_decimals.as_mut() {
@@ -1686,6 +1711,13 @@ impl DocumentRequest {
         if self.compliance_mode.is_some() {
             let norm = self.normalized_compliance_mode().to_string();
             self.compliance_mode = Some(norm);
+        }
+        if self.execution_mode.is_some() {
+            if self.notary_required.is_none() && self.is_notary_required() {
+                self.notary_required = Some(true);
+            }
+            let norm = self.normalized_execution_mode().to_string();
+            self.execution_mode = Some(norm);
         }
         Ok(())
     }

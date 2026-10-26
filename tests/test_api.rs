@@ -2096,6 +2096,15 @@ async fn test_pressmark_normalization_audit_all_9_items() {
     assert_eq!(refund_json["document"]["doc_type"], "credit_note");
     assert_eq!(refund_json["document"]["doc_number"], "CRD-2026-0099");
 
+    // Verify "reason" alias populated credit_reason in converted credit note notes
+    assert!(
+        refund_json["document"]["notes"]
+            .as_str()
+            .unwrap_or("")
+            .contains("Full customer refund"),
+        "Expected 'reason' alias to populate credit note reason in notes"
+    );
+
     // REST /api/v1/lifecycle/convert with invalid target_type -> 400 BAD_REQUEST
     let req_bad_lc = Request::builder()
         .uri("/api/v1/lifecycle/convert")
@@ -2111,6 +2120,115 @@ async fn test_pressmark_normalization_audit_all_9_items() {
         .unwrap();
     let res_bad_lc = router.clone().oneshot(req_bad_lc).await.unwrap();
     assert_eq!(res_bad_lc.status(), StatusCode::BAD_REQUEST);
+
+    // -------------------------------------------------------------------------
+    // REGRESSION CHECKS FOR REVIEWER FIXES:
+    // 1) normalize_and_validate() clears item.discount when unit_price < 0.0
+    //    and is enforced on /api/v1/generate and /api/v1/preview
+    // -------------------------------------------------------------------------
+    let mut neg_with_discount: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "rent_increase_notice",
+        "from": { "name": "Landlord LLC" },
+        "to": { "name": "Tenant" },
+        "items": [
+            { "description": "New Monthly Base Rent", "quantity": 1.0, "unit_price": 2100.0, "discount": 0.0 },
+            { "description": "Prior Base Rent Offset", "quantity": 1.0, "unit_price": -1950.0, "discount": 1950.0 }
+        ]
+    }))
+    .unwrap();
+    assert!(neg_with_discount.allows_negative_items());
+    // Even before normalize_and_validate, LineItem::amount() ignores discount when unit_price < 0
+    assert!((neg_with_discount.items[1].amount() - (-1950.0)).abs() < 0.01);
+    assert!((neg_with_discount.subtotal() - 150.0).abs() < 0.01);
+    assert!(neg_with_discount.normalize_and_validate().is_ok());
+    assert_eq!(neg_with_discount.items[1].discount, None);
+
+    // POST /api/v1/generate rejects negative tax_rate (-15.0) with 400 BAD_REQUEST
+    let req_bad_tax = Request::builder()
+        .uri("/api/v1/generate")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "doc_type": "invoice",
+                "tax_rate": -15.0,
+                "from": { "name": "Seller" },
+                "to": { "name": "Buyer" },
+                "items": [{ "description": "Service", "quantity": 1.0, "unit_price": 100.0 }]
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let res_bad_tax = router.clone().oneshot(req_bad_tax).await.unwrap();
+    assert_eq!(res_bad_tax.status(), StatusCode::BAD_REQUEST);
+
+    // POST /api/v1/preview rejects negative unit_price on standard invoice with 400 BAD_REQUEST
+    let req_bad_neg = Request::builder()
+        .uri("/api/v1/preview")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "doc_type": "invoice",
+                "from": { "name": "Seller" },
+                "to": { "name": "Buyer" },
+                "items": [{ "description": "Illicit Deduction", "quantity": 1.0, "unit_price": -50.0 }]
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let res_bad_neg = router.clone().oneshot(req_bad_neg).await.unwrap();
+    assert_eq!(res_bad_neg.status(), StatusCode::BAD_REQUEST);
+
+    // Per-item tax_rate with mixed-sign line items does not tax negative deductions
+    let mixed_item_tax_doc: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "property_management_statement",
+        "from": { "name": "PM Co" },
+        "to": { "name": "Owner" },
+        "items": [
+            { "description": "Taxable Maintenance Fee", "quantity": 1.0, "unit_price": 500.0, "tax_rate": 10.0 },
+            { "description": "Owner Reserve Credit", "quantity": 1.0, "unit_price": -200.0 }
+        ]
+    }))
+    .unwrap();
+    assert!((mixed_item_tax_doc.tax_total() - 50.0).abs() < 0.01);
+
+    // Address state inference with US country suffixes, non-US countries, and street names
+    assert_eq!(
+        pressmark::state_laws::infer_state_from_address("100 Main St, Austin, TX, US").map(|s| s.code),
+        Some("TX")
+    );
+    assert_eq!(
+        pressmark::state_laws::infer_state_from_address("100 Main St, Austin, TX, United States").map(|s| s.code),
+        Some("TX")
+    );
+    assert_eq!(
+        pressmark::state_laws::infer_state_from_address("100 Main St Chattanooga TN 37402, USA").map(|s| s.code),
+        Some("TN")
+    );
+    assert_eq!(
+        pressmark::state_laws::infer_state_from_address("10 Rue de Rivoli, Paris, ID, France")
+            .map(|s| s.code),
+        None
+    );
+    assert_eq!(
+        pressmark::state_laws::infer_state_from_address("100 Main St, Ontario, CA, Canada")
+            .map(|s| s.code),
+        None
+    );
+    assert_eq!(
+        pressmark::state_laws::infer_state_from_address("100 Indiana Ave").map(|s| s.code),
+        None
+    );
+
+    // MCP municipality schema description preserves all 6 municipalities including Cook County
+    let mun_desc = mcp_props["municipality"]["description"].as_str().unwrap_or("");
+    assert!(
+        mun_desc.contains("Cook County"),
+        "Expected MCP municipality description to include Cook County, got: {}",
+        mun_desc
+    );
 }
+
 
 

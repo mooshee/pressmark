@@ -1596,24 +1596,97 @@ pub fn get_municipal_sub_profile(query: &str) -> Option<&'static MunicipalLeaseS
 /// Scans from the end of the address backward so street directionals/names ("123 NE 45th St", "8500 LA Cienega Blvd",
 /// "500 CO Rd 12", "100 MT Vernon Ave", "300 DE Kalb Ave") are never misidentified as state codes.
 pub fn infer_state_from_address(address: &str) -> Option<&'static StateLeaseProfile> {
-    for line in address.lines().rev() {
+    const NON_US_COUNTRIES: &[&str] = &[
+        "canada",
+        "united kingdom",
+        "uk",
+        "u.k",
+        "england",
+        "scotland",
+        "wales",
+        "ireland",
+        "australia",
+        "new zealand",
+        "germany",
+        "france",
+        "switzerland",
+        "japan",
+        "mexico",
+        "singapore",
+        "india",
+        "netherlands",
+        "spain",
+        "italy",
+        "brazil",
+        "uae",
+        "united arab emirates",
+        "china",
+        "south korea",
+        "sweden",
+        "norway",
+        "denmark",
+        "belgium",
+        "austria",
+        "poland",
+        "portugal",
+    ];
+    const US_COUNTRY_SUFFIXES: &[&str] = &[
+        "united states of america",
+        "united states",
+        "u.s.a",
+        "usa",
+        "u.s",
+        "us",
+    ];
+    const STREET_SUFFIXES: &[&str] = &[
+        "st", "street", "ave", "avenue", "blvd", "boulevard", "rd", "road", "dr", "drive",
+        "ln", "lane", "ct", "court", "way", "pkwy", "parkway", "pl", "place", "cir", "circle",
+        "hwy", "highway", "ter", "terrace",
+    ];
+
+    for raw_line in address.lines().rev() {
+        let mut line = raw_line.trim().trim_end_matches('.');
+        if line.is_empty() {
+            continue;
+        }
+        let line_lower = line.to_ascii_lowercase();
+
+        // If the trailing line or country segment is a non-US country, abort state inference immediately.
+        if NON_US_COUNTRIES.iter().any(|&c| {
+            line_lower == c
+                || line_lower
+                    .strip_suffix(c)
+                    .is_some_and(|prefix| prefix.ends_with(',') || prefix.ends_with(", "))
+        }) {
+            return None;
+        }
+
+        // If the entire line is a US country label, skip to the preceding line.
+        if US_COUNTRY_SUFFIXES.iter().any(|&c| line_lower == c) {
+            continue;
+        }
+
+        // Strip trailing US country suffix (e.g. ", USA", ", US", ", United States") before comma splitting.
+        for &suffix in US_COUNTRY_SUFFIXES {
+            if let Some(prefix) = line_lower.strip_suffix(suffix) {
+                let trimmed_prefix = prefix.trim_end();
+                if trimmed_prefix.ends_with(',') || trimmed_prefix.len() < prefix.len() {
+                    let keep_len = trimmed_prefix.trim_end_matches(',').trim_end().len();
+                    line = &line[..keep_len];
+                    break;
+                }
+            }
+        }
+
         let has_comma = line.contains(',');
         let search_segment = match line.find(',') {
             Some(idx) => &line[idx + 1..],
             None => line,
         };
-        let mut tokens: Vec<&str> = search_segment
+        let tokens: Vec<&str> = search_segment
             .split(|c: char| c.is_whitespace() || c == ',' || c == ';')
             .filter(|t| !t.is_empty())
             .collect();
-
-        // Strip trailing country token ("USA", "US") if present
-        if let Some(&last) = tokens.last() {
-            let trimmed = last.trim_matches(|c: char| !c.is_ascii_alphabetic());
-            if trimmed.eq_ignore_ascii_case("usa") {
-                tokens.pop();
-            }
-        }
 
         let last_is_zip = tokens.last().is_some_and(|t| {
             let digits = t.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-');
@@ -1652,11 +1725,35 @@ pub fn infer_state_from_address(address: &str) -> Option<&'static StateLeaseProf
     states_by_len.sort_by(|a, b| b.name.len().cmp(&a.name.len()));
     for sp in states_by_len {
         let name_lower = sp.name.to_ascii_lowercase();
-        if lower.contains(&name_lower) {
-            return Some(sp);
+        let mut search_start = 0;
+        while let Some(rel_idx) = lower[search_start..].find(&name_lower) {
+            let idx = search_start + rel_idx;
+            let end_idx = idx + name_lower.len();
+            let prev_ok = idx == 0
+                || !lower[..idx]
+                    .chars()
+                    .last()
+                    .is_some_and(|c| c.is_ascii_alphabetic());
+            let next_ok = end_idx == lower.len()
+                || !lower[end_idx..]
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphabetic());
+            if prev_ok && next_ok {
+                let next_word = lower[end_idx..]
+                    .trim_start_matches(|c: char| c.is_whitespace())
+                    .split(|c: char| !c.is_ascii_alphabetic())
+                    .next()
+                    .unwrap_or("");
+                if !STREET_SUFFIXES.contains(&next_word) {
+                    return Some(sp);
+                }
+            }
+            search_start = end_idx;
         }
     }
 
     None
 }
+
 

@@ -185,22 +185,6 @@ impl McpHandler {
                 "type": "boolean",
                 "description": "Whether the document is marked PAID IN FULL."
             },
-            "state_code": {
-                "type": "string",
-                "description": "2-letter US jurisdiction or state code (e.g. 'TN', 'CA', 'NY', 'TX') for statutory lease and real estate instruments."
-            },
-            "municipality": {
-                "type": "string",
-                "description": "Optional municipal ordinance sub-profile (e.g. 'NYC', 'Chicago', 'San Francisco', 'Los Angeles', 'Seattle', 'Portland')."
-            },
-            "county": {
-                "type": "string",
-                "description": "County name for notarial jurat and recording headers (e.g. 'Hamilton', 'Travis')."
-            },
-            "year_built": {
-                "type": "integer",
-                "description": "Property construction year (triggers 40 CFR Part 745 Lead-Based Paint Addendum when < 1978)."
-            },
             "execution_mode": {
                 "type": "string",
                 "enum": ["esign", "wet_ink", "wet-ink", "notarized_wet", "ron", "notarized_ron"],
@@ -464,28 +448,8 @@ impl McpHandler {
         if doc_req.from.name.trim().is_empty() || doc_req.to.name.trim().is_empty() {
             return Err("Validation error: both 'from.name' (seller/issuer name) and 'to.name' (buyer/recipient name) are required.".to_string());
         }
-        let allows_negative_adjustments = doc_req.doc_type.allows_negative_items()
-            || matches!(
-                doc_req.doc_type,
-                DocumentType::MutualLeaseTermination | DocumentType::LeaseAmendment
-            );
-        for (idx, item) in doc_req.items.iter().enumerate() {
-            if !item.quantity.is_finite() || !item.unit_price.is_finite() {
-                return Err(format!(
-                    "Arithmetic validation error on line item {}: quantity and unit_price must be finite numbers.",
-                    idx + 1
-                ));
-            }
-            if !allows_negative_adjustments && (item.quantity < 0.0 || item.unit_price < 0.0) {
-                return Err(format!(
-                    "Arithmetic validation error on line item {}: negative quantities ({}) or negative unit rates ({}) cannot be billed on standard documents. Issue a formal 'credit_note' document instead.",
-                    idx + 1,
-                    item.quantity,
-                    item.unit_price
-                ));
-            }
-        }
-        Ok(())
+        let mut cloned = doc_req.clone();
+        cloned.normalize_and_validate()
     }
 
     pub fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
@@ -586,8 +550,10 @@ impl McpHandler {
                 match tool_name {
                     "generate_document" => {
                         match serde_json::from_value::<DocumentRequest>(arguments) {
-                            Ok(doc_req) => {
-                                if let Err(msg) = Self::validate_document_request(&doc_req) {
+                            Ok(mut doc_req) => {
+                                if let Err(msg) = Self::validate_document_request(&doc_req)
+                                    .and_then(|()| doc_req.normalize_and_validate())
+                                {
                                     return JsonRpcResponse {
                                         jsonrpc: "2.0",
                                         id: req.id,
@@ -667,8 +633,10 @@ impl McpHandler {
                     }
                     "preview_document" => {
                         match serde_json::from_value::<DocumentRequest>(arguments) {
-                            Ok(doc_req) => {
-                                if let Err(msg) = Self::validate_document_request(&doc_req) {
+                            Ok(mut doc_req) => {
+                                if let Err(msg) = Self::validate_document_request(&doc_req)
+                                    .and_then(|()| doc_req.normalize_and_validate())
+                                {
                                     return JsonRpcResponse {
                                         jsonrpc: "2.0",
                                         id: req.id,
@@ -741,12 +709,17 @@ impl McpHandler {
                         let due_days = arguments.get("due_days").and_then(|d| d.as_u64()).unwrap_or(15) as u32;
                         let payment_link = arguments.get("payment_link").and_then(|l| l.as_str());
                         let payment_qr_code = arguments.get("payment_qr_code").and_then(|q| q.as_bool());
-                        let credit_reason = arguments.get("credit_reason").and_then(|r| r.as_str());
+                        let credit_reason = arguments
+                            .get("credit_reason")
+                            .or_else(|| arguments.get("reason"))
+                            .and_then(|r| r.as_str());
                         let doc_val = arguments.get("document").cloned().unwrap_or(Value::Null);
 
                         match serde_json::from_value::<DocumentRequest>(doc_val) {
-                            Ok(doc_req) => {
-                                if let Err(msg) = Self::validate_document_request(&doc_req) {
+                            Ok(mut doc_req) => {
+                                if let Err(msg) = Self::validate_document_request(&doc_req)
+                                    .and_then(|()| doc_req.normalize_and_validate())
+                                {
                                     return JsonRpcResponse {
                                         jsonrpc: "2.0",
                                         id: req.id,
@@ -829,7 +802,15 @@ impl McpHandler {
                             arguments.clone()
                         };
                         match serde_json::from_value::<DocumentRequest>(doc_val) {
-                            Ok(doc_req) => {
+                            Ok(mut doc_req) => {
+                                if let Err(msg) = doc_req.normalize_and_validate() {
+                                    return JsonRpcResponse {
+                                        jsonrpc: "2.0",
+                                        id: req.id,
+                                        result: None,
+                                        error: Some(json!({ "code": -32602, "message": msg })),
+                                    };
+                                }
                                 let subtotal = doc_req.subtotal();
                                 let tax_total = doc_req.tax_total();
                                 let discount = doc_req.discount_amount.unwrap_or(0.0);
@@ -899,8 +880,10 @@ impl McpHandler {
                         }
 
                         match serde_json::from_value::<DocumentRequest>(doc_val) {
-                            Ok(doc_req) => {
-                                if let Err(msg) = Self::validate_document_request(&doc_req) {
+                            Ok(mut doc_req) => {
+                                if let Err(msg) = Self::validate_document_request(&doc_req)
+                                    .and_then(|()| doc_req.normalize_and_validate())
+                                {
                                     return JsonRpcResponse {
                                         jsonrpc: "2.0",
                                         id: req.id,

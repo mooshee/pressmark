@@ -477,6 +477,17 @@ async fn handle_generate(
     Query(query): Query<FormatQuery>,
     Json(mut doc_req): Json<DocumentRequest>,
 ) -> Response {
+    if let Err(err) = doc_req.normalize_and_validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "success": false,
+                "error": err
+            })),
+        )
+            .into_response();
+    }
+
     let maybe_token = auth::extract_token_from_headers(&headers);
     let session = maybe_token.as_deref().and_then(|t| state.auth_mgr.get_session(t));
     let is_chatgpt_subscriber = session.as_ref().map(|s| s.user.is_subscriber).unwrap_or(false);
@@ -607,8 +618,18 @@ async fn handle_preview(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Query(query): Query<FormatQuery>,
-    Json(doc_req): Json<DocumentRequest>,
+    Json(mut doc_req): Json<DocumentRequest>,
 ) -> Response {
+    if let Err(err) = doc_req.normalize_and_validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "success": false,
+                "error": err
+            })),
+        )
+            .into_response();
+    }
     let ppi = 144;
     let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
     match generate_all_preview_pngs(&doc_req, ppi) {
@@ -1884,9 +1905,10 @@ async fn handle_api_key_login(
 
 #[derive(Debug, serde::Deserialize)]
 pub struct LifecycleConvertRequest {
-    pub target_type: String, // "invoice", "receipt", "estimate", "credit_note"
+    pub target_type: String, // "invoice", "receipt", "estimate", "credit_note", "refund"
     pub due_days: Option<u32>,
     pub valid_days: Option<u32>,
+    #[serde(alias = "reason")]
     pub credit_reason: Option<String>,
     pub payment_link: Option<String>,
     pub payment_qr_code: Option<bool>,
@@ -1903,8 +1925,18 @@ pub struct LifecyclePayRequest {
 }
 
 async fn handle_lifecycle_convert(
-    Json(payload): Json<LifecycleConvertRequest>,
+    Json(mut payload): Json<LifecycleConvertRequest>,
 ) -> impl IntoResponse {
+    if let Err(err) = payload.document.normalize_and_validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "success": false,
+                "error": err
+            })),
+        );
+    }
+
     let mut converted = match payload.target_type.trim().to_lowercase().as_str() {
         "invoice" => payload.document.to_invoice(payload.due_days.unwrap_or(15)),
         "receipt" | "payment_receipt" | "paid_receipt" => payload.document.to_receipt(
@@ -1944,8 +1976,29 @@ async fn handle_lifecycle_convert(
 }
 
 async fn handle_lifecycle_pay(
-    Json(payload): Json<LifecyclePayRequest>,
+    Json(mut payload): Json<LifecyclePayRequest>,
 ) -> impl IntoResponse {
+    if let Err(err) = payload.document.normalize_and_validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "success": false,
+                "error": err
+            })),
+        );
+    }
+    if let Some(amt) = payload.amount_paid {
+        if !amt.is_finite() || amt < 0.0 {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "Invalid amount_paid: must be a finite non-negative number."
+                })),
+            );
+        }
+    }
+
     let method = payload.payment_method.as_deref().unwrap_or("Stripe / Apple Pay");
     let tx_ref = payload.transaction_reference.as_deref().unwrap_or("STRIPE-AUTO-PAID");
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();

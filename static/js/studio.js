@@ -584,7 +584,7 @@
       ],
       tax_rate: 10.0,
       discount_amount: 100000,
-      compliance_mode: 'soc2_badge',
+      compliance_mode: 'soc2',
       show_qr_seal: true,
       show_signature: true,
       show_remittance_stub: false
@@ -1873,6 +1873,9 @@
     }
   }
 
+  let currentTaxonomyCat = 'Commercial Invoicing';
+  let currentTaxonomyName = 'Tax Invoice';
+
   function allowsNegativeItems(docType) {
     return [
       'credit_note',
@@ -1882,11 +1885,82 @@
       'real_estate_commission',
       'lease_amendment',
       'mutual_lease_termination',
+      'rent_increase_notice',
       'tenant_rent_ledger',
       'schedule_e_tax_worksheet',
       'real_estate_deal_analysis',
       'real_estate_purchase_agreement'
     ].includes(docType);
+  }
+
+  function lineItemAmount(item) {
+    const qty = Number(item.quantity) || 0;
+    const rate = Number(item.unit_price) || 0;
+    const gross = qty * rate;
+    if (rate < 0) return gross;
+    return gross - (Number(item.discount) || 0);
+  }
+
+  function normalizeComplianceMode(raw) {
+    if (!raw) return 'none';
+    const s = String(raw).trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const map = {
+      none: 'none',
+      standard: 'none',
+      eu_vat: 'eu_vat',
+      vat_reverse_charge: 'eu_vat',
+      reverse_charge: 'eu_vat',
+      peppol: 'peppol',
+      peppol_bis: 'peppol',
+      peppol_bis_3: 'peppol',
+      factur_x: 'factur-x',
+      zugferd: 'factur-x',
+      en16931: 'factur-x',
+      en_16931: 'factur-x',
+      irs_w9: 'irs_w9',
+      w9: 'irs_w9',
+      w_9: 'irs_w9',
+      pci_dss: 'pci_dss',
+      pci: 'pci_dss',
+      soc2: 'soc2',
+      soc_2: 'soc2',
+      soc2_badge: 'soc2',
+      soc2_type2: 'soc2',
+      hipaa: 'hipaa',
+      hipaa_baa: 'hipaa',
+      baa: 'hipaa',
+      zatca: 'zatca',
+      fatoora: 'zatca',
+      zatca_fatoora: 'zatca',
+      statutory_sworn: 'statutory_sworn',
+      sworn: 'statutory_sworn',
+      affidavit: 'statutory_sworn'
+    };
+    return map[s] || 'none';
+  }
+
+  function normalizeDateIso(raw) {
+    if (!raw) return '';
+    let s = String(raw).trim();
+    if (!s) return '';
+    if (s.includes('T') && s.indexOf('T') >= 8) {
+      s = s.split('T')[0].trim();
+    } else if (s.includes(' ') && s.indexOf(' ') >= 8 && /^\d/.test(s.split(' ')[1] || '')) {
+      s = s.split(' ')[0].trim();
+    }
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) {
+      return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+    }
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+    }
+    m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+    if (m) {
+      return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+    }
+    return s;
   }
 
   function resolveArchetypeSlug(raw) {
@@ -2358,9 +2432,10 @@
           state.is_paid = false;
           if (amountPaidGroup) amountPaidGroup.style.display = 'block';
           if (!state.amount_paid) {
-            const subtotal = state.items.reduce((sum, item) => sum + (item.quantity * item.unit_price - (item.discount || 0)), 0);
+            const subtotal = state.items.reduce((sum, item) => sum + lineItemAmount(item), 0);
             const tax = state.tax_rate ? subtotal * (state.tax_rate / 100.0) : 0.0;
-            const grandTotal = Math.max(0, subtotal + tax - (state.discount_amount || 0));
+            const rawTotal = subtotal + tax - (state.discount_amount || 0);
+            const grandTotal = allowsNegativeItems(state.doc_type) ? rawTotal : Math.max(0, rawTotal);
             state.amount_paid = Math.round((grandTotal / 2) * 100) / 100;
             if (amountPaidInput) amountPaidInput.value = state.amount_paid;
           }
@@ -4445,6 +4520,10 @@
       if (el && val !== undefined) el.checked = !!val;
     };
 
+    if (state.issue_date) state.issue_date = normalizeDateIso(state.issue_date);
+    if (state.due_date) state.due_date = normalizeDateIso(state.due_date);
+    state.compliance_mode = normalizeComplianceMode(state.compliance_mode);
+
     setVal('docTitle', state.title);
     setVal('headerSubtitle', state.header_subtitle || '');
     setVal('docNumber', state.doc_number);
@@ -4889,8 +4968,8 @@
     };
 
     const tax = ARCHETYPE_TAXONOMY[type] || ARCHETYPE_TAXONOMY.invoice;
-    state._taxonomy_cat = tax.cat;
-    state._taxonomy_name = tax.name;
+    currentTaxonomyCat = tax.cat;
+    currentTaxonomyName = tax.name;
 
     // 1. Update Step 1 Primary Archetype Header Hero
     if (heroIcon) heroIcon.innerText = tax.icon;
@@ -5411,7 +5490,7 @@
         <td><input type="text" value="${escapeHtml(item.description)}" data-idx="${index}" class="item-desc"></td>
         <td><input type="number" step="0.5" value="${item.quantity}" data-idx="${index}" class="item-qty" style="width: 55px;"></td>
         <td><input type="number" step="1" value="${item.unit_price}" data-idx="${index}" class="item-rate" style="width: 70px;"></td>
-        <td style="text-align: right; font-weight: bold;">${formatAmountUi((item.quantity * item.unit_price) - (item.discount || 0))}</td>
+        <td class="item-amount-cell" style="text-align: right; font-weight: bold;">${formatAmountUi(lineItemAmount(item))}</td>
         <td style="text-align: center;"><button class="btn-remove btn-delete-row" data-idx="${index}" title="Delete row">×</button></td>
       `;
 
@@ -5481,7 +5560,11 @@
 
     itemsTbody.querySelectorAll('.item-qty').forEach(input => {
       input.addEventListener('input', (e) => {
-        state.items[e.target.dataset.idx].quantity = parseFloat(e.target.value) || 0;
+        const idx = e.target.dataset.idx;
+        state.items[idx].quantity = parseFloat(e.target.value) || 0;
+        const row = e.target.closest('tr');
+        const amtCell = row && row.querySelector('.item-amount-cell');
+        if (amtCell) amtCell.textContent = formatAmountUi(lineItemAmount(state.items[idx]));
         updateCalculations();
         schedulePreview();
         renderInteractiveOverlay();
@@ -5496,6 +5579,9 @@
         if (val < 0) {
           state.items[idx].discount = 0;
         }
+        const row = e.target.closest('tr');
+        const amtCell = row && row.querySelector('.item-amount-cell');
+        if (amtCell) amtCell.textContent = formatAmountUi(lineItemAmount(state.items[idx]));
         updateCalculations();
         schedulePreview();
         renderInteractiveOverlay();
@@ -5594,7 +5680,7 @@
 
   // Financial Calculations
   function updateCalculations() {
-    const subtotal = state.items.reduce((sum, item) => sum + (item.quantity * item.unit_price - (item.discount || 0)), 0);
+    const subtotal = state.items.reduce((sum, item) => sum + lineItemAmount(item), 0);
     const tax = state.tax_rate ? subtotal * (state.tax_rate / 100.0) : 0.0;
     const discount = state.discount_amount || 0.0;
     const rawTotal = subtotal + tax - discount;
@@ -5646,10 +5732,10 @@
     const crumbDocName = document.getElementById('crumbDocName');
     const crumbDocNumber = document.getElementById('crumbDocNumber');
     if (crumbCategory) {
-      crumbCategory.innerText = (state._taxonomy_cat || state.category || 'Commercial Invoicing').replace(/_/g, ' ');
+      crumbCategory.innerText = (currentTaxonomyCat || state.category || 'Commercial Invoicing').replace(/_/g, ' ');
     }
     if (crumbDocName) {
-      crumbDocName.innerText = state.title || state._taxonomy_name || state.document_type || 'Tax Invoice';
+      crumbDocName.innerText = state.title || currentTaxonomyName || state.document_type || 'Tax Invoice';
     }
     if (crumbDocNumber) {
       crumbDocNumber.innerText = '#' + (state.doc_number || state.document_number || 'INV-2026-0001');
