@@ -3275,6 +3275,13 @@ button:not(:disabled):active,
   text-transform: uppercase;
 }
 
+.lifecycle-stage-summary {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #cbd5e1;
+  margin-top: -2px;
+}
+
 .lifecycle-badge {
   font-size: 10px;
   font-weight: 700;

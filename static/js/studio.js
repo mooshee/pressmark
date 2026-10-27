@@ -2908,15 +2908,35 @@
     return 'invoice';
   }
 
+  function isBillingLifecycleArchetype(docType) {
+    const t = String(docType || 'invoice').toLowerCase();
+    return t.startsWith('invoice')
+      || t === 'estimate'
+      || t === 'quote'
+      || t === 'receipt'
+      || t === 'credit_note'
+      || t === 'credit'
+      || t === 'proforma_invoice'
+      || t === 'purchase_order'
+      || t === 'quotation_tender'
+      || t === 'work_order';
+  }
+
   function updateLifecycleUI() {
     const active = getLifecycleActiveState();
+    const stepperBar = document.getElementById('lifecycleStepperBar');
     const stepEstimate = document.getElementById('stepBtnEstimate');
     const stepInvoice = document.getElementById('stepBtnInvoice');
     const stepReceipt = document.getElementById('stepBtnReceipt');
     const stepCredit = document.getElementById('stepBtnCredit');
     const badge = document.getElementById('lifecycleStatusBadge');
+    const summaryEl = document.getElementById('lifecycleStageSummary');
     const actionIcon = document.getElementById('lifecycleActionIcon');
     const actionLabel = document.getElementById('lifecycleActionLabel');
+
+    if (stepperBar) {
+      stepperBar.style.display = isBillingLifecycleArchetype(state.doc_type) ? 'flex' : 'none';
+    }
 
     if (stepEstimate) {
       stepEstimate.classList.toggle('active', active === 'estimate');
@@ -2938,32 +2958,45 @@
       stepCredit.setAttribute('aria-selected', active === 'credit_note');
     }
 
+    const docNum = state.doc_number || 'INV-2026-0042';
     if (badge) {
       badge.className = 'lifecycle-badge';
       if (active === 'estimate') {
-        badge.innerText = 'Draft Estimate';
+        badge.innerText = '1 · Draft Estimate';
         badge.classList.add('badge-estimate');
       } else if (active === 'invoice') {
-        badge.innerText = 'Tax Invoice';
+        badge.innerText = '2 · Tax Invoice';
       } else if (active === 'receipt') {
-        badge.innerText = '✓ Paid in Full';
+        badge.innerText = '3 · ✓ Paid Receipt';
         badge.classList.add('badge-receipt');
       } else if (active === 'credit_note') {
-        badge.innerText = 'Credit Note / Refund';
+        badge.innerText = '4 · Credit Note';
         badge.classList.add('badge-credit');
+      }
+    }
+
+    if (summaryEl) {
+      if (active === 'estimate') {
+        summaryEl.innerText = `${docNum} · Unpaid quote for client approval before invoicing`;
+      } else if (active === 'invoice') {
+        summaryEl.innerText = `${docNum} · Billable invoice with payment terms & QR checkout code`;
+      } else if (active === 'receipt') {
+        summaryEl.innerText = `${docNum} · Marked PAID IN FULL with zero balance & receipt stamp`;
+      } else if (active === 'credit_note') {
+        summaryEl.innerText = `${docNum} · Credit adjustment / refund memo for this invoice`;
       }
     }
 
     if (actionIcon && actionLabel) {
       if (active === 'estimate') {
         actionIcon.innerText = '⚡';
-        actionLabel.innerText = 'Convert to Tax Invoice (1-Click)';
+        actionLabel.innerText = 'Approve Quote ➔ Convert to Tax Invoice';
       } else if (active === 'invoice') {
         actionIcon.innerText = '💳';
-        actionLabel.innerText = 'Mark as Paid & Generate Receipt';
+        actionLabel.innerText = 'Record Full Payment ➔ Generate Paid Receipt';
       } else if (active === 'receipt') {
         actionIcon.innerText = '📥';
-        actionLabel.innerText = 'Download Official Receipt (PDF)';
+        actionLabel.innerText = 'Download Official Paid Receipt (PDF)';
       } else if (active === 'credit_note') {
         actionIcon.innerText = '📥';
         actionLabel.innerText = 'Download Credit Note (PDF)';
@@ -3040,8 +3073,9 @@
     updateLifecycleUI();
     updateCalculations();
     adaptFormToArchetype(state.doc_type);
-    schedulePreview();
-    showAiToast(`⚡ Document converted to ${state.title}`);
+    clearTimeout(debounceTimer);
+    requestPreview();
+    showAiToast(`⚡ Converted to ${state.title} (${state.doc_number})`);
   }
 
   function attachDefaultSectionsForArchetype(type, replaceIfDefault = false) {
@@ -5108,7 +5142,7 @@
       frame.appendChild(buffer);
     }
 
-    const currentImg = buffer.querySelector('.preview-doc-image');
+    const currentImg = buffer.querySelector('.preview-layer-current') || buffer.querySelector('.preview-doc-image');
     if (!currentImg) {
       const img = document.createElement('img');
       if (isPrimary) img.id = 'previewImg';
@@ -5117,8 +5151,16 @@
       img.alt = `Live Document Preview - Page ${pageIdx + 1}`;
       buffer.appendChild(img);
     } else if (!currentImg.getAttribute('src')) {
+      currentImg.className = 'preview-doc-image preview-layer-current';
       currentImg.src = uri;
     } else if (currentImg.src !== uri && uri) {
+      if (buffer._crossfadeTimer) {
+        clearTimeout(buffer._crossfadeTimer);
+        buffer._crossfadeTimer = null;
+      }
+      buffer.querySelectorAll('.preview-layer-next').forEach(el => {
+        if (el !== currentImg) el.remove();
+      });
       const nextImg = new Image();
       if (isPrimary) nextImg.id = 'previewImg';
       nextImg.className = 'preview-doc-image preview-layer-next preview-layer-fade-out';
@@ -5129,14 +5171,18 @@
           currentImg.classList.add('preview-layer-fade-out');
           nextImg.classList.remove('preview-layer-fade-out');
           nextImg.classList.add('preview-layer-fade-in');
-          setTimeout(() => {
-            if (currentImg && currentImg.parentElement) currentImg.remove();
-            nextImg.classList.remove('preview-layer-fade-in');
+          buffer._crossfadeTimer = setTimeout(() => {
+            buffer._crossfadeTimer = null;
+            nextImg.classList.remove('preview-layer-next', 'preview-layer-fade-in', 'preview-layer-fade-out');
             nextImg.classList.add('preview-layer-current');
+            buffer.querySelectorAll('.preview-doc-image').forEach(el => {
+              if (el !== nextImg) el.remove();
+            });
           }, 240);
         });
       };
       nextImg.onerror = () => {
+        currentImg.className = 'preview-doc-image preview-layer-current';
         currentImg.src = uri;
       };
       nextImg.src = uri;
@@ -5359,7 +5405,8 @@
       grandTotalLabel.innerText = tax.totalLabel !== 'None' ? tax.totalLabel : 'Summary Valuation';
     }
 
-    // 5. Sync Category Chips
+    // 5. Sync Category Chips & Billing Stage Bar Visibility
+    updateLifecycleUI();
     document.querySelectorAll('.cat-chip').forEach(chip => {
       const chipCat = chip.dataset.category;
       const pill = document.querySelector(`.template-pill[data-type="${type}"]`);

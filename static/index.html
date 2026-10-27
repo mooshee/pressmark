@@ -395,31 +395,32 @@
            ======================================================== -->
       <div class="lifecycle-stepper-bar" id="lifecycleStepperBar" role="region" aria-label="Document Lifecycle Stages">
         <div class="lifecycle-header-row">
-          <span class="lifecycle-title">LIFECYCLE ACCELERATOR</span>
+          <span class="lifecycle-title" title="Convert your current client and line items between Quote, Invoice, Paid Receipt, and Credit Note">BILLING STAGE · CONVERT THIS DOCUMENT</span>
           <span class="lifecycle-badge" id="lifecycleStatusBadge">Tax Invoice</span>
         </div>
+        <div class="lifecycle-stage-summary" id="lifecycleStageSummary">INV-2026-0042 · Billable invoice with QR payment link (click any stage below to convert)</div>
         <div class="lifecycle-track" role="tablist" aria-label="Lifecycle progression steps">
-          <button type="button" class="lifecycle-step-btn" id="stepBtnEstimate" data-target-state="estimate" title="Switch to Estimate / Quote state" role="tab" aria-selected="false" tabindex="0">
+          <button type="button" class="lifecycle-step-btn" id="stepBtnEstimate" data-target-state="estimate" title="Convert current items into an unpaid Estimate / Quote (EST-...)" role="tab" aria-selected="false" tabindex="0">
             <span class="step-num">1</span>
             <span class="step-label">Estimate</span>
           </button>
           <span class="lifecycle-arrow" aria-hidden="true">➔</span>
-          <button type="button" class="lifecycle-step-btn active" id="stepBtnInvoice" data-target-state="invoice" title="Switch to Tax Invoice state" role="tab" aria-selected="true" tabindex="0">
+          <button type="button" class="lifecycle-step-btn active" id="stepBtnInvoice" data-target-state="invoice" title="Convert current items into a billable Tax Invoice (INV-...)" role="tab" aria-selected="true" tabindex="0">
             <span class="step-num">2</span>
             <span class="step-label">Invoice</span>
           </button>
           <span class="lifecycle-arrow" aria-hidden="true">➔</span>
-          <button type="button" class="lifecycle-step-btn" id="stepBtnReceipt" data-target-state="receipt" title="Switch to Paid Receipt state" role="tab" aria-selected="false" tabindex="0">
+          <button type="button" class="lifecycle-step-btn" id="stepBtnReceipt" data-target-state="receipt" title="Mark as Paid in Full and convert into an Official Payment Receipt (REC-...)" role="tab" aria-selected="false" tabindex="0">
             <span class="step-num">3</span>
             <span class="step-label">Receipt</span>
           </button>
           <span class="lifecycle-arrow" aria-hidden="true">➔</span>
-          <button type="button" class="lifecycle-step-btn" id="stepBtnCredit" data-target-state="credit_note" title="Issue Credit Note / Refund" role="tab" aria-selected="false" tabindex="0">
+          <button type="button" class="lifecycle-step-btn" id="stepBtnCredit" data-target-state="credit_note" title="Convert current items into a Credit Note / Refund memo (CRD-...)" role="tab" aria-selected="false" tabindex="0">
             <span class="step-num">4</span>
             <span class="step-label">Credit</span>
           </button>
         </div>
-        <button type="button" class="btn btn-lifecycle-action" id="btnLifecycleConvertAction" title="1-Click Lifecycle Transition">
+        <button type="button" class="btn btn-lifecycle-action" id="btnLifecycleConvertAction" title="Advance this document to the next billing stage">
           <span id="lifecycleActionIcon">⚡</span>
           <span id="lifecycleActionLabel">Mark as Paid & Generate Receipt</span>
         </button>

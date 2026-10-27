@@ -512,6 +512,10 @@ fn test_component_system_and_motion_choreography() {
     assert!(css.contains(".preview-layer-fade-in"));
     assert!(js.contains("function updatePreviewFrame"));
     assert!(js.contains("preview-layer-fade-in"));
+    assert!(
+        js.contains("nextImg.classList.remove('preview-layer-next'"),
+        "updatePreviewFrame must remove .preview-layer-next (position: absolute) when promoting nextImg to .preview-layer-current so .preview-stage-buffer never collapses to 0px height"
+    );
 
     // 5. Deletion Choreography in JS (320ms deferred splice)
     assert!(js.contains("anim-row-delete-crimson"));
