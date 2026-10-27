@@ -37,7 +37,7 @@ impl AppState {
         let max_req = std::env::var("PRESSMARK_RATE_LIMIT_MAX")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(120);
+            .unwrap_or(300);
         let window_secs = std::env::var("PRESSMARK_RATE_LIMIT_WINDOW")
             .ok()
             .and_then(|v| v.parse().ok())
@@ -96,7 +96,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
 
         Router::new()
         // Interactive Dashboard, Legal & SEO
-        .route("/", get(handle_index))
+        .route("/", get(handle_index).post(handle_mcp))
         .route("/pricing", get(handle_index))
         .route("/demo", get(handle_index))
         .route("/docs", get(handle_index))
@@ -113,6 +113,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/llms-full.txt", get(handle_llms_full_txt))
         .route("/health", get(handle_health))
         .route("/healthz", get(handle_health))
+        .route("/openapi.json", get(handle_openapi))
         // API v1
         .route("/api/v1/generate", post(handle_generate))
         .route("/api/v1/preview", post(handle_preview))
@@ -138,12 +139,24 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/.well-known/oauth-protected-resource", get(handle_oauth_protected_resource))
         .route("/.well-known/oauth-protected-resource/mcp", get(handle_oauth_protected_resource))
         .route("/mcp/.well-known/oauth-protected-resource", get(handle_oauth_protected_resource))
+        .route("/.well-known/oauth-authorization-server", get(handle_oauth_authorization_server))
+        .route("/.well-known/oauth-authorization-server/mcp", get(handle_oauth_authorization_server))
+        .route("/mcp/.well-known/oauth-authorization-server", get(handle_oauth_authorization_server))
+        .route("/.well-known/openid-configuration", get(handle_oauth_authorization_server))
+        .route("/.well-known/openid-configuration/mcp", get(handle_oauth_authorization_server))
+        .route("/mcp/.well-known/openid-configuration", get(handle_oauth_authorization_server))
         .route("/.well-known/mcp/server-card.json", get(handle_mcp_server_card))
         .route("/.well-known/mcp.json", get(handle_mcp_server_card))
+        .route("/.cursor/mcp.json", get(handle_mcp_server_card))
         .route("/.well-known/agent-card.json", get(handle_agent_card))
         .route("/.well-known/agent.json", get(handle_agent_card))
+        .route("/.well-known/ard.json", get(handle_agent_card))
+        .route("/.well-known/ai-catalog.json", get(handle_agent_card))
         .route("/mcp/.well-known/agent.json", get(handle_agent_card))
         .route("/mcp/.well-known/agent-card.json", get(handle_agent_card))
+        .route("/.well-known/x402", get(handle_x402_discovery))
+        .route("/.well-known/x402.json", get(handle_x402_discovery))
+        .route("/a2a", get(handle_agent_card).post(handle_mcp))
         // Universal Authentication
         .route("/api/v1/auth/session", get(handle_chatgpt_session))
         .route("/api/v1/auth/guest", post(handle_guest_login))
@@ -959,8 +972,42 @@ async fn handle_oauth_protected_resource() -> impl IntoResponse {
         StatusCode::OK,
         Json(serde_json::json!({
             "resource": "https://pressmark.dev/mcp",
+            "authorization_servers": ["https://pressmark.dev"],
             "bearer_methods_supported": ["header"],
             "resource_documentation": "https://pressmark.dev/docs"
+        })),
+    )
+}
+
+async fn handle_oauth_authorization_server() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "issuer": "https://pressmark.dev",
+            "authorization_endpoint": "https://pressmark.dev/api/v1/auth/chatgpt/login",
+            "token_endpoint": "https://pressmark.dev/api/v1/auth/api-key",
+            "userinfo_endpoint": "https://pressmark.dev/api/v1/auth/session",
+            "response_types_supported": ["code", "token"],
+            "grant_types_supported": ["authorization_code", "client_credentials"],
+            "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "private_key_jwt"],
+            "code_challenge_methods_supported": ["S256"],
+            "scopes_supported": ["openid", "profile", "email", "mcp:tools"],
+            "service_documentation": "https://pressmark.dev/docs"
+        })),
+    )
+}
+
+async fn handle_x402_discovery() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "version": "1.0",
+            "service": "pressmark",
+            "url": "https://pressmark.dev/mcp",
+            "pricing_url": "https://pressmark.dev/api/v1/pricing",
+            "checkout_url": "https://pressmark.dev/api/v1/checkout",
+            "free_tier": true,
+            "currency": "USD"
         })),
     )
 }
@@ -2581,6 +2628,59 @@ mod tests {
             assert_eq!(oauth_json["resource"], "https://pressmark.dev/mcp");
             assert_eq!(oauth_json["bearer_methods_supported"], serde_json::json!(["header"]));
             assert_eq!(oauth_json["resource_documentation"], "https://pressmark.dev/docs");
+        }
+
+        // 4b. GET OAuth Authorization Server, OpenID Configuration, x402, OpenAPI, Cursor MCP & A2A discovery routes
+        for auth_srv_uri in [
+            "/.well-known/oauth-authorization-server",
+            "/.well-known/oauth-authorization-server/mcp",
+            "/mcp/.well-known/oauth-authorization-server",
+            "/.well-known/openid-configuration",
+            "/.well-known/openid-configuration/mcp",
+            "/mcp/.well-known/openid-configuration",
+        ] {
+            let res_as = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(auth_srv_uri)
+                        .method("GET")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(res_as.status(), StatusCode::OK, "Failed route: {}", auth_srv_uri);
+            let as_json: serde_json::Value = serde_json::from_slice(
+                &axum::body::to_bytes(res_as.into_body(), usize::MAX)
+                    .await
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(as_json["issuer"], "https://pressmark.dev");
+        }
+
+        for extra_disc_uri in [
+            "/openapi.json",
+            "/.well-known/ard.json",
+            "/.well-known/ai-catalog.json",
+            "/.well-known/x402",
+            "/.well-known/x402.json",
+            "/.cursor/mcp.json",
+            "/a2a",
+        ] {
+            let res_extra = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(extra_disc_uri)
+                        .method("GET")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(res_extra.status(), StatusCode::OK, "Failed route: {}", extra_disc_uri);
         }
 
         // 5. Verify all 5 MCP protocol versions negotiate cleanly & unknown version falls back to latest (2026-07-28)

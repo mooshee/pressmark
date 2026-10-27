@@ -155,9 +155,19 @@ pub async fn rate_limit_middleware(
     let connect_info = req.extensions().get::<axum::extract::ConnectInfo<SocketAddr>>().map(|ci| &ci.0);
     let client_ip = extract_client_ip(req.headers(), connect_info);
 
-    // Bypass rate limiting for internal health checks
+    // Bypass rate limiting for internal health checks and static discovery metadata
     let path = req.uri().path();
-    if path == "/health" || path == "/healthz" {
+    if path == "/health"
+        || path == "/healthz"
+        || path.starts_with("/.well-known/")
+        || path.starts_with("/mcp/.well-known/")
+        || path == "/robots.txt"
+        || path == "/sitemap.xml"
+        || path == "/llms.txt"
+        || path == "/llms-full.txt"
+        || path == "/favicon.ico"
+        || path == "/favicon.svg"
+    {
         return next.run(req).await;
     }
 

@@ -410,6 +410,115 @@ impl Storage {
             "registry-survey",
             "sarnai.dev/bot",
             "verifymcp_auth_probe",
+            "io.verifymcp",
+            "histor/",
+            "mcptry.com",
+            "golemreach",
+            "squatchmcp",
+            "protogrid-probe",
+            "moonglade/",
+            "mcpwatch/",
+            "ziwei",
+            "heldfast",
+            "legion-tlog",
+            "agentprobe/",
+            "mcp2-research",
+            "sealkeeper",
+            "reliability-bureau",
+            "agenttoolindex",
+            "proofbench/",
+            "toolvetprobe",
+            "invokerankbot",
+            "taifoonharvester",
+            "priviscan/",
+            "anlyon.dev-indexer",
+            "mcp-rugpull-research",
+            "dss-mcp-survey",
+            "mcpgw-indexer",
+            "sniffmcp",
+            "alphaproxy-mcp-probe",
+            "aptlynx",
+            "brickbluebot",
+            "agent-evidence-scanner",
+            "agent-index-prober",
+            "agent-tools.cloud",
+            "atpp-scan",
+            "flame-moisson",
+            "mcp-inventory",
+            "mcpcost/",
+            "hultra-link",
+            "mcplayer-gateway",
+            "censysinspect",
+            "blackall-allmcp",
+            "mcp-harbor-probe",
+            "botsrated-mcp-probe",
+            "canmyaiuse-healthcheck",
+            "endpointaudit/",
+            "mcpstationbot",
+            "pluginboardbot",
+            "agent-world-probe",
+            "mcp-observatory",
+            "referencesource-mcp",
+            "stackduke-mcp-scanner",
+            "7maps-bot",
+            "agora-probe",
+            "capkeybot",
+            "mcpcensus",
+            "annalistchecks",
+            "exorails-gateway",
+            "mcp-stats-prober",
+            "mcpmeter/",
+            "proofhousebaseline",
+            "wellknownbot",
+            "agentalog-sonda",
+            "creora-mcp-registry",
+            "mcp-history/",
+            "mcp-registry-census",
+            "mcpqueen-grader",
+            "rootz-mcp-registry",
+            "safemcp-research",
+            "warden-survey",
+            "agentcommonsdoctor",
+            "agentindexbot",
+            "builtwith-mcpregistry",
+            "gaip-observatory",
+            "roninforgeobservatory",
+            "allagents-verify",
+            "catalog-health/",
+            "lastseen-schema-probe",
+            "mcpwell.com",
+            "musedirectory.ai",
+            "spiron-mcp",
+            "aive-mcp-discover",
+            "apeye/",
+            "glidemcpindex",
+            "inite-atlas",
+            "pulsefeed",
+            "thewhiterock-registrycheck",
+            "addrbook-probe",
+            "ai-pulse-mcp-probe",
+            "free-remote-mcp-servers",
+            "mcp-checker/",
+            "mcp-scraper/",
+            "mcpforcopilot-probe",
+            "capabilityindexbot",
+            "mcpstatus/",
+            "modernmustardseed",
+            "agentid-scout",
+            "rokha-probe",
+            "eda-claw-runtime-probe",
+            "mcp-server.io-healthcheck",
+            "mcpserver-lol-probe",
+            "tanod-referee",
+            "anchorterminalbot",
+            "agent-readiness-check",
+            "aisec-registry",
+            "awesome-remote-mcp-servers-ci",
+            "mcp-probe/",
+            "tokenrip",
+            "402explorer",
+            "factanker",
+            "talaria",
         ];
         BOT_MARKERS.iter().any(|m| lower.contains(m))
     }
@@ -490,6 +599,7 @@ impl Storage {
         let mut external_organic_events: i64 = 0;
         let mut crawler_bot_events: i64 = 0;
         let mut internal_probe_events: i64 = 0;
+        let mut harness_client_events: i64 = 0;
         if let Ok(mut stmt) = lock.prepare(
             "SELECT channel, detail, count(*) FROM usage_events GROUP BY channel, detail;",
         ) {
@@ -498,6 +608,13 @@ impl Storage {
                     let ch: String = row.get(0).unwrap_or_default();
                     let det: Option<String> = row.get(1).ok();
                     let cnt: i64 = row.get(2).unwrap_or(0);
+                    let ch_lower = ch.to_ascii_lowercase();
+                    if ch_lower.contains("codex-mcp-client")
+                        || ch_lower.contains("claude-code")
+                        || ch_lower.contains("grok-cli")
+                    {
+                        harness_client_events += cnt;
+                    }
                     match Self::classify_usage_actor(&ch, det.as_deref()) {
                         "crawler_bot" => crawler_bot_events += cnt,
                         "internal_probe" => internal_probe_events += cnt,
@@ -506,6 +623,14 @@ impl Storage {
                 }
             }
         }
+
+        let distinct_mcp_channels: i64 = lock
+            .query_row(
+                "SELECT count(DISTINCT channel) FROM usage_events WHERE channel LIKE 'mcp%';",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
 
         let mut by_type = serde_json::Map::new();
         if let Ok(mut stmt) = lock.prepare(
@@ -566,10 +691,13 @@ impl Storage {
             "external_organic_events": external_organic_events,
             "crawler_bot_events": crawler_bot_events,
             "internal_probe_events": internal_probe_events,
+            "harness_client_events": harness_client_events,
+            "distinct_mcp_channels": distinct_mcp_channels,
             "actor_breakdown": {
                 "external_organic": external_organic_events,
                 "crawler_bot": crawler_bot_events,
-                "internal_probe": internal_probe_events
+                "internal_probe": internal_probe_events,
+                "harness_client": harness_client_events
             },
             "events_by_type": by_type,
             "top_archetypes": by_archetype,
