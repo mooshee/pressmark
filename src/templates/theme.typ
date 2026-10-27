@@ -32,6 +32,10 @@
 #let color-blue-600 = rgb("#2563eb")
 #let color-blue-50 = rgb("#eff6ff")
 
+#let font-serif = ("Georgia", "Libertinus Serif", "DejaVu Serif", "Times New Roman")
+#let font-sans  = ("Helvetica Neue", "Arial", "Inter", "Liberation Sans", "DejaVu Sans")
+#let font-mono  = ("Menlo", "DejaVu Sans Mono", "Liberation Mono", "Courier New")
+
 // =============================================================================
 // ATOMIC BADGES & UI PRIMITIVES
 // =============================================================================
@@ -271,7 +275,7 @@
             ]
             if payment-url != none and payment-url != "" {
               linebreak()
-              text(size: 6.5pt, font: "Menlo", fill: accent-color)[#link(payment-url)[#payment-url]]
+              text(size: 6.5pt, font: font-mono, fill: accent-color)[#link(payment-url)[#payment-url]]
             }
           }
         ],
@@ -314,8 +318,8 @@
     fill: rgb("#f0fdf4"),
     align(center)[
       #text(size: 13pt, weight: 900, fill: rgb("#047857"), tracking: 1.5pt)[PAID IN FULL] \
-      #text(size: 6pt, font: "Menlo", weight: "bold", fill: rgb("#065f46"))[#method · #paid-date] \
-      #text(size: 5.5pt, font: "Menlo", fill: rgb("#059669"))[REF: #tx-ref]
+      #text(size: 6pt, font: font-mono, weight: "bold", fill: rgb("#065f46"))[#method · #paid-date] \
+      #text(size: 5.5pt, font: font-mono, fill: rgb("#059669"))[REF: #tx-ref]
     ]
   ))
 }
@@ -340,14 +344,14 @@
             fill: primary-color,
             radius: 2pt,
             align(center + horizon)[
-              #text(size: 6pt, font: "Menlo", fill: white)[PRESS\ MARK\ SECURE]
+              #text(size: 6pt, font: font-mono, fill: white)[PRESS\ MARK\ SECURE]
             ]
           )
         ],
         [
           #text(size: 7pt, weight: "bold", fill: primary-color)[DIGITALLY VERIFIED DOCUMENT] \
-          #text(size: 6pt, font: "Menlo", fill: color-slate-500)[ID: #doc-number] \
-          #text(size: 5.5pt, font: "Menlo", fill: color-slate-400)[SHA-256: #effective-hash · Pressmark Audit Node]
+          #text(size: 6pt, font: font-mono, fill: color-slate-500)[ID: #doc-number] \
+          #text(size: 5.5pt, font: font-mono, fill: color-slate-400)[SHA-256: #effective-hash · Pressmark Audit Node]
         ]
       )
     ]
@@ -488,7 +492,7 @@
       [
         #align(right)[
           #text(size: 18pt, weight: 900, fill: primary-color)[#title] \
-          #text(size: 9.5pt, font: "Menlo", fill: color-slate-700)[#doc-number] \
+          #text(size: 9.5pt, font: font-mono, fill: color-slate-700)[#doc-number] \
           #v(2pt)
           #status-pill(status, paid: is-paid)
         ]
@@ -602,7 +606,7 @@
           [
             #align(right)[
               #text(size: 17pt, weight: 900, fill: color-slate-900)[#title] \
-              #text(size: 9pt, font: "Menlo", weight: "bold", fill: primary-color)[#doc-number] \
+              #text(size: 9pt, font: font-mono, weight: "bold", fill: primary-color)[#doc-number] \
               #v(2pt)
               #status-pill(status, paid: is-paid)
             ]
@@ -896,9 +900,9 @@
 #let border-color      = rgb("#cbd5e1")
 #let border-dark       = rgb("#0f172a")
 
-#let font-serif = ("Georgia", "Libertinus Serif", "Times New Roman")
-#let font-sans  = ("Helvetica Neue", "Arial", "Inter")
-#let font-mono  = ("Menlo", "Courier New")
+#let font-serif = ("Georgia", "Libertinus Serif", "DejaVu Serif", "Times New Roman")
+#let font-sans  = ("Helvetica Neue", "Arial", "Inter", "Liberation Sans", "DejaVu Sans")
+#let font-mono  = ("Menlo", "DejaVu Sans Mono", "Liberation Mono", "Courier New")
 
 /// County Clerk / Reception walk-in time/date receipt clearance box
 #let date-stamp-zone(width: 2.2in, height: 1.1in) = {

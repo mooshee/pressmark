@@ -1491,12 +1491,12 @@ impl DocumentRequest {
 
     pub fn effective_font_family(&self) -> &str {
         match self.font_family.as_deref() {
-            Some("serif") => "(\"Georgia\", \"Libertinus Serif\", \"Times New Roman\")",
-            Some("mono") => "(\"Menlo\", \"Courier New\")",
-            Some("display") => "(\"Playfair Display\", \"Georgia\", \"Times New Roman\")",
-            Some("grotesk") => "(\"Space Grotesk\", \"Helvetica Neue\", \"Arial\")",
-            Some("editorial") => "(\"Palatino\", \"Garamond\", \"Georgia\")",
-            _ => "(\"Helvetica Neue\", \"Arial\")",
+            Some("serif") => "(\"Georgia\", \"Libertinus Serif\", \"DejaVu Serif\", \"Times New Roman\")",
+            Some("mono") => "(\"Menlo\", \"DejaVu Sans Mono\", \"Liberation Mono\", \"Courier New\")",
+            Some("display") => "(\"Playfair Display\", \"Georgia\", \"Libertinus Serif\", \"DejaVu Serif\", \"Times New Roman\")",
+            Some("grotesk") => "(\"Space Grotesk\", \"Helvetica Neue\", \"Arial\", \"Liberation Sans\", \"DejaVu Sans\")",
+            Some("editorial") => "(\"Palatino\", \"Garamond\", \"Georgia\", \"Libertinus Serif\", \"DejaVu Serif\")",
+            _ => "(\"Helvetica Neue\", \"Arial\", \"Liberation Sans\", \"DejaVu Sans\")",
         }
     }
 
