@@ -264,19 +264,24 @@
         ],
         [
           #if is-paid {
-            text(size: 8.5pt, weight: "bold", fill: color-emerald-700)[✓ PAYMENT RECEIVED IN FULL]
-            linebreak()
-            text(size: 7pt, fill: color-slate-600)[Processed via #payment-method. Official receipt generated.]
+            stack(
+              dir: ttb,
+              spacing: 3pt,
+              text(size: 8.5pt, weight: "bold", fill: color-emerald-700)[✓ PAYMENT RECEIVED IN FULL],
+              text(size: 7pt, fill: color-slate-600)[Processed via #payment-method. Official receipt generated.]
+            )
           } else {
-            text(size: 8.5pt, weight: "bold", fill: primary-color)[SCAN TO PAY VIA MOBILE · #upper(payment-method)]
-            linebreak()
-            text(size: 7pt, fill: color-slate-600)[
-              Instant 1-tap checkout. Scan the QR code with your mobile camera.
-            ]
-            if payment-url != none and payment-url != "" {
-              linebreak()
-              text(size: 6.5pt, font: font-mono, fill: accent-color)[#link(payment-url)[#payment-url]]
-            }
+            stack(
+              dir: ttb,
+              spacing: 3pt,
+              text(size: 8.5pt, weight: "bold", fill: primary-color)[SCAN TO PAY VIA MOBILE · #upper(payment-method)],
+              text(size: 7pt, fill: color-slate-600)[Instant 1-tap checkout. Scan the QR code with your mobile camera.],
+              ..if payment-url != none and payment-url != "" {
+                (text(size: 6.5pt, font: font-mono, weight: "bold", fill: primary-color)[#link(payment-url)[#payment-url]],)
+              } else {
+                ()
+              }
+            )
           }
         ],
         [
@@ -289,11 +294,17 @@
             )
           } else {
             align(right)[
-              #text(size: 6.5pt, weight: "bold", fill: color-slate-500)[AMOUNT DUE] \
-              #text(size: 11pt, weight: 900, fill: primary-color)[#amount-due]
-              #if due-date != none and due-date != "" {
-                [\ #text(size: 6.5pt, fill: color-slate-500)[Due: #due-date]]
-              }
+              #stack(
+                dir: ttb,
+                spacing: 3pt,
+                text(size: 6.5pt, weight: "bold", fill: color-slate-500)[AMOUNT DUE],
+                text(size: 11pt, weight: 900, fill: primary-color)[#amount-due],
+                ..if due-date != none and due-date != "" {
+                  (text(size: 6.5pt, fill: color-slate-500)[Due: #due-date],)
+                } else {
+                  ()
+                }
+              )
             ]
           }
         ]
@@ -369,41 +380,54 @@
   due-date: "2026-10-15",
   issuer-name: "Pressmark Technologies"
 ) = {
-  v(14pt)
-  align(center)[
-    #text(size: 7pt, fill: color-slate-400)[- - - - - - - - - - - - - - - - - - - - - - - - ✂  DETACH & RETURN WITH REMITTANCE  ✂ - - - - - - - - - - - - - - - - - - - - - - - -]
-  ]
-  v(6pt)
-  rect(
-    width: 100%,
-    stroke: 0.5pt + color-slate-300,
-    fill: color-slate-50,
-    radius: 4pt,
-    inset: 8pt,
-    [
-      #grid(
-        columns: (1fr, 1fr, 1fr),
-        gutter: 12pt,
-        [
-          #text(size: 6.5pt, weight: "bold", fill: color-slate-400)[REMIT TO:] \
-          #text(size: 8pt, weight: "bold", fill: color-slate-900)[#issuer-name] \
-          #text(size: 7pt, fill: color-slate-500)[Invoice Reference: #doc-number]
-        ],
-        [
-          #text(size: 6.5pt, weight: "bold", fill: color-slate-400)[BILLED CUSTOMER:] \
-          #text(size: 8pt, weight: "bold", fill: color-slate-900)[#client-name] \
-          #text(size: 7pt, fill: color-slate-500)[Due Date: #due-date]
-        ],
-        [
-          #align(right)[
-            #text(size: 6.5pt, weight: "bold", fill: color-slate-400)[TOTAL REMITTANCE DUE:] \
-            #text(size: 11pt, weight: 900, fill: color-slate-950)[#amount-due] \
-            #text(size: 6.5pt, fill: color-slate-500)[Amount Enclosed: \$ #box(line(length: 60pt, stroke: 0.5pt + color-slate-400))]
+  block(breakable: false, width: 100%, above: 10pt, below: 8pt)[
+    #grid(
+      columns: (1fr, auto, 1fr),
+      gutter: 8pt,
+      align: horizon,
+      line(length: 100%, stroke: (paint: color-slate-300, thickness: 0.75pt, dash: "dashed")),
+      text(size: 7pt, weight: "bold", fill: color-slate-400, tracking: 0.4pt)[✂  DETACH & RETURN WITH REMITTANCE  ✂],
+      line(length: 100%, stroke: (paint: color-slate-300, thickness: 0.75pt, dash: "dashed"))
+    )
+    #v(5pt)
+    #rect(
+      width: 100%,
+      stroke: 0.5pt + color-slate-300,
+      fill: color-slate-50,
+      radius: 4pt,
+      inset: (x: 10pt, y: 8pt),
+      [
+        #grid(
+          columns: (1fr, 1fr, 1fr),
+          gutter: 12pt,
+          align: (left + horizon, left + horizon, right + horizon),
+          stack(
+            dir: ttb,
+            spacing: 3pt,
+            text(size: 6.5pt, weight: "bold", fill: color-slate-400)[REMIT TO:],
+            text(size: 8pt, weight: "bold", fill: color-slate-900)[#issuer-name],
+            text(size: 7pt, fill: color-slate-500)[Invoice Reference: #doc-number]
+          ),
+          stack(
+            dir: ttb,
+            spacing: 3pt,
+            text(size: 6.5pt, weight: "bold", fill: color-slate-400)[BILLED CUSTOMER:],
+            text(size: 8pt, weight: "bold", fill: color-slate-900)[#client-name],
+            text(size: 7pt, fill: color-slate-500)[Due Date: #due-date]
+          ),
+          align(right)[
+            #stack(
+              dir: ttb,
+              spacing: 3pt,
+              text(size: 6.5pt, weight: "bold", fill: color-slate-400)[TOTAL REMITTANCE DUE:],
+              text(size: 11pt, weight: 900, fill: color-slate-950)[#amount-due],
+              text(size: 6.5pt, fill: color-slate-500)[Amount Enclosed: \$ #box(line(length: 60pt, stroke: 0.5pt + color-slate-400))]
+            )
           ]
-        ]
-      )
-    ]
-  )
+        )
+      ]
+    )
+  ]
 }
 
 // =============================================================================
@@ -423,274 +447,326 @@
   status: "DUE UPON RECEIPT",
   layout-style: "standard"
 ) = {
-  if layout-style == "modern_banner" {
-    rect(
-      width: 100%,
-      fill: primary-color,
-      radius: 6pt,
-      inset: (x: 14pt, y: 12pt),
-      [
-        #grid(
-          columns: (1.1fr, 1fr),
-          gutter: 12pt,
-          align: (left + horizon, right + horizon),
-          [
-            #if logo-path != none and logo-path != "" {
-              box(height: 32pt, image(logo-path, fit: "contain"))
-              v(3pt)
-            }
-            #text(size: 16pt, weight: "bold", fill: white)[#company-name]
-            #if subtitle != none and subtitle != "" {
-              v(2pt)
-              text(size: 8pt, fill: white.transparentize(25%))[#subtitle]
-            }
-          ],
-          [
-            #align(right)[
-              #text(size: 18pt, weight: 900, fill: white)[#title] \
-              #text(size: 9pt, weight: "bold", fill: white.transparentize(20%))[#doc-number]
+  block(width: 100%, below: 6pt)[
+    #set par(leading: 0.38em)
+    #if layout-style == "modern_banner" {
+      rect(
+        width: 100%,
+        fill: primary-color,
+        radius: 6pt,
+        inset: (x: 14pt, y: 11pt),
+        [
+          #grid(
+            columns: (1.1fr, 1fr),
+            gutter: 12pt,
+            align: (left + horizon, right + horizon),
+            stack(
+              dir: ttb,
+              spacing: 3.5pt,
+              ..if logo-path != none and logo-path != "" {
+                (box(height: 30pt, image(logo-path, fit: "contain")),)
+              } else { () },
+              text(size: 15pt, weight: "bold", fill: white)[#company-name],
+              ..if subtitle != none and subtitle != "" {
+                (text(size: 8pt, fill: white.transparentize(20%))[#subtitle],)
+              } else { () }
+            ),
+            align(right)[
+              #stack(
+                dir: ttb,
+                spacing: 3.5pt,
+                text(size: 16.5pt, weight: 900, fill: white)[#title],
+                text(size: 9pt, weight: "bold", fill: white.transparentize(18%))[#doc-number]
+              )
             ]
+          )
+        ]
+      )
+      v(7pt)
+    } else if layout-style == "classic_letterhead" {
+      align(center)[
+        #stack(
+          dir: ttb,
+          spacing: 4pt,
+          ..if logo-path != none and logo-path != "" {
+            (box(height: 34pt, image(logo-path, fit: "contain")),)
+          } else { () },
+          text(size: 16.5pt, weight: "bold", fill: primary-color)[#company-name],
+          ..if subtitle != none and subtitle != "" {
+            (text(size: 8.5pt, fill: color-slate-500)[#subtitle],)
+          } else { () },
+          line(length: 48%, stroke: 1.25pt + primary-color),
+          text(size: 15pt, weight: 900, fill: color-slate-900)[#title],
+          box[
+            #text(size: 9pt, weight: "bold", fill: color-slate-500)[#doc-number]
+            #h(6pt)
+            #status-pill(status, paid: is-paid)
           ]
         )
       ]
-    )
-    v(10pt)
-  } else if layout-style == "classic_letterhead" {
-    align(center)[
-      #if logo-path != none and logo-path != "" {
-        align(center)[#box(height: 38pt, image(logo-path, fit: "contain"))]
-        v(4pt)
-      }
-      #text(size: 18pt, weight: "bold", fill: primary-color)[#company-name] \
-      #if subtitle != none and subtitle != "" {
-        [#text(size: 8.5pt, fill: color-slate-500)[#subtitle] \ ]
-      }
-      #v(4pt)
-      #line(length: 50%, stroke: 1.25pt + primary-color)
-      #v(4pt)
-      #text(size: 16pt, weight: 900, fill: color-slate-900)[#title] · #text(size: 10pt, weight: "bold", fill: color-slate-500)[#doc-number] \
-      #v(3pt)
-      #status-pill(status, paid: is-paid)
-    ]
-    v(8pt)
-  } else if layout-style == "swiss_grid" {
-    line(length: 100%, stroke: 3pt + primary-color)
-    v(6pt)
-    grid(
-      columns: (1.2fr, 1fr),
-      gutter: 14pt,
-      [
-        #if logo-path != none and logo-path != "" {
-          box(height: 34pt, image(logo-path, fit: "contain"))
-          v(4pt)
-        }
-        #text(size: 17pt, weight: "bold", fill: color-slate-950)[#company-name] \
-        #if subtitle != none and subtitle != "" {
-          text(size: 8pt, fill: color-slate-500)[#subtitle]
-        }
-      ],
-      [
-        #align(right)[
-          #text(size: 18pt, weight: 900, fill: primary-color)[#title] \
-          #text(size: 9.5pt, font: font-mono, fill: color-slate-700)[#doc-number] \
-          #v(2pt)
-          #status-pill(status, paid: is-paid)
-        ]
-      ]
-    )
-    v(6pt)
-    line(length: 100%, stroke: 0.5pt + color-slate-300)
-    v(8pt)
-  } else if layout-style == "split_sidebar" {
-    rect(
-      width: 100%,
-      fill: color-slate-50,
-      stroke: 0.5pt + color-slate-200,
-      radius: 4pt,
-      inset: 10pt,
-      [
-        #grid(
-          columns: (1.1fr, 1fr),
-          gutter: 12pt,
-          align: (left + horizon, right + horizon),
-          [
-            #if logo-path != none and logo-path != "" {
-              box(height: 32pt, image(logo-path, fit: "contain"))
-              v(3pt)
-            }
-            #text(size: 15pt, weight: "bold", fill: primary-color)[#company-name] \
-            #if subtitle != none and subtitle != "" {
-              text(size: 8pt, fill: color-slate-500)[#subtitle]
-            }
-          ],
-          [
-            #align(right)[
-              #text(size: 18pt, weight: 900, fill: color-slate-900)[#title] \
-              #text(size: 9pt, weight: "bold", fill: primary-color)[#doc-number] \
-              #v(2pt)
-              #status-pill(status, paid: is-paid)
-            ]
-          ]
-        )
-      ]
-    )
-    v(8pt)
-  } else if layout-style == "compact_ledger" {
-    grid(
-      columns: (1.1fr, 1fr),
-      gutter: 10pt,
-      align: (left + horizon, right + horizon),
-      [
-        #if logo-path != none and logo-path != "" {
-          box(height: 24pt, image(logo-path, fit: "contain"))
-          v(2pt)
-        }
-        #text(size: 13pt, weight: "bold", fill: primary-color)[#company-name]
-        #if subtitle != none and subtitle != "" {
-          text(size: 8pt, fill: color-slate-400)[ · #subtitle]
-        }
-      ],
-      [
-        #align(right)[
-          #text(size: 14pt, weight: 900, fill: color-slate-900)[#title]
-          #text(size: 8.5pt, weight: "bold", fill: color-slate-500)[ · #doc-number]
-          #status-pill(status, paid: is-paid)
-        ]
-      ]
-    )
-    v(4pt)
-    line(length: 100%, stroke: 1pt + color-slate-200)
-    v(6pt)
-  } else if layout-style == "editorial_centered" {
-    align(center)[
-      #if logo-path != none and logo-path != "" {
-        align(center)[#box(height: 36pt, image(logo-path, fit: "contain"))]
-        v(4pt)
-      }
-      #text(size: 20pt, weight: 900, fill: color-slate-900)[#title] \
-      #v(1pt)
-      #text(size: 11pt, weight: "medium", fill: primary-color)[#company-name] \
-      #if subtitle != none and subtitle != "" {
-        text(size: 8pt, fill: color-slate-500)[#subtitle \ ]
-      }
-      #text(size: 8.5pt, fill: color-slate-400)[Reference: #doc-number] \
-      #v(2pt)
-      #status-pill(status, paid: is-paid)
-      #v(6pt)
-      #line(length: 100%, stroke: 0.5pt + color-slate-200)
-    ]
-    v(8pt)
-  } else if layout-style == "framed" {
-    rect(
-      width: 100%,
-      fill: color-slate-50,
-      stroke: 1pt + primary-color,
-      radius: 6pt,
-      inset: (x: 12pt, y: 10pt),
-      [
-        #grid(
-          columns: (1.1fr, 1fr),
-          gutter: 12pt,
-          align: (left + horizon, right + horizon),
-          [
-            #if logo-path != none and logo-path != "" {
-              box(height: 34pt, image(logo-path, fit: "contain"))
-              v(3pt)
-            }
-            #text(size: 15pt, weight: "bold", fill: primary-color)[#company-name]
-            #if subtitle != none and subtitle != "" {
-              v(2pt)
-              text(size: 8pt, fill: color-slate-500)[#subtitle]
-            }
-          ],
-          [
-            #align(right)[
-              #text(size: 17pt, weight: 900, fill: color-slate-900)[#title] \
-              #text(size: 9pt, font: font-mono, weight: "bold", fill: primary-color)[#doc-number] \
-              #v(2pt)
-              #status-pill(status, paid: is-paid)
-            ]
-          ]
-        )
-      ]
-    )
-    v(8pt)
-  } else if layout-style == "minimal" {
-    grid(
-      columns: (1.1fr, 1fr),
-      gutter: 12pt,
-      align: (left + horizon, right + horizon),
-      [
-        #if logo-path != none and logo-path != "" {
-          box(height: 28pt, image(logo-path, fit: "contain"))
-          v(2pt)
-        }
-        #text(size: 15pt, weight: "bold", fill: color-slate-900)[#company-name]
-        #if subtitle != none and subtitle != "" {
-          v(1pt)
-          text(size: 7.5pt, fill: color-slate-400)[#subtitle]
-        }
-      ],
-      [
-        #align(right)[
-          #text(size: 16pt, weight: 800, fill: color-slate-900)[#title] \
-          #text(size: 8.5pt, fill: color-slate-500)[#doc-number] \
-          #v(2pt)
-          #status-pill(status, paid: is-paid)
-        ]
-      ]
-    )
-    v(5pt)
-    line(length: 100%, stroke: 0.5pt + color-slate-200)
-    v(6pt)
-  } else {
-    grid(
-      columns: (1.1fr, 1fr),
-      gutter: 14pt,
-      align: (left + horizon, right + horizon),
-      [
-        #if logo-path != none and logo-path != "" {
-          box(height: 38pt, image(logo-path, fit: "contain"))
-          v(4pt)
-        }
-        #text(size: 17pt, weight: "bold", fill: primary-color)[#company-name]
-        #if subtitle != none and subtitle != "" {
-          v(2pt)
-          text(size: 8.5pt, fill: color-slate-500)[#subtitle]
-        }
-      ],
-      [
-        #align(right)[
-          #text(size: 20pt, weight: 900, fill: color-slate-900)[#title]
-          #v(-2pt)
-          #text(size: 9.5pt, weight: "bold", fill: color-slate-500)[#doc-number]
-          #v(3pt)
-          #status-pill(status, paid: is-paid)
-        ]
-      ]
-    )
-
-    v(8pt)
-    divider(color: primary-color)
-    v(8pt)
-  }
-
-  grid(
-    columns: (1fr, 1fr),
-    gutter: 20pt,
-    [
-      #text(size: 8pt, weight: "bold", fill: color-slate-400)[ISSUE DATE] \
-      #text(size: 9.5pt, weight: "medium", fill: color-slate-900)[#date]
-    ],
-    [
-      #if due-date != none and due-date != "" {
+      v(6pt)
+    } else if layout-style == "swiss_grid" {
+      line(length: 100%, stroke: 3pt + primary-color)
+      v(6pt)
+      grid(
+        columns: (1.15fr, 1fr),
+        gutter: 14pt,
+        align: (left + horizon, right + horizon),
+        stack(
+          dir: ttb,
+          spacing: 3.5pt,
+          ..if logo-path != none and logo-path != "" {
+            (box(height: 32pt, image(logo-path, fit: "contain")),)
+          } else { () },
+          text(size: 16pt, weight: "bold", fill: color-slate-950)[#company-name],
+          ..if subtitle != none and subtitle != "" {
+            (text(size: 8pt, fill: color-slate-500)[#subtitle],)
+          } else { () }
+        ),
         align(right)[
-          #text(size: 8pt, weight: "bold", fill: color-slate-400)[PAYMENT DUE DATE] \
-          #text(size: 9.5pt, weight: "bold", fill: primary-color)[#due-date]
+          #stack(
+            dir: ttb,
+            spacing: 3.5pt,
+            text(size: 16.5pt, weight: 900, fill: primary-color)[#title],
+            box[
+              #text(size: 9pt, font: font-mono, weight: "bold", fill: color-slate-600)[#doc-number]
+              #h(6pt)
+              #status-pill(status, paid: is-paid)
+            ]
+          )
         ]
-      }
-    ]
-  )
+      )
+      v(6pt)
+      line(length: 100%, stroke: 0.5pt + color-slate-300)
+      v(6pt)
+    } else if layout-style == "split_sidebar" {
+      rect(
+        width: 100%,
+        fill: color-slate-50,
+        stroke: 0.5pt + color-slate-200,
+        radius: 5pt,
+        inset: (x: 12pt, y: 10pt),
+        [
+          #grid(
+            columns: (1.1fr, 1fr),
+            gutter: 12pt,
+            align: (left + horizon, right + horizon),
+            stack(
+              dir: ttb,
+              spacing: 3.5pt,
+              ..if logo-path != none and logo-path != "" {
+                (box(height: 30pt, image(logo-path, fit: "contain")),)
+              } else { () },
+              text(size: 15pt, weight: "bold", fill: primary-color)[#company-name],
+              ..if subtitle != none and subtitle != "" {
+                (text(size: 8pt, fill: color-slate-500)[#subtitle],)
+              } else { () }
+            ),
+            align(right)[
+              #stack(
+                dir: ttb,
+                spacing: 3.5pt,
+                text(size: 16.5pt, weight: 900, fill: color-slate-900)[#title],
+                box[
+                  #text(size: 9pt, weight: "bold", fill: primary-color)[#doc-number]
+                  #h(6pt)
+                  #status-pill(status, paid: is-paid)
+                ]
+              )
+            ]
+          )
+        ]
+      )
+      v(6pt)
+    } else if layout-style == "compact_ledger" {
+      grid(
+        columns: (1.1fr, 1fr),
+        gutter: 12pt,
+        align: (left + horizon, right + horizon),
+        stack(
+          dir: ttb,
+          spacing: 3pt,
+          ..if logo-path != none and logo-path != "" {
+            (box(height: 24pt, image(logo-path, fit: "contain")),)
+          } else { () },
+          text(size: 13.5pt, weight: "bold", fill: primary-color)[#company-name],
+          ..if subtitle != none and subtitle != "" {
+            (text(size: 8pt, fill: color-slate-500)[#subtitle],)
+          } else { () }
+        ),
+        align(right)[
+          #stack(
+            dir: ttb,
+            spacing: 3.5pt,
+            text(size: 14.5pt, weight: 900, fill: color-slate-900)[#title],
+            box[
+              #text(size: 8.5pt, font: font-mono, weight: "bold", fill: color-slate-500)[#doc-number]
+              #h(6pt)
+              #status-pill(status, paid: is-paid)
+            ]
+          )
+        ]
+      )
+      v(5pt)
+      line(length: 100%, stroke: 1pt + color-slate-200)
+      v(6pt)
+    } else if layout-style == "editorial_centered" {
+      align(center)[
+        #stack(
+          dir: ttb,
+          spacing: 4pt,
+          ..if logo-path != none and logo-path != "" {
+            (box(height: 34pt, image(logo-path, fit: "contain")),)
+          } else { () },
+          text(size: 18pt, weight: 900, fill: color-slate-900)[#title],
+          text(size: 11pt, weight: "medium", fill: primary-color)[#company-name],
+          ..if subtitle != none and subtitle != "" {
+            (text(size: 8pt, fill: color-slate-500)[#subtitle],)
+          } else { () },
+          box[
+            #text(size: 8.5pt, fill: color-slate-500)[Reference: #doc-number]
+            #h(6pt)
+            #status-pill(status, paid: is-paid)
+          ],
+          line(length: 100%, stroke: 0.5pt + color-slate-200)
+        )
+      ]
+      v(6pt)
+    } else if layout-style == "framed" {
+      rect(
+        width: 100%,
+        fill: color-slate-50,
+        stroke: 1pt + primary-color,
+        radius: 6pt,
+        inset: (x: 12pt, y: 10pt),
+        [
+          #grid(
+            columns: (1.1fr, 1fr),
+            gutter: 12pt,
+            align: (left + horizon, right + horizon),
+            stack(
+              dir: ttb,
+              spacing: 3.5pt,
+              ..if logo-path != none and logo-path != "" {
+                (box(height: 30pt, image(logo-path, fit: "contain")),)
+              } else { () },
+              text(size: 15pt, weight: "bold", fill: primary-color)[#company-name],
+              ..if subtitle != none and subtitle != "" {
+                (text(size: 8pt, fill: color-slate-500)[#subtitle],)
+              } else { () }
+            ),
+            align(right)[
+              #stack(
+                dir: ttb,
+                spacing: 3.5pt,
+                text(size: 16pt, weight: 900, fill: color-slate-900)[#title],
+                box[
+                  #text(size: 9pt, font: font-mono, weight: "bold", fill: primary-color)[#doc-number]
+                  #h(6pt)
+                  #status-pill(status, paid: is-paid)
+                ]
+              )
+            ]
+          )
+        ]
+      )
+      v(6pt)
+    } else if layout-style == "minimal" {
+      grid(
+        columns: (1.1fr, 1fr),
+        gutter: 12pt,
+        align: (left + horizon, right + horizon),
+        stack(
+          dir: ttb,
+          spacing: 3pt,
+          ..if logo-path != none and logo-path != "" {
+            (box(height: 26pt, image(logo-path, fit: "contain")),)
+          } else { () },
+          text(size: 15pt, weight: "bold", fill: color-slate-900)[#company-name],
+          ..if subtitle != none and subtitle != "" {
+            (text(size: 8pt, fill: color-slate-500)[#subtitle],)
+          } else { () }
+        ),
+        align(right)[
+          #stack(
+            dir: ttb,
+            spacing: 3.5pt,
+            text(size: 15.5pt, weight: 800, fill: color-slate-900)[#title],
+            box[
+              #text(size: 8.5pt, fill: color-slate-500)[#doc-number]
+              #h(6pt)
+              #status-pill(status, paid: is-paid)
+            ]
+          )
+        ]
+      )
+      v(5pt)
+      line(length: 100%, stroke: 0.5pt + color-slate-200)
+      v(6pt)
+    } else {
+      grid(
+        columns: (1.1fr, 1fr),
+        gutter: 14pt,
+        align: (left + horizon, right + horizon),
+        stack(
+          dir: ttb,
+          spacing: 3.5pt,
+          ..if logo-path != none and logo-path != "" {
+            (box(height: 34pt, image(logo-path, fit: "contain")),)
+          } else { () },
+          text(size: 16pt, weight: "bold", fill: primary-color)[#company-name],
+          ..if subtitle != none and subtitle != "" {
+            (text(size: 8.5pt, fill: color-slate-500)[#subtitle],)
+          } else { () }
+        ),
+        align(right)[
+          #stack(
+            dir: ttb,
+            spacing: 3.5pt,
+            text(size: 17.5pt, weight: 900, fill: color-slate-900)[#title],
+            box[
+              #text(size: 9pt, font: font-mono, weight: "bold", fill: color-slate-500)[#doc-number]
+              #h(6pt)
+              #status-pill(status, paid: is-paid)
+            ]
+          )
+        ]
+      )
+
+      v(6pt)
+      divider(color: primary-color)
+      v(6pt)
+    }
+
+    #grid(
+      columns: (1fr, 1fr),
+      gutter: 20pt,
+      align: (left + horizon, right + horizon),
+      stack(
+        dir: ttb,
+        spacing: 2.5pt,
+        text(size: 7.5pt, weight: "bold", fill: color-slate-400)[ISSUE / EFFECTIVE DATE],
+        text(size: 9pt, weight: "bold", fill: color-slate-900)[#date]
+      ),
+      align(right)[
+        #if due-date != none and due-date != "" {
+          stack(
+            dir: ttb,
+            spacing: 2.5pt,
+            text(size: 7.5pt, weight: "bold", fill: color-slate-400)[PAYMENT DUE DATE],
+            text(size: 9pt, weight: "bold", fill: primary-color)[#due-date]
+          )
+        } else {
+          stack(
+            dir: ttb,
+            spacing: 2.5pt,
+            text(size: 7.5pt, weight: "bold", fill: color-slate-400)[DOCUMENT REFERENCE],
+            text(size: 9pt, font: font-mono, weight: "bold", fill: color-slate-700)[#doc-number]
+          )
+        }
+      ]
+    )
+  ]
 }
 
 // =============================================================================
@@ -708,60 +784,75 @@
   secondary-color: rgb("475569"),
   surface-color: rgb("f8fafc")
 ) = {
-  grid(
-    columns: (1fr, 1fr),
-    gutter: 14pt,
-    // ISSUER / ORIGINATOR CARD (Distinct left accent bar + tinted badge + surface fill)
-    rect(
-      width: 100%,
-      fill: surface-color,
-      stroke: (
-        left: 3.5pt + primary-color,
-        top: 0.5pt + secondary-color.lighten(70%),
-        right: 0.5pt + secondary-color.lighten(70%),
-        bottom: 0.5pt + secondary-color.lighten(70%)
+  let from-inner = [
+    #set par(leading: 0.48em)
+    #stack(
+      dir: ttb,
+      spacing: 4pt,
+      box(
+        fill: primary-color.lighten(88%),
+        inset: (x: 5pt, y: 2.5pt),
+        radius: 3pt,
+        text(size: 6.5pt, weight: "bold", fill: primary-color)[● #from-title]
       ),
-      radius: (right: 5pt, left: 2pt),
-      inset: (x: 10pt, y: 9pt),
-      [
-        #box(
-          fill: primary-color.lighten(88%),
-          inset: (x: 5pt, y: 2.5pt),
-          radius: 3pt,
-          [#text(size: 6.5pt, weight: "bold", fill: primary-color)[● #from-title]]
-        ) \
-        #v(3pt)
-        #text(size: 10pt, weight: "bold", fill: color-slate-900)[#from-name] \
-        #v(2pt)
-        #text(size: 8pt, fill: color-slate-700)[#from-details]
-      ]
-    ),
-    // COUNTERPARTY / RECIPIENT CARD (Secondary left border + tinted badge)
-    rect(
-      width: 100%,
-      fill: rgb("#ffffff"),
-      stroke: (
-        left: 3.5pt + secondary-color,
-        top: 0.5pt + secondary-color.lighten(70%),
-        right: 0.5pt + secondary-color.lighten(70%),
-        bottom: 0.5pt + secondary-color.lighten(70%)
-      ),
-      radius: (right: 5pt, left: 2pt),
-      inset: (x: 10pt, y: 9pt),
-      [
-        #box(
-          fill: secondary-color.lighten(88%),
-          inset: (x: 5pt, y: 2.5pt),
-          radius: 3pt,
-          [#text(size: 6.5pt, weight: "bold", fill: secondary-color)[○ #to-title]]
-        ) \
-        #v(3pt)
-        #text(size: 10pt, weight: "bold", fill: color-slate-900)[#to-name] \
-        #v(2pt)
-        #text(size: 8pt, fill: color-slate-700)[#to-details]
-      ]
+      text(size: 10pt, weight: "bold", fill: color-slate-900)[#from-name],
+      text(size: 8pt, fill: color-slate-700)[#from-details]
     )
-  )
+  ]
+  let to-inner = [
+    #set par(leading: 0.48em)
+    #stack(
+      dir: ttb,
+      spacing: 4pt,
+      box(
+        fill: secondary-color.lighten(88%),
+        inset: (x: 5pt, y: 2.5pt),
+        radius: 3pt,
+        text(size: 6.5pt, weight: "bold", fill: secondary-color)[○ #to-title]
+      ),
+      text(size: 10pt, weight: "bold", fill: color-slate-900)[#to-name],
+      text(size: 8pt, fill: color-slate-700)[#to-details]
+    )
+  ]
+  layout(size => {
+    let col-w = (size.width - 14pt) / 2
+    let inner-w = col-w - 20pt
+    let h1 = measure(width: inner-w, from-inner).height
+    let h2 = measure(width: inner-w, to-inner).height
+    let card-h = calc.max(h1, h2) + 17pt
+    grid(
+      columns: (1fr, 1fr),
+      gutter: 14pt,
+      rect(
+        width: 100%,
+        height: card-h,
+        fill: surface-color,
+        stroke: (
+          left: 3.5pt + primary-color,
+          top: 0.5pt + secondary-color.lighten(70%),
+          right: 0.5pt + secondary-color.lighten(70%),
+          bottom: 0.5pt + secondary-color.lighten(70%)
+        ),
+        radius: (right: 5pt, left: 2pt),
+        inset: (x: 10pt, y: 8.5pt),
+        from-inner
+      ),
+      rect(
+        width: 100%,
+        height: card-h,
+        fill: rgb("#ffffff"),
+        stroke: (
+          left: 3.5pt + secondary-color,
+          top: 0.5pt + secondary-color.lighten(70%),
+          right: 0.5pt + secondary-color.lighten(70%),
+          bottom: 0.5pt + secondary-color.lighten(70%)
+        ),
+        radius: (right: 5pt, left: 2pt),
+        inset: (x: 10pt, y: 8.5pt),
+        to-inner
+      )
+    )
+  })
 }
 
 // =============================================================================
@@ -769,13 +860,17 @@
 // =============================================================================
 
 #let custom-section(title, body) = {
-  v(8pt)
-  text(size: 9.5pt, weight: "bold", fill: color-slate-900)[#title]
-  v(2pt)
-  line(length: 100%, stroke: 0.5pt + color-slate-300)
-  v(4pt)
-  text(size: 8.5pt, fill: color-slate-700)[#body]
-  v(6pt)
+  block(sticky: true, above: 9pt, below: 4pt)[
+    #stack(
+      dir: ttb,
+      spacing: 3pt,
+      text(size: 9.5pt, weight: "bold", fill: color-slate-900)[#title],
+      line(length: 100%, stroke: 0.5pt + color-slate-300)
+    )
+  ]
+  block(above: 4pt, below: 6pt)[
+    #text(size: 8.5pt, fill: color-slate-700)[#body]
+  ]
 }
 
 // =============================================================================
@@ -790,22 +885,24 @@
   primary-color: color-indigo-600
 ) = {
   box(width: 100%)[
-    #if signature-path != none and signature-path != "" {
-      align(center)[#box(height: 28pt, image(signature-path, fit: "contain"))]
-    } else {
-      v(28pt)
-    }
-    #line(length: 100%, stroke: 0.75pt + color-slate-700)
-    #v(3pt)
-    #text(size: 8.5pt, weight: "bold", fill: color-slate-900)[#signer-name] \
-    #text(size: 7.5pt, fill: color-slate-500)[#signer-title] \
-    #text(size: 7pt, fill: color-slate-400)[Date: #date]
+    #stack(
+      dir: ttb,
+      spacing: 3.5pt,
+      if signature-path != none and signature-path != "" {
+        align(center)[#box(height: 28pt, image(signature-path, fit: "contain"))]
+      } else {
+        v(22pt)
+      },
+      line(length: 100%, stroke: 0.75pt + color-slate-700),
+      text(size: 8.5pt, weight: "bold", fill: color-slate-900)[#signer-name],
+      text(size: 7.5pt, fill: color-slate-500)[#signer-title],
+      text(size: 7pt, fill: color-slate-400)[Date: #date]
+    )
   ]
 }
 
 #let signature-grid(items) = {
-  block(breakable: false, width: 100%)[
-    #v(10pt)
+  block(breakable: false, width: 100%, above: 10pt, below: 6pt)[
     #let count = items.len()
     #if count == 1 {
       align(right)[
@@ -843,19 +940,23 @@
   date: "2026-10-01",
   primary-color: color-indigo-600
 ) = {
-  v(10pt)
-  align(right)[
-    #box(width: 210pt)[
-      #if signature-path != none and signature-path != "" {
-        align(center)[#box(height: 32pt, image(signature-path, fit: "contain"))]
-      } else {
-        v(32pt)
-      }
-      #line(length: 100%, stroke: 0.75pt + color-slate-700)
-      #v(3pt)
-      #text(size: 9pt, weight: "bold", fill: color-slate-900)[#signer-name] \
-      #text(size: 8pt, fill: color-slate-500)[#signer-title] \
-      #text(size: 7.5pt, fill: color-slate-400)[Date: #date]
+  block(breakable: false, width: 100%, above: 10pt, below: 6pt)[
+    #align(right)[
+      #box(width: 210pt)[
+        #stack(
+          dir: ttb,
+          spacing: 3.5pt,
+          if signature-path != none and signature-path != "" {
+            align(center)[#box(height: 30pt, image(signature-path, fit: "contain"))]
+          } else {
+            v(24pt)
+          },
+          line(length: 100%, stroke: 0.75pt + color-slate-700),
+          text(size: 9pt, weight: "bold", fill: color-slate-900)[#signer-name],
+          text(size: 8pt, fill: color-slate-500)[#signer-title],
+          text(size: 7.5pt, fill: color-slate-400)[Date: #date]
+        )
+      ]
     ]
   ]
 }
@@ -1098,25 +1199,26 @@
   rect(
     width: 100%,
     stroke: (left: 3.5pt + navy-judicial, rest: 0.5pt + border-color),
-    radius: (right: 3pt, left: 0pt),
+    radius: (right: 4pt, left: 0pt),
     fill: bg-tint-subtle,
-    inset: (x: 8pt, y: 5.5pt),
+    inset: (x: 9pt, y: 6.5pt),
     [
-      #grid(
-        columns: (1fr, auto),
-        [
-          #text(font: font-mono, size: 7.5pt, weight: "bold", fill: navy-judicial)[#citation]
+      #set par(leading: 0.48em)
+      #stack(
+        dir: ttb,
+        spacing: 3.5pt,
+        grid(
+          columns: (1fr, auto),
+          gutter: 10pt,
+          align: (left + horizon, right + top),
+          text(font: font-mono, size: 7.2pt, weight: "bold", fill: navy-judicial)[#citation],
+          badge("STATUTORY GROUND", bg: rgb("#dbeafe"), fg: navy-judicial)
+        ),
+        text(font: font-sans, size: 7pt, fill: ink-secondary)[
+          *Evidentiary Scope:* #burden
         ],
-        align(right)[
-          #badge("STATUTORY GROUND", bg: rgb("#dbeafe"), fg: navy-judicial)
-        ]
+        body
       )
-      #v(2pt)
-      #text(font: font-sans, size: 7pt, fill: ink-secondary)[
-        *Evidentiary Scope:* #burden
-      ]
-      #v(3pt)
-      #body
     ]
   )
 }
@@ -1370,21 +1472,23 @@
   engine-version: "Pressmark Vector Engine v1.0.0",
   timestamp: ""
 ) = {
+  let display-hash = if hash.len() > 28 { hash.slice(0, 28) + "…" } else { hash }
   rect(
     width: 100%,
     fill: bg-tint-subtle,
-    stroke: 0.5pt + rgb("#e2e8f0"),
-    radius: 2pt,
-    inset: (x: 6pt, y: 3pt),
+    stroke: 0.5pt + rgb("#cbd5e1"),
+    radius: 3pt,
+    inset: (x: 8pt, y: 4.5pt),
     [
       #grid(
         columns: (auto, 1fr, auto),
         gutter: 8pt,
-        text(font: font-mono, size: 5.5pt, weight: "bold", fill: ink-primary)[VERIFICATION SLUG:],
-        text(font: font-mono, size: 5.5pt, fill: ink-secondary)[
-          REF: #parcel-id · SHA-256: #hash
+        align: (left + horizon, left + horizon, right + horizon),
+        text(font: font-mono, size: 6pt, weight: "bold", fill: ink-primary)[VERIFICATION SLUG:],
+        text(font: font-mono, size: 6pt, fill: ink-secondary)[
+          REF: #parcel-id · SHA-256: #display-hash
         ],
-        align(right, text(font: font-mono, size: 5.5pt, fill: ink-muted)[
+        align(right, text(font: font-mono, size: 6pt, fill: ink-subtle)[
           #engine-version · #timestamp
         ])
       )

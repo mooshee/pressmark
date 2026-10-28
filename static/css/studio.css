@@ -1,5 +1,6 @@
 /* Pressmark Studio - Modern Dark Devtools CSS */
 :root {
+  color-scheme: dark;
   --bg-primary: #0a0f1d;
   --bg-secondary: #111827;
   --bg-tertiary: #1f2937;
@@ -16,9 +17,9 @@
   --accent-amber: #f59e0b;
   --accent-red: #ef4444;
   --accent-purple: #a855f7;
-  --radius-sm: 6pt;
-  --radius-md: 10pt;
-  --radius-lg: 14pt;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
   --spring-swift: cubic-bezier(0.2, 0.9, 0.4, 1.0);
   --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --spring-smooth: cubic-bezier(0.16, 1, 0.3, 1);
@@ -359,7 +360,7 @@ body {
 
 /* View Mode 1: Split Screen (Default) */
 .main-container.view-mode-split .controls-pane {
-  width: 480px;
+  width: clamp(470px, 38vw, 520px);
   display: flex;
 }
 .main-container.view-mode-split .preview-pane {
@@ -996,6 +997,7 @@ input:checked + .slider:before {
   border-collapse: collapse;
   font-size: 11px;
   margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
 }
 
 .items-table th {
@@ -1009,6 +1011,7 @@ input:checked + .slider:before {
 .items-table td {
   padding: 6px 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-variant-numeric: tabular-nums;
 }
 
 .items-table input {
@@ -1016,9 +1019,14 @@ input:checked + .slider:before {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   color: var(--text-primary);
-  padding: 4px 6px;
-  font-size: 11px;
+  padding: 5px 7px;
+  font-size: 11.5px;
   width: 100%;
+}
+
+.items-table input[type="number"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .btn-remove {
@@ -1034,9 +1042,10 @@ input:checked + .slider:before {
 .totals-box {
   background-color: rgba(0, 0, 0, 0.25);
   border-radius: var(--radius-sm);
-  padding: 10px;
+  padding: 10px 12px;
   margin-top: 10px;
   font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
 }
 
 .totals-row {
@@ -1908,26 +1917,26 @@ input:checked + .slider:before {
 }
 
 /* Zone Spacings & Natural Geometric Alignment */
-.zone-header { margin-bottom: 10px; }
-.zone-parties { margin-bottom: 12px; }
-.zone-custom-fields { margin-bottom: 12px; }
-.zone-items { margin-bottom: 14px; }
-.zone-totals { margin-bottom: 14px; align-self: flex-end; width: auto; max-width: 280px; }
-.zone-sections { margin-bottom: 12px; }
-.zone-signatures { margin-bottom: 12px; }
+.zone-header { margin-bottom: 8px; }
+.zone-parties { margin-bottom: 10px; }
+.zone-custom-fields { margin-bottom: 10px; }
+.zone-items { margin-bottom: 10px; }
+.zone-totals { margin-bottom: 10px; align-self: flex-end; width: auto; min-width: 240px; max-width: 310px; }
 .zone-bottom { margin-bottom: 10px; }
+.zone-sections { margin-bottom: 10px; }
+.zone-signatures { margin-bottom: 8px; }
 
 /* Responsive Hotspot Card Geometry: Hugs rendered content snuggly */
-.interactive-card.card-header { min-height: 48px; }
-.interactive-card.card-party { min-height: 60px; }
-.interactive-card.card-custom-field { min-height: 32px; }
-.interactive-card.card-item { min-height: 32px; }
-.interactive-card.card-totals { min-height: 36px; }
-.interactive-card.card-section { min-height: 32px; }
-.interactive-card.card-signature { min-height: 36px; }
-.interactive-card.card-notes { min-height: 28px; }
-.interactive-card.card-terms { min-height: 28px; }
-.interactive-card.card-remittance { min-height: 28px; }
+.interactive-card.card-header { min-height: 54px; }
+.interactive-card.card-party { min-height: 68px; }
+.interactive-card.card-custom-field { min-height: 36px; }
+.interactive-card.card-item { min-height: 30px; }
+.interactive-card.card-totals { min-height: 44px; }
+.interactive-card.card-section { min-height: 36px; }
+.interactive-card.card-signature { min-height: 42px; }
+.interactive-card.card-notes { min-height: 32px; }
+.interactive-card.card-terms { min-height: 32px; }
+.interactive-card.card-remittance { min-height: 34px; }
 
 /* Insertion Drop Indicators */
 .interactive-card.drop-target-before::before {

@@ -420,6 +420,75 @@ pub fn escape_typst_string_literal(text: &str) -> String {
 }
 
 
+fn format_party_typst(party: &crate::models::PartyDetails) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    if let Some(ref c) = party.company {
+        let trimmed = c.trim();
+        if !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case(party.name.trim()) {
+            lines.push(format!(
+                "#text(size: 8pt, weight: \"medium\", fill: color-slate-800)[{}]",
+                escape_typst_text(trimmed)
+            ));
+        }
+    }
+    if let Some(ref a) = party.address {
+        for addr_line in a.lines().map(str::trim).filter(|s| !s.is_empty()) {
+            lines.push(format!(
+                "#text(size: 7.8pt, fill: color-slate-600)[{}]",
+                escape_typst_text(addr_line)
+            ));
+        }
+    }
+    let email_opt = party.email.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let phone_opt = party.phone.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    match (email_opt, phone_opt) {
+        (Some(e), Some(p)) if e.len() + p.len() <= 44 => {
+            lines.push(format!(
+                "#text(size: 7.4pt, fill: color-slate-600)[#text(size: 6.8pt, weight: \"bold\", fill: color-slate-400)[EMAIL:] {} #h(5pt) #text(fill: color-slate-300)[·] #h(5pt) #text(size: 6.8pt, weight: \"bold\", fill: color-slate-400)[TEL:] {}]",
+                escape_typst_text(e),
+                escape_typst_text(p)
+            ));
+        }
+        (e_opt, p_opt) => {
+            if let Some(e) = e_opt {
+                lines.push(format!(
+                    "#text(size: 7.4pt, fill: color-slate-600)[#text(size: 6.8pt, weight: \"bold\", fill: color-slate-400)[EMAIL:] {}]",
+                    escape_typst_text(e)
+                ));
+            }
+            if let Some(p) = p_opt {
+                lines.push(format!(
+                    "#text(size: 7.4pt, fill: color-slate-600)[#text(size: 6.8pt, weight: \"bold\", fill: color-slate-400)[TEL:] {}]",
+                    escape_typst_text(p)
+                ));
+            }
+        }
+    }
+    let mut meta_parts: Vec<String> = Vec::new();
+    if let Some(t) = party.tax_id.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        meta_parts.push(format!(
+            "#text(size: 6.8pt, weight: \"bold\", fill: color-slate-400)[TIN:] #text(size: 7.2pt, fill: color-slate-600)[{}]",
+            escape_typst_text(t)
+        ));
+    }
+    if let Some(r) = party.registration_number.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        meta_parts.push(format!(
+            "#text(size: 6.8pt, weight: \"bold\", fill: color-slate-400)[REG:] #text(size: 7.2pt, fill: color-slate-600)[{}]",
+            escape_typst_text(r)
+        ));
+    }
+    if !meta_parts.is_empty() {
+        lines.push(meta_parts.join(" #h(5pt) #text(size: 7pt, fill: color-slate-300)[·] #h(5pt) "));
+    }
+    if let Some(w) = party.website.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        lines.push(format!(
+            "#text(size: 7.2pt, fill: color-slate-500)[#text(size: 6.8pt, weight: \"bold\", fill: color-slate-400)[WEB:] {}]",
+            escape_typst_text(w)
+        ));
+    }
+    lines.join(" \\\n")
+}
+
 fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &str, accent_hex: &str, surface_hex: &str, total_label: &str) {
     if req.items.is_empty()
         && matches!(
@@ -443,26 +512,25 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
     let discount = req.discount_amount.unwrap_or(0.0);
     let grand_total = req.grand_total();
 
-    markup.push_str("#v(4pt)\n");
-    markup.push_str("#align(right)[\n");
-    markup.push_str("  #box(width: 310pt)[\n");
-    markup.push_str("    #table(\n");
-    markup.push_str("      columns: (1fr, auto),\n");
-    markup.push_str("      stroke: none,\n");
-    markup.push_str("      inset: (x: 4pt, y: 3.5pt),\n");
-    markup.push_str("      align: (col, row) => if col == 0 { left + horizon } else { right + horizon },\n");
+    let mut table_markup = String::new();
+    table_markup.push_str("#box(width: 310pt)[\n");
+    table_markup.push_str("  #table(\n");
+    table_markup.push_str("    columns: (1fr, auto),\n");
+    table_markup.push_str("    stroke: none,\n");
+    table_markup.push_str("    inset: (x: 4pt, y: 3.5pt),\n");
+    table_markup.push_str("    align: (col, row) => if col == 0 { left + horizon } else { right + horizon },\n");
     if let Some((prior_rent, net_increase, _new_rent)) = req.rent_increase_breakdown() {
         let pct = if prior_rent > 0.0 {
             (net_increase / prior_rent) * 100.0
         } else {
             0.0
         };
-        markup.push_str(&format!(
-            "      [#text(fill: color-slate-500)[Prior Monthly Rent:]], [#text(weight: \"bold\")[{}]],\n",
+        table_markup.push_str(&format!(
+            "    [#text(fill: color-slate-500)[Prior Monthly Rent:]], [#text(weight: \"bold\")[{}]],\n",
             req.format_amount_typst(prior_rent)
         ));
-        markup.push_str(&format!(
-            "      [#text(fill: color-slate-500)[Net Monthly Increase:]], [#text(weight: \"bold\", fill: rgb(\"{}\"))[+{} (+{:.1}\\%)]],\n",
+        table_markup.push_str(&format!(
+            "    [#text(fill: color-slate-500)[Net Monthly Increase:]], [#text(weight: \"bold\", fill: rgb(\"{}\"))[+{} (+{:.1}\\%)]],\n",
             accent_hex,
             req.format_amount_typst(net_increase),
             pct
@@ -475,61 +543,65 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
     ) || req.tax_rate.is_some()
         || discount > 0.0
     {
-        markup.push_str(&format!(
-            "      [#text(fill: color-slate-500)[Subtotal:]], [#text(weight: \"bold\")[{}]],\n",
+        table_markup.push_str(&format!(
+            "    [#text(fill: color-slate-500)[Subtotal:]], [#text(weight: \"bold\")[{}]],\n",
             req.format_amount_typst(subtotal)
         ));
     }
     if let Some(rate) = req.tax_rate {
         if rate > 0.0 {
-            markup.push_str(&format!(
-                "      [#text(fill: color-slate-500)[Tax ({:.1}%):]], [#text(weight: \"bold\")[{}]],\n",
+            table_markup.push_str(&format!(
+                "    [#text(fill: color-slate-500)[Tax ({:.1}%):]], [#text(weight: \"bold\")[{}]],\n",
                 rate, req.format_amount_typst(tax_total)
             ));
         }
     }
     if discount > 0.0 {
-        markup.push_str(&format!(
-            "      [#text(fill: color-slate-500)[Discount / Credits:]], [#text(weight: \"bold\", fill: rgb(\"{}\"))[−{}]],\n",
+        table_markup.push_str(&format!(
+            "    [#text(fill: color-slate-500)[Discount / Credits:]], [#text(weight: \"bold\", fill: rgb(\"{}\"))[−{}]],\n",
             accent_hex, req.format_amount_typst(discount)
         ));
     }
-    markup.push_str(&format!(
-        "      table.hline(stroke: 1pt + rgb(\"{}\")),\n",
+    table_markup.push_str(&format!(
+        "    table.hline(stroke: 1pt + rgb(\"{}\")),\n",
         primary_hex
     ));
-    markup.push_str(&format!(
-        "      [#text(size: 10.5pt, weight: 900, fill: rgb(\"{}\"))[{}]], [#text(size: 11.5pt, weight: 900, fill: rgb(\"{}\"))[{}]],\n",
+    table_markup.push_str(&format!(
+        "    [#text(size: 10.5pt, weight: 900, fill: rgb(\"{}\"))[{}]], [#text(size: 11.5pt, weight: 900, fill: rgb(\"{}\"))[{}]],\n",
         primary_hex, total_label, primary_hex, req.format_amount_typst(grand_total)
     ));
     if req.is_paid_state() || req.amount_paid.is_some() {
         let paid = req.amount_paid.unwrap_or(grand_total);
         let balance = req.balance_due();
-        markup.push_str(&format!(
-            "      [#text(size: 8.5pt, fill: rgb(\"#059669\"))[Amount Paid:]], [#text(size: 8.5pt, weight: \"bold\", fill: rgb(\"#059669\"))[{}]],\n",
+        table_markup.push_str(&format!(
+            "    [#text(size: 8.5pt, fill: rgb(\"#059669\"))[Amount Paid:]], [#text(size: 8.5pt, weight: \"bold\", fill: rgb(\"#059669\"))[{}]],\n",
             req.format_amount_typst(paid)
         ));
         let bal_color = if balance <= 0.001 { "#059669" } else { "#dc2626" };
-        markup.push_str(&format!(
-            "      [#text(size: 9pt, weight: 900, fill: rgb(\"{}\"))[Balance Due:]], [#text(size: 9pt, weight: 900, fill: rgb(\"{}\"))[{}]],\n",
+        table_markup.push_str(&format!(
+            "    [#text(size: 9pt, weight: 900, fill: rgb(\"{}\"))[Balance Due:]], [#text(size: 9pt, weight: 900, fill: rgb(\"{}\"))[{}]],\n",
             bal_color, bal_color, req.format_amount_typst(balance)
         ));
     }
-    markup.push_str("    )\n");
-    markup.push_str("  ]\n");
-    markup.push_str("]\n\n");
+    table_markup.push_str("  )\n");
+    table_markup.push_str("]");
 
-    // 1. Paid in full attestation watermark stamp (if marked as paid)
+    // 1. Paid in full attestation watermark stamp (if marked as paid, placed alongside Totals box for zero vertical collision)
     if req.is_paid_state() {
         let method = req.payment_method.as_deref().unwrap_or("Stripe / Apple Pay");
         let paid_date = req.paid_at.as_deref().unwrap_or(req.issue_date.as_deref().unwrap_or("2026-10-02"));
         let tx_ref = req.transaction_reference.as_deref().unwrap_or("STRIPE-PAID-001");
         markup.push_str(&format!(
-            "#align(center)[#v(2pt)#paid-watermark-stamp(tx-ref: \"{}\", paid-date: \"{}\", method: \"{}\")#v(2pt)]\n\n",
+            "#v(4pt)\n#block(breakable: false, width: 100%)[\n  #grid(\n    columns: (1fr, auto),\n    gutter: 16pt,\n    align: (center + horizon, right + horizon),\n    [#paid-watermark-stamp(tx-ref: \"{}\", paid-date: \"{}\", method: \"{}\")],\n    [\n{}\n    ]\n  )\n]\n#v(4pt)\n\n",
             escape_typst_string_literal(tx_ref),
             escape_typst_string_literal(paid_date),
-            escape_typst_string_literal(method)
+            escape_typst_string_literal(method),
+            table_markup
         ));
+    } else {
+        markup.push_str("#v(4pt)\n#align(right)[\n");
+        markup.push_str(&table_markup);
+        markup.push_str("\n]\n\n");
     }
 
     // 2. Vector Payment QR Code & Checkout Block (only for payable archetypes that are NOT fully paid)
@@ -910,8 +982,8 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         _ => "BILLED TO",
     };
 
-    let from_details_escaped = escape_typst_text(&req.from.format_multiline()).replace('\n', "\\\n");
-    let to_details_escaped = escape_typst_text(&req.to.format_multiline()).replace('\n', "\\\n");
+    let from_details_escaped = format_party_typst(&req.from);
+    let to_details_escaped = format_party_typst(&req.to);
 
     markup.push_str(&format!(
         "#parties-grid(\n  from-name: \"{}\",\n  from-details: [{}],\n  to-name: \"{}\",\n  to-details: [{}],\n  from-title: \"{}\",\n  to-title: \"{}\",\n  primary-color: rgb(\"{}\"),\n  secondary-color: rgb(\"{}\"),\n  surface-color: rgb(\"{}\")\n)\n\n",
@@ -1006,13 +1078,20 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
     };
     if !cf_slice.is_empty() {
         markup.push_str("#v(4pt)\n");
-        markup.push_str("#grid(\n  columns: (1fr, 1fr),\n  gutter: 10pt,\n");
-        for field in cf_slice {
-            markup.push_str(&format!(
-                "  card-box([\n    #text(size: 7.5pt, weight: \"bold\", fill: color-slate-400)[{}] \\\n    #text(size: 9.5pt, weight: \"medium\", fill: color-slate-900)[{}]\n  ]),\n",
+        markup.push_str("#grid(\n  columns: (1fr, 1fr),\n  gutter: 8pt,\n");
+        let len = cf_slice.len();
+        let is_odd = len % 2 == 1;
+        for (idx, field) in cf_slice.iter().enumerate() {
+            let card_expr = format!(
+                "card-box([\n    #stack(\n      dir: ttb,\n      spacing: 3pt,\n      text(size: 7pt, weight: \"bold\", fill: color-slate-400)[{}],\n      text(size: 9pt, weight: \"medium\", fill: color-slate-900)[{}]\n    )\n  ])",
                 escape_typst_text(&field.label.to_uppercase()),
                 escape_typst_text(&field.value)
-            ));
+            );
+            if is_odd && idx + 1 == len {
+                markup.push_str(&format!("  grid.cell(colspan: 2, {}),\n", card_expr));
+            } else {
+                markup.push_str(&format!("  {},\n", card_expr));
+            }
         }
         markup.push_str(")\n#v(4pt)\n\n");
     }
@@ -1051,8 +1130,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             ));
 
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
-                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Financial Consideration & Retainer Schedule]\n#v(2pt)\n");
+                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Financial Consideration & Retainer Schedule]]\n");
                 markup.push_str(&format!(
                     "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Consideration / Milestone*], [*Retainer Amount*]),\n",
                     secondary_hex, secondary_hex, surface_hex
@@ -1078,7 +1156,6 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         | DocumentType::LeaseAmendment
         | DocumentType::LetterOfIntentCre => {
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
                 let schedule_title = match req.doc_type {
                     DocumentType::CommercialNnnLease => "Base Rent, NNN Operating Expenses & Deposit Schedule",
                     DocumentType::LetterOfIntentCre => "Proposed Base Rent & Consideration Schedule",
@@ -1089,7 +1166,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     DocumentType::LeaseAmendment => "Lease Amendment Financial & Fee Adjustments",
                     _ => "Rent, Security Deposit & Fee Schedule",
                 };
-                markup.push_str(&format!("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(2pt)\n", schedule_title));
+                markup.push_str(&format!("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]]\n", schedule_title));
                 markup.push_str(&format!(
                     "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Lease Covenant / Financial Term*], [*Contract Amount / Rate*]),\n",
                     secondary_hex, secondary_hex, surface_hex
@@ -1118,7 +1195,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             if let Some(ref terms) = req.terms {
                 if !terms.is_empty() {
                     markup.push_str(&format!(
-                        "#v(6pt)\n#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Operative Lease Covenants & Statutory Terms]\n#v(3pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        "#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Operative Lease Covenants & Statutory Terms]]\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
                         escape_typst_text(terms).replace('\n', "\\\n")
                     ));
                 }
@@ -1130,7 +1207,6 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::NoticeToVacate | DocumentType::NoticeOfEntry | DocumentType::RentIncreaseNotice => {
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
                 let (tbl_title, col1, col2, tot_lbl) = match req.doc_type {
                     DocumentType::NoticeOfEntry => (
                         "Scheduled Premises Entry & Maintenance Scope",
@@ -1151,7 +1227,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                         "Total Delinquent Balance Demanded:",
                     ),
                 };
-                markup.push_str(&format!("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(2pt)\n", tbl_title));
+                markup.push_str(&format!("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]]\n", tbl_title));
                 markup.push_str(&format!(
                     "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*{}*], [*{}*]),\n",
                     secondary_hex, secondary_hex, surface_hex, col1, col2
@@ -1169,7 +1245,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             if let Some(ref terms) = req.terms {
                 if !terms.is_empty() {
                     markup.push_str(&format!(
-                        "#v(6pt)\n#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Statutory Notice & Legal Demand]\n#v(3pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        "#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Statutory Notice & Legal Demand]]\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
                         escape_typst_text(terms).replace('\n', "\\\n")
                     ));
                 }
@@ -1217,8 +1293,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::SecurityDepositDisposition => {
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
-                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Security Deposit Itemized Accounting & Refund Statement]\n#v(2pt)\n");
+                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Security Deposit Itemized Accounting & Refund Statement]]\n");
                 markup.push_str(&format!(
                     "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Security Deposit Credit / Itemized Deduction*], [*Amount (Credit / Deduction)*]),\n",
                     secondary_hex, secondary_hex, surface_hex
@@ -1244,8 +1319,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::RealEstateCommission => {
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
-                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Commission Calculation, Co-Broker Split & Disbursement Authorization]\n#v(2pt)\n");
+                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Commission Calculation, Co-Broker Split & Disbursement Authorization]]\n");
                 markup.push_str(&format!(
                     "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Commission / Split / Brokerage Fee Line Item*], [*Disbursement Amount*]),\n",
                     secondary_hex, secondary_hex, surface_hex
@@ -1271,8 +1345,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::TenantEstoppel => {
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
-                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Certified Lease Financial & Deposit Summary]\n#v(2pt)\n");
+                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Certified Lease Financial & Deposit Summary]]\n");
                 markup.push_str(&format!(
                     "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Certified Lease Financial Component*], [*Verified Amount*]),\n",
                     secondary_hex, secondary_hex, surface_hex
@@ -1290,7 +1363,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             if let Some(ref terms) = req.terms {
                 if !terms.is_empty() {
                     markup.push_str(&format!(
-                        "#v(6pt)\n#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Tenant Estoppel Representations & Certifications]\n#v(3pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        "#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Tenant Estoppel Representations & Certifications]]\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
                         escape_typst_text(terms).replace('\n', "\\\n")
                     ));
                 }
@@ -1298,7 +1371,6 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::RentalApplication | DocumentType::AdverseActionNotice | DocumentType::MutualLeaseTermination => {
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
                 let (tbl_title, col1, col2, tot_lbl) = match req.doc_type {
                     DocumentType::RentalApplication => (
                         "Application Screening Fee, Holding Deposit & Target Rent Schedule",
@@ -1319,7 +1391,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                         "Net Surrender Settlement Due:",
                     ),
                 };
-                markup.push_str(&format!("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(2pt)\n", tbl_title));
+                markup.push_str(&format!("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]]\n", tbl_title));
                 markup.push_str(&format!(
                     "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*{}*], [*{}*]),\n",
                     secondary_hex, secondary_hex, surface_hex, col1, col2
@@ -1342,7 +1414,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                         _ => "Mutual Lease Termination, Surrender & Release Covenants",
                     };
                     markup.push_str(&format!(
-                        "#v(6pt)\n#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(3pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        "#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]]\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
                         sec_title,
                         escape_typst_text(terms).replace('\n', "\\\n")
                     ));
@@ -1351,8 +1423,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::TenantRentLedger => {
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
-                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Chronological Certified Tenant Rent, Fee & Payment Ledger]\n#v(2pt)\n");
+                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Chronological Certified Tenant Rent, Fee & Payment Ledger]]\n");
                 markup.push_str(&format!(
                     "#table(\n  columns: (auto, 1fr, auto, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col <= 1 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*\\#*], [*Date & Transaction Description*], [*Entry Amount*], [*Running Balance*]),\n",
                     secondary_hex, secondary_hex, surface_hex
@@ -1433,7 +1504,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                         "Projected Annual Cash Flow / NOI:",
                     ),
                 };
-                markup.push_str(&format!("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(2pt)\n", tbl_title));
+                markup.push_str(&format!("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]]\n", tbl_title));
                 markup.push_str(&format!(
                     "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*{}*], [*{}*]),\n",
                     secondary_hex, secondary_hex, surface_hex, col1, col2
@@ -1503,7 +1574,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                         "Net Statutory Lien Waiver Amount:",
                     ),
                 };
-                markup.push_str(&format!("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(2pt)\n", tbl_title));
+                markup.push_str(&format!("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]]\n", tbl_title));
                 markup.push_str(&format!(
                     "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*{}*], [*{}*]),\n",
                     secondary_hex, secondary_hex, surface_hex, col1, col2
@@ -1527,7 +1598,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                         _ => "Statutory Mechanic's Lien Waiver & Release Covenants",
                     };
                     markup.push_str(&format!(
-                        "#v(6pt)\n#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]\n#v(3pt)\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
+                        "#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[{}]]\n#text(size: 9pt, fill: color-slate-700)[\n{}\n]\n#v(4pt)\n",
                         sec_title,
                         escape_typst_text(terms).replace('\n', "\\\n")
                     ));
@@ -1536,8 +1607,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::RentRoll => {
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
-                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Multi-Unit Tenancy Schedule & Rent Roll Census]\n#v(2pt)\n");
+                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Multi-Unit Tenancy Schedule & Rent Roll Census]]\n");
                 markup.push_str(&format!(
                     "#table(\n  columns: (auto, 1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col <= 1 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Unit*], [*Tenant & Lease Expiration*], [*Monthly Contract Rent*]),\n",
                     secondary_hex, secondary_hex, surface_hex
@@ -1564,8 +1634,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::ClosingSettlementStatement => {
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
-                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Escrow Settlement Disbursements & Adjustments (RESPA/ALTA)]\n#v(2pt)\n");
+                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Escrow Settlement Disbursements & Adjustments (RESPA/ALTA)]]\n");
                 markup.push_str(&format!(
                     "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Settlement Item / Escrow Consideration*], [*Amount (Debit / Credit)*]),\n",
                     secondary_hex, secondary_hex, surface_hex
@@ -1591,8 +1660,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::PropertyManagementStatement => {
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
-                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Property Income & Operating Expense Ledger]\n#v(2pt)\n");
+                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Property Income & Operating Expense Ledger]]\n");
                 markup.push_str(&format!(
                     "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Ledger Description (Income / Expense)*], [*Net Amount*]),\n",
                     secondary_hex, secondary_hex, surface_hex
@@ -1618,8 +1686,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::PropertyInspectionChecklist => {
             if !req.items.is_empty() {
-                markup.push_str("#v(6pt)\n");
-                markup.push_str("#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Property Condition & Fixture Audit Matrix]\n#v(2pt)\n");
+                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Property Condition & Fixture Audit Matrix]]\n");
                 markup.push_str(&format!(
                     "#table(\n  columns: (auto, 1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col <= 1 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Item*], [*Premises Area / Fixture*], [*Condition / Notes*]),\n",
                     secondary_hex, secondary_hex, surface_hex

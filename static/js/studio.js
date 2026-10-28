@@ -1527,16 +1527,19 @@
     partiesZone.appendChild(toCard);
     overlay.appendChild(partiesZone);
 
-    // 2.5 Custom Fields Zone
+    // 2.5 Custom Fields Zone (matches 2-column engine grid with odd-last colspan)
     if (state.custom_fields && state.custom_fields.length > 0) {
       const cfZone = document.createElement('div');
       cfZone.className = 'interactive-zone zone-custom-fields';
       cfZone.style.display = 'grid';
-      cfZone.style.gridTemplateColumns = `repeat(${Math.min(state.custom_fields.length, 3)}, 1fr)`;
-      cfZone.style.gap = '10px';
+      cfZone.style.gridTemplateColumns = 'repeat(2, 1fr)';
+      cfZone.style.gap = '8px';
 
       state.custom_fields.forEach((cf, i) => {
         const cfCard = createCard('custom_field', i, `Field: ${cf.label}`, 'card-custom-field');
+        if (state.custom_fields.length % 2 === 1 && i === state.custom_fields.length - 1) {
+          cfCard.style.gridColumn = 'span 2';
+        }
         cfCard.appendChild(createPill(`${cf.label}: ${cf.value}`));
         cfCard.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1555,6 +1558,7 @@
     if (!isPureCert && !isNdaWithoutItems && state.items && state.items.length > 0) {
       const itemsZone = document.createElement('div');
       itemsZone.className = 'interactive-zone zone-items';
+      itemsZone.style.paddingTop = '22px';
 
       state.items.forEach((item, i) => {
         const itemCard = createCard('item', i, `Item #${i + 1}`, 'card-item');
@@ -1596,51 +1600,7 @@
       overlay.appendChild(totalsZone);
     }
 
-    // 5. Custom Sections Zone
-    if (state.sections && state.sections.length > 0) {
-      const secZone = document.createElement('div');
-      secZone.className = 'interactive-zone zone-sections';
-
-      state.sections.forEach((sec, i) => {
-        const secCard = createCard('section', i, `Section #${i + 1}`, 'card-section');
-        secCard.draggable = true;
-        secCard.appendChild(createPill(`Section #${i + 1}: ${(sec.title || 'Untitled').slice(0, 24)}`, true));
-        secCard.addEventListener('click', (e) => {
-          e.stopPropagation();
-          selectElement('section', i, secCard, `Section: ${(sec.title || '').slice(0, 20)}`);
-        });
-        setupDraggableCard(secCard, 'section', i);
-        secZone.appendChild(secCard);
-      });
-      overlay.appendChild(secZone);
-    }
-
-    // 6. Signatories Zone
-    if (state.signatures && state.signatures.length > 0) {
-      const sigZone = document.createElement('div');
-      sigZone.className = 'interactive-zone zone-signatures';
-
-      const sigGrid = document.createElement('div');
-      sigGrid.style.display = 'grid';
-      sigGrid.style.gridTemplateColumns = `repeat(${Math.min(state.signatures.length, 3)}, 1fr)`;
-      sigGrid.style.gap = '8px';
-
-      state.signatures.forEach((sig, i) => {
-        const sigCard = createCard('signature', i, `Signatory #${i + 1}`, 'card-signature');
-        sigCard.draggable = true;
-        sigCard.appendChild(createPill(`Signatory: ${sig.signer_name || i + 1}`, true));
-        sigCard.addEventListener('click', (e) => {
-          e.stopPropagation();
-          selectElement('signature', i, sigCard, `Signatory: ${sig.signer_name || i + 1}`);
-        });
-        setupDraggableCard(sigCard, 'signature', i);
-        sigGrid.appendChild(sigCard);
-      });
-      sigZone.appendChild(sigGrid);
-      overlay.appendChild(sigZone);
-    }
-
-    // 7. Notes & Terms Zone
+    // 5. Notes, Terms & Remittance Zone (matches engine.rs vertical document order before Custom Sections & Signatures)
     if (state.notes || state.terms || state.show_remittance_stub) {
       const bottomZone = document.createElement('div');
       bottomZone.className = 'interactive-zone zone-bottom';
@@ -1676,6 +1636,50 @@
       }
 
       overlay.appendChild(bottomZone);
+    }
+
+    // 6. Custom Sections Zone
+    if (state.sections && state.sections.length > 0) {
+      const secZone = document.createElement('div');
+      secZone.className = 'interactive-zone zone-sections';
+
+      state.sections.forEach((sec, i) => {
+        const secCard = createCard('section', i, `Section #${i + 1}`, 'card-section');
+        secCard.draggable = true;
+        secCard.appendChild(createPill(`Section #${i + 1}: ${(sec.title || 'Untitled').slice(0, 24)}`, true));
+        secCard.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectElement('section', i, secCard, `Section: ${(sec.title || '').slice(0, 20)}`);
+        });
+        setupDraggableCard(secCard, 'section', i);
+        secZone.appendChild(secCard);
+      });
+      overlay.appendChild(secZone);
+    }
+
+    // 7. Signatories Zone (anchored at bottom of document)
+    if (state.signatures && state.signatures.length > 0) {
+      const sigZone = document.createElement('div');
+      sigZone.className = 'interactive-zone zone-signatures';
+
+      const sigGrid = document.createElement('div');
+      sigGrid.style.display = 'grid';
+      sigGrid.style.gridTemplateColumns = `repeat(${Math.min(state.signatures.length, 3)}, 1fr)`;
+      sigGrid.style.gap = '8px';
+
+      state.signatures.forEach((sig, i) => {
+        const sigCard = createCard('signature', i, `Signatory #${i + 1}`, 'card-signature');
+        sigCard.draggable = true;
+        sigCard.appendChild(createPill(`Signatory: ${sig.signer_name || i + 1}`, true));
+        sigCard.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectElement('signature', i, sigCard, `Signatory: ${sig.signer_name || i + 1}`);
+        });
+        setupDraggableCard(sigCard, 'signature', i);
+        sigGrid.appendChild(sigCard);
+      });
+      sigZone.appendChild(sigGrid);
+      overlay.appendChild(sigZone);
     }
 
     overlay.onclick = (e) => {
