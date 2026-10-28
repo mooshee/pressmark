@@ -847,22 +847,20 @@
     });
   }
 
-  function showUndoToast(msg) {
+  function showUndoToast(msg, showAction = true) {
     const toast = document.getElementById('undoToast');
     if (!toast) return;
     const isUndone = msg.startsWith('↩ Undone');
-
-    let btnHtml = '';
-    if (isUndone) {
-      btnHtml = `<button class="undo-toast-btn" id="btnToastRedo">↪ Redo</button>`;
-    } else {
-      btnHtml = `<button class="undo-toast-btn" id="btnToastUndo">↩ Undo</button>`;
+    const message = document.createElement('span');
+    message.textContent = msg;
+    toast.replaceChildren(message);
+    if (showAction && (isUndone ? redoStack.length : undoStack.length)) {
+      const button = document.createElement('button');
+      button.className = 'undo-toast-btn';
+      button.id = isUndone ? 'btnToastRedo' : 'btnToastUndo';
+      button.textContent = isUndone ? '↪ Redo' : '↩ Undo';
+      toast.appendChild(button);
     }
-
-    toast.innerHTML = `
-      <span>${msg}</span>
-      ${btnHtml}
-    `;
     toast.classList.remove('show');
     void toast.offsetWidth;
     toast.classList.add('show');
@@ -1327,12 +1325,16 @@
       switchSidebarTab('ai');
     }
 
-    const fieldIds = { header: 'docTitle', metadata: 'docNumber', custom_field: 'customFieldsContainer', from: 'fromName', to: 'toName', notes: 'notesInput', terms: 'termsInput', watermark: 'watermarkInput' };
+    const fieldIds = { header: 'docTitle', metadata: 'docNumber', custom_field: 'customFieldsContainer', from: 'fromName', to: 'toName', notes: 'notesInput', terms: 'termsInput', watermark: 'watermarkInput', remittance: 'toggleRemittance' };
     const targetField = document.getElementById(fieldIds[type]);
     if (targetField) {
       let ancestor = targetField.parentElement;
       while (ancestor && ancestor.id !== 'controlsPane') {
         if (ancestor.tagName === 'DETAILS') ancestor.open = true;
+        if (ancestor.classList.contains('control-card')) {
+          ancestor.classList.remove('collapsed');
+          ancestor.querySelector('.card-header-toggle')?.setAttribute('aria-expanded', 'true');
+        }
         ancestor = ancestor.parentElement;
       }
     }
@@ -1401,6 +1403,9 @@
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         el.focus();
       }
+    } else if (type === 'remittance') {
+      targetField?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      targetField?.focus();
     } else if (type === 'notes' || type === 'terms') {
       const el = document.getElementById(type === 'notes' ? 'notesInput' : 'termsInput');
       if (el) {
@@ -2111,6 +2116,45 @@
     return items.reduce((s, it) => s + lineItemAmount(it), 0);
   }
 
+  function computeTaxUi() {
+    if (state.items.some(item => item.tax_rate != null)) {
+      return state.items.reduce((tax, item) => {
+        const amount = lineItemAmount(item);
+        const rate = item.tax_rate ?? (amount < 0 ? 0 : Number(state.tax_rate) || 0);
+        return tax + amount * rate / 100;
+      }, 0);
+    }
+    return computeSubtotalUi() * (Number(state.tax_rate) || 0) / 100;
+  }
+
+  function computeGrandTotalUi() {
+    const total = computeSubtotalUi() + computeTaxUi() - (Number(state.discount_amount) || 0);
+    return allowsNegativeItems(state.doc_type) ? total : Math.max(0, total);
+  }
+
+  function paymentSummaryUi(grandTotal = computeGrandTotalUi()) {
+    const explicitStatus = String(state.payment_status || '').trim().toLowerCase();
+    const hasAmount = state.amount_paid != null && Number.isFinite(state.amount_paid);
+    const hasFlag = typeof state.is_paid === 'boolean';
+    const markedPaid = explicitStatus ? explicitStatus === 'paid'
+      : hasFlag ? state.is_paid
+      : state.doc_type === 'receipt' && !hasAmount;
+    const amountPaid = hasAmount ? state.amount_paid : markedPaid ? Math.max(0, grandTotal) : 0;
+    const remaining = grandTotal - amountPaid;
+    const balanceDue = grandTotal < 0 ? remaining : Math.max(0, remaining);
+    const isPaid = grandTotal >= 0 && balanceDue <= 0.001
+      && (explicitStatus || hasFlag ? markedPaid : hasAmount ? grandTotal > 0 : markedPaid);
+    const status = isPaid ? 'paid'
+      : explicitStatus && explicitStatus !== 'paid' ? explicitStatus
+      : grandTotal > 0 && amountPaid > 0 && balanceDue > 0.001 ? 'partial' : 'unpaid';
+    return {
+      status,
+      isPaid,
+      amountPaid,
+      balanceDue
+    };
+  }
+
   function normalizeComplianceMode(raw) {
     if (!raw) return 'none';
     const s = String(raw).trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -2448,14 +2492,12 @@
     document.addEventListener('input', (e) => {
       if (e.target.matches('input, textarea, select')) {
         highlightField(e.target);
-        triggerPreviewCompilingAnimation();
       }
     });
 
     document.addEventListener('change', (e) => {
       if (e.target.matches('input, select')) {
         highlightField(e.target);
-        triggerPreviewCompilingAnimation();
       }
     });
   }
@@ -2591,6 +2633,13 @@
         pushUndo(`Toggle ${prop}`);
         hasUserCustomizedData = true;
         state[prop] = e.target.checked;
+        if (prop === 'is_paid') {
+          state.payment_status = state.is_paid ? 'paid' : 'unpaid';
+          state.amount_paid = state.is_paid ? Math.max(0, computeGrandTotalUi()) : undefined;
+          if (state.is_paid && !state.paid_at) state.paid_at = new Date().toISOString().split('T')[0];
+          syncFormFromState();
+          updateCalculations();
+        }
         schedulePreview();
         renderInteractiveOverlay();
       });
@@ -2639,6 +2688,7 @@
         state.payment_status = e.target.value;
         if (state.payment_status === 'paid') {
           state.is_paid = true;
+          state.amount_paid = Math.max(0, computeGrandTotalUi());
           if (amountPaidGroup) amountPaidGroup.style.display = 'none';
           if (!state.paid_at) state.paid_at = new Date().toISOString().split('T')[0];
         } else if (state.payment_status === 'partial') {
@@ -2996,7 +3046,7 @@
     if (state.doc_type === 'credit_note' || state.doc_type === 'credit') {
       return 'credit_note';
     }
-    if (state.doc_type === 'receipt' || state.is_paid || state.payment_status === 'paid') {
+    if (paymentSummaryUi().isPaid) {
       return 'receipt';
     }
     return 'invoice';
@@ -3018,6 +3068,9 @@
 
   function updateLifecycleUI() {
     const active = getLifecycleActiveState();
+    const payment = paymentSummaryUi();
+    const paymentLabel = { paid: 'Paid', partial: 'Partial payment', unpaid: 'Unpaid', pending: 'Pending', refunded: 'Refunded' }[payment.status] || 'Payment not recorded';
+    const billingName = state.doc_type === 'receipt' ? 'Receipt' : 'Invoice';
     const stepperBar = document.getElementById('lifecycleStepperBar');
     const stepEstimate = document.getElementById('stepBtnEstimate');
     const stepInvoice = document.getElementById('stepBtnInvoice');
@@ -3063,9 +3116,9 @@
         badge.innerText = '1 · Draft Estimate';
         badge.classList.add('badge-estimate');
       } else if (active === 'invoice') {
-        badge.innerText = '2 · Tax Invoice';
+        badge.innerText = `${billingName} · ${paymentLabel}`;
       } else if (active === 'receipt') {
-        badge.innerText = '3 · ✓ Paid Receipt';
+        badge.innerText = `${billingName} · Paid`;
         badge.classList.add('badge-receipt');
       } else if (active === 'credit_note') {
         badge.innerText = '4 · Credit Note';
@@ -3077,9 +3130,9 @@
       if (active === 'estimate') {
         summaryEl.innerText = `${docNum} · Unpaid quote for client approval before invoicing`;
       } else if (active === 'invoice') {
-        summaryEl.innerText = `${docNum} · Billable invoice with payment terms & QR checkout code`;
+        summaryEl.innerText = `${docNum} · ${paymentLabel}. Balance: ${formatAmountUi(payment.balanceDue)}`;
       } else if (active === 'receipt') {
-        summaryEl.innerText = `${docNum} · Marked PAID IN FULL with zero balance & receipt stamp`;
+        summaryEl.innerText = `${docNum} · Recorded as paid in full`;
       } else if (active === 'credit_note') {
         summaryEl.innerText = `${docNum} · Credit adjustment / refund memo for this invoice`;
       }
@@ -3094,7 +3147,7 @@
         actionLabel.innerText = 'Record Full Payment ➔ Generate Paid Receipt';
       } else if (active === 'receipt') {
         actionIcon.innerText = '📥';
-        actionLabel.innerText = 'Download Official Paid Receipt (PDF)';
+        actionLabel.innerText = `Download ${billingName.toLowerCase()} (PDF)`;
       } else if (active === 'credit_note') {
         actionIcon.innerText = '📥';
         actionLabel.innerText = 'Download Credit Note (PDF)';
@@ -3114,6 +3167,7 @@
 
   function executeLifecycleTransition(targetState) {
     pushUndo(`Transition lifecycle to ${targetState}`);
+    hasUserCustomizedData = true;
 
     const baseId = extractBaseDocNumber(state.doc_number);
 
@@ -3136,6 +3190,7 @@
       state.doc_number = `REC-${baseId}`;
       state.is_paid = true;
       state.payment_status = 'paid';
+      state.amount_paid = Math.max(0, computeGrandTotalUi());
       if (!state.paid_at) {
         state.paid_at = new Date().toISOString().split('T')[0];
       }
@@ -3168,8 +3223,7 @@
     updateLifecycleUI();
     updateCalculations();
     adaptFormToArchetype(state.doc_type);
-    clearTimeout(debounceTimer);
-    requestPreview();
+    schedulePreview();
     showAiToast(`⚡ Converted to ${state.title} (${state.doc_number})`);
   }
 
@@ -4476,12 +4530,12 @@
   // Entity Profile & Directory Management
   function saveIssuerProfile() {
     if (!state.from || (!state.from.name && !state.from.company)) {
-      showUndoToast('⚠️ Please enter a Business Name or Contact Name first');
+      showUndoToast('Enter a business or contact name first.', false);
       return;
     }
     try {
       localStorage.setItem(STORAGE_KEY_ISSUER, JSON.stringify(state.from));
-      showUndoToast(`💾 Saved "${state.from.company || state.from.name}" as Default Issuer Profile!`);
+      showUndoToast(`Saved "${state.from.company || state.from.name}" as your default issuer.`, false);
     } catch (e) {
       console.error('Failed to save issuer profile:', e);
     }
@@ -4504,6 +4558,8 @@
   }
 
   function resetIssuerProfile() {
+    pushUndo('Clear issuer fields');
+    hasUserCustomizedData = true;
     state.from = {
       name: '',
       company: '',
@@ -4520,12 +4576,12 @@
     syncFormFromState();
     schedulePreview();
     renderInteractiveOverlay();
-    showUndoToast('🔄 Issuer profile cleared');
+    showUndoToast('Cleared the issuer fields and saved profile.', false);
   }
 
   function saveCounterparty() {
     if (!state.to || (!state.to.name && !state.to.company)) {
-      showUndoToast('⚠️ Please enter a Client Name or Company first');
+      showUndoToast('Enter a client or company name first.', false);
       return;
     }
     try {
@@ -4543,7 +4599,7 @@
       if (list.length > 50) list = list.slice(0, 50);
       localStorage.setItem(STORAGE_KEY_COUNTERPARTIES, JSON.stringify(list));
       populateCounterpartyDropdown();
-      showUndoToast(`⭐ Saved "${state.to.company || state.to.name}" to Counterparty Directory!`);
+      showUndoToast(`Saved "${state.to.company || state.to.name}" to your contacts.`, false);
     } catch (e) {
       console.error('Failed to save counterparty:', e);
     }
@@ -4570,6 +4626,8 @@
   }
 
   function clearCounterparty() {
+    pushUndo('Clear recipient');
+    hasUserCustomizedData = true;
     state.to = {
       name: '',
       company: '',
@@ -4654,7 +4712,7 @@
       updateCalculations();
       renderInteractiveOverlay();
       schedulePreview();
-      showUndoToast('Returned to your document');
+      showUndoToast('Returned to your document', false);
     });
 
     btnSample.addEventListener('click', () => {
@@ -4689,7 +4747,7 @@
       updateCalculations();
       renderInteractiveOverlay();
       schedulePreview();
-      showUndoToast('Exploring an example. Your document is saved separately.');
+      showUndoToast('Exploring an example. Your document is saved separately.', false);
     });
   }
 
@@ -4721,6 +4779,8 @@
           const list = JSON.parse(raw);
           const contact = list[parseInt(idx, 10)];
           if (contact) {
+            pushUndo('Load saved contact');
+            hasUserCustomizedData = true;
             state.to = Object.assign({}, contact);
             syncFormFromState();
             schedulePreview();
@@ -5276,6 +5336,20 @@
     }
 
     const currentImg = buffer.querySelector('.preview-layer-current') || buffer.querySelector('.preview-doc-image');
+    // Every requested page invalidates pending work, including A → B → A
+    // while A is still the visible layer.
+    const reqSeq = (buffer._reqSeq || 0) + 1;
+    buffer._reqSeq = reqSeq;
+    clearTimeout(buffer._crossfadeTimer);
+    buffer._crossfadeTimer = null;
+    buffer.querySelectorAll('.preview-layer-next').forEach(el => {
+      if (el !== currentImg) el.remove();
+    });
+    if (currentImg) {
+      currentImg.classList.remove('preview-layer-next', 'preview-layer-fade-in', 'preview-layer-fade-out');
+      currentImg.classList.add('preview-layer-current');
+      currentImg.alt = `Live Document Preview - Page ${pageIdx + 1}`;
+    }
     if (!currentImg) {
       const img = document.createElement('img');
       if (isPrimary) img.id = 'previewImg';
@@ -5288,17 +5362,6 @@
       currentImg.className = 'preview-doc-image preview-layer-current';
       currentImg.src = uri;
     } else if (currentImg.src !== uri && uri) {
-      const reqSeq = (buffer._reqSeq || 0) + 1;
-      buffer._reqSeq = reqSeq;
-      if (buffer._crossfadeTimer) {
-        clearTimeout(buffer._crossfadeTimer);
-        buffer._crossfadeTimer = null;
-      }
-      currentImg.classList.remove('preview-layer-next', 'preview-layer-fade-in', 'preview-layer-fade-out');
-      currentImg.classList.add('preview-layer-current');
-      buffer.querySelectorAll('.preview-layer-next').forEach(el => {
-        if (el !== currentImg) el.remove();
-      });
       const nextImg = new Image();
       if (isPrimary) nextImg.id = 'previewImg';
       nextImg.className = 'preview-doc-image preview-layer-next preview-layer-fade-out';
@@ -5964,12 +6027,56 @@
             a.click();
             document.body.removeChild(a);
           });
-          showUndoToast(pages.length > 1 ? `Downloaded ${pages.length} page images` : 'Downloaded page image');
+          showUndoToast(pages.length > 1 ? `Downloaded ${pages.length} page images` : 'Downloaded page image', false);
         } else {
-          showUndoToast('Wait for the preview to finish updating.');
+          showUndoToast('Wait for the preview to finish updating.', false);
         }
       });
     }
+  }
+
+  // One history entry per focused edit, with the current collection resolved at mutation time.
+  function bindRepeatingField(input, collection, property, options = {}) {
+    const index = Number(input.dataset.idx);
+    const fieldLabels = {
+      items: { description: 'item description', quantity: 'item quantity', unit_price: 'item rate' },
+      signatures: { signer_name: 'signer name', signer_title: 'signer title', date: 'signature date' },
+      sections: { title: 'section title', content: 'section text' },
+      custom_fields: { label: 'field label', value: 'field value' }
+    };
+    const editLabel = `Edit ${fieldLabels[collection]?.[property] || 'field'}`;
+    const getRecord = () => state[collection][index];
+    input.value = getRecord()?.[property] ?? '';
+    let lastInputValue = input.value;
+    let editEntry = null;
+    const applyInput = () => {
+      const record = getRecord();
+      if (!record || !input.isConnected) return;
+      if (input.value === lastInputValue) return;
+      const value = options.parseValue ? options.parseValue(input.value) : input.value;
+      lastInputValue = input.value;
+      if (Object.is(record[property], value)) return;
+      if (!editEntry || undoStack[undoStack.length - 1] !== editEntry || redoStack.length) {
+        pushUndo(editLabel);
+        editEntry = undoStack[undoStack.length - 1];
+      }
+      hasUserCustomizedData = true;
+      if (collection === 'items') hasUserCustomizedItems = true;
+      record[property] = value;
+      if (options.afterChange) options.afterChange(record, value);
+      schedulePreview();
+      renderInteractiveOverlay();
+    };
+    input.addEventListener('focus', () => { editEntry = null; });
+    input.addEventListener('input', applyInput);
+    input.addEventListener('change', () => {
+      applyInput();
+      editEntry = null;
+    });
+    input.addEventListener('blur', () => {
+      applyInput();
+      editEntry = null;
+    });
   }
 
   // Render Multi-Signatory Manager
@@ -5991,17 +6098,17 @@
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Signer Full Name</label>
-            <input type="text" class="form-input sig-name-input" data-idx="${index}" value="${sig.signer_name || ''}" placeholder="Full Name">
+            <input type="text" class="form-input sig-name-input" data-idx="${index}" placeholder="Full Name">
           </div>
           <div class="form-group">
             <label class="form-label">Signer Title / Authority</label>
-            <input type="text" class="form-input sig-title-input" data-idx="${index}" value="${sig.signer_title || ''}" placeholder="e.g. Managing Director">
+            <input type="text" class="form-input sig-title-input" data-idx="${index}" placeholder="e.g. Managing Director">
           </div>
         </div>
         <div class="form-row" style="align-items: center; margin-bottom: 6px;">
           <div class="form-group">
             <label class="form-label">Execution Date</label>
-            <input type="date" class="form-input sig-date-input" data-idx="${index}" value="${sig.date || ''}">
+            <input type="date" class="form-input sig-date-input" data-idx="${index}">
           </div>
           <div style="display: flex; justify-content: flex-end; align-self: flex-end; margin-bottom: 10px;">
             <button class="btn btn-secondary btn-sm btn-clear-pad" data-idx="${index}">Clear Pad</button>
@@ -6019,24 +6126,15 @@
 
     // Bind Name, Title, Date Inputs
     container.querySelectorAll('.sig-name-input').forEach(input => {
-      input.addEventListener('input', (e) => {
-        state.signatures[e.target.dataset.idx].signer_name = e.target.value;
-        schedulePreview();
-      });
+      bindRepeatingField(input, 'signatures', 'signer_name');
     });
 
     container.querySelectorAll('.sig-title-input').forEach(input => {
-      input.addEventListener('input', (e) => {
-        state.signatures[e.target.dataset.idx].signer_title = e.target.value;
-        schedulePreview();
-      });
+      bindRepeatingField(input, 'signatures', 'signer_title');
     });
 
     container.querySelectorAll('.sig-date-input').forEach(input => {
-      input.addEventListener('input', (e) => {
-        state.signatures[e.target.dataset.idx].date = e.target.value;
-        schedulePreview();
-      });
+      bindRepeatingField(input, 'signatures', 'date');
     });
 
     // Bind Remove Button
@@ -6073,6 +6171,8 @@
   function setupSignaturePad(index, padCanvas) {
     if (!padCanvas) return;
     const ctx = padCanvas.getContext('2d');
+    if (!ctx) return;
+    const signature = state.signatures[index];
     padCanvas.width = padCanvas.parentElement.clientWidth || 300;
     padCanvas.height = padCanvas.parentElement.clientHeight || 75;
 
@@ -6082,24 +6182,53 @@
     ctx.lineJoin = 'round';
 
     let drawing = false;
+    let hasStroke = false;
+    let restoring = Boolean(signature.signature_data);
+    const isCurrentPad = () => padCanvas.isConnected && state.signatures[index] === signature;
+    if (signature.signature_data) {
+      const savedData = signature.signature_data;
+      const image = new Image();
+      image.onload = () => {
+        if (isCurrentPad() && signature.signature_data === savedData && !drawing) {
+          ctx.drawImage(image, 0, 0, padCanvas.width, padCanvas.height);
+        }
+        restoring = false;
+      };
+      image.onerror = () => { restoring = false; };
+      image.src = savedData;
+    }
 
     const getPos = (e) => {
       const rect = padCanvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      return { x: clientX - rect.left, y: clientY - rect.top };
+      return {
+        x: (clientX - rect.left) * padCanvas.width / rect.width,
+        y: (clientY - rect.top) * padCanvas.height / rect.height
+      };
     };
 
     const startDraw = (e) => {
+      if (!isCurrentPad() || restoring || (e.type === 'mousedown' && e.button !== 0)) return;
       drawing = true;
+      hasStroke = false;
       const pos = getPos(e);
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
+      window.addEventListener('mouseup', endDraw);
+      window.addEventListener('touchend', endDraw);
+      window.addEventListener('touchcancel', endDraw);
+      window.addEventListener('blur', endDraw);
       e.preventDefault();
     };
 
     const draw = (e) => {
-      if (!drawing) return;
+      if (!drawing || !isCurrentPad()) return;
+      if (!hasStroke) {
+        pushUndo('Draw signature');
+        hasUserCustomizedData = true;
+        hasStroke = true;
+      }
       const pos = getPos(e);
       ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
@@ -6107,27 +6236,35 @@
     };
 
     const endDraw = () => {
+      window.removeEventListener('mouseup', endDraw);
+      window.removeEventListener('touchend', endDraw);
+      window.removeEventListener('touchcancel', endDraw);
+      window.removeEventListener('blur', endDraw);
       if (!drawing) return;
       drawing = false;
-      state.signatures[index].signature_data = padCanvas.toDataURL('image/png');
+      if (!hasStroke || !isCurrentPad()) return;
+      signature.signature_data = padCanvas.toDataURL('image/png');
       schedulePreview();
+      renderInteractiveOverlay();
     };
 
     padCanvas.addEventListener('mousedown', startDraw);
     padCanvas.addEventListener('mousemove', draw);
-    window.addEventListener('mouseup', endDraw);
-
-    padCanvas.addEventListener('touchstart', startDraw);
-    padCanvas.addEventListener('touchmove', draw);
-    window.addEventListener('touchend', endDraw);
+    padCanvas.addEventListener('touchstart', startDraw, { passive: false });
+    padCanvas.addEventListener('touchmove', draw, { passive: false });
 
     // Clear pad button
     const clearBtn = padCanvas.closest('.sig-block-card').querySelector('.btn-clear-pad');
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
+        if (!isCurrentPad() || !signature.signature_data) return;
+        pushUndo('Clear signature');
+        hasUserCustomizedData = true;
         ctx.clearRect(0, 0, padCanvas.width, padCanvas.height);
-        state.signatures[index].signature_data = null;
+        signature.signature_data = null;
+        restoring = false;
         schedulePreview();
+        renderInteractiveOverlay();
       });
     }
   }
@@ -6149,27 +6286,21 @@
           <button class="btn-delete-node btn-remove-sec" data-idx="${index}" title="Remove Section">×</button>
         </div>
         <div class="form-group">
-          <input type="text" class="form-input sec-title-input" data-idx="${index}" value="${sec.title || ''}" placeholder="Section Title (e.g. SCOPE OF SERVICES)">
+          <input type="text" class="form-input sec-title-input" data-idx="${index}" placeholder="Section Title (e.g. SCOPE OF SERVICES)">
         </div>
         <div class="form-group">
-          <textarea class="form-textarea sec-content-input" data-idx="${index}" rows="3" placeholder="Contractual terms, operational specifications, or findings...">${sec.content || ''}</textarea>
+          <textarea class="form-textarea sec-content-input" data-idx="${index}" rows="3" placeholder="Contractual terms, operational specifications, or findings..."></textarea>
         </div>
       `;
       container.appendChild(card);
     });
 
     container.querySelectorAll('.sec-title-input').forEach(input => {
-      input.addEventListener('input', (e) => {
-        state.sections[e.target.dataset.idx].title = e.target.value;
-        schedulePreview();
-      });
+      bindRepeatingField(input, 'sections', 'title');
     });
 
     container.querySelectorAll('.sec-content-input').forEach(input => {
-      input.addEventListener('input', (e) => {
-        state.sections[e.target.dataset.idx].content = e.target.value;
-        schedulePreview();
-      });
+      bindRepeatingField(input, 'sections', 'content');
     });
 
     container.querySelectorAll('.btn-remove-sec').forEach(btn => {
@@ -6206,25 +6337,19 @@
         ? 'custom-field-row anim-card-add-emerald'
         : 'custom-field-row anim-slide-in';
       row.innerHTML = `
-        <input type="text" class="form-input field-label-input" data-idx="${index}" value="${field.label || ''}" placeholder="Label (e.g. PO #)">
-        <input type="text" class="form-input field-value-input" data-idx="${index}" value="${field.value || ''}" placeholder="Value">
+        <input type="text" class="form-input field-label-input" data-idx="${index}" placeholder="Label (e.g. PO #)">
+        <input type="text" class="form-input field-value-input" data-idx="${index}" placeholder="Value">
         <button class="btn-delete-node btn-remove-field" data-idx="${index}" title="Remove Field">×</button>
       `;
       container.appendChild(row);
     });
 
     container.querySelectorAll('.field-label-input').forEach(input => {
-      input.addEventListener('input', (e) => {
-        state.custom_fields[e.target.dataset.idx].label = e.target.value;
-        schedulePreview();
-      });
+      bindRepeatingField(input, 'custom_fields', 'label');
     });
 
     container.querySelectorAll('.field-value-input').forEach(input => {
-      input.addEventListener('input', (e) => {
-        state.custom_fields[e.target.dataset.idx].value = e.target.value;
-        schedulePreview();
-      });
+      bindRepeatingField(input, 'custom_fields', 'value');
     });
 
     container.querySelectorAll('.btn-remove-field').forEach(btn => {
@@ -6259,12 +6384,13 @@
       tr.dataset.index = index;
       tr.innerHTML = `
         <td class="drag-handle-cell" title="Drag to reorder"><span class="drag-grip">⠿</span></td>
-        <td><input type="text" value="${escapeHtml(item.description)}" data-idx="${index}" class="item-desc"></td>
-        <td><input type="number" step="0.5" value="${item.quantity}" data-idx="${index}" class="item-qty" style="width: 55px;"></td>
-        <td><input type="number" step="1" value="${item.unit_price}" data-idx="${index}" class="item-rate" style="width: 70px;"></td>
-        <td class="item-amount-cell" style="text-align: right; font-weight: bold;">${formatAmountUi(lineItemAmount(item))}</td>
+        <td><input type="text" data-idx="${index}" class="item-desc"></td>
+        <td><input type="number" step="0.5" data-idx="${index}" class="item-qty" style="width: 55px;"></td>
+        <td><input type="number" step="1" data-idx="${index}" class="item-rate" style="width: 70px;"></td>
+        <td class="item-amount-cell" style="text-align: right; font-weight: bold;"></td>
         <td style="text-align: center;"><button class="btn-remove btn-delete-row" data-idx="${index}" title="Delete row">×</button></td>
       `;
+      tr.querySelector('.item-amount-cell').textContent = formatAmountUi(lineItemAmount(item));
 
       // Sidebar Table Drag and Drop
       tr.addEventListener('dragstart', (e) => {
@@ -6323,46 +6449,31 @@
     });
 
     itemsTbody.querySelectorAll('.item-desc').forEach(input => {
-      input.addEventListener('input', (e) => {
-        hasUserCustomizedData = true;
-        hasUserCustomizedItems = true;
-        state.items[e.target.dataset.idx].description = e.target.value;
-        schedulePreview();
-        renderInteractiveOverlay();
-      });
+      bindRepeatingField(input, 'items', 'description');
     });
 
     itemsTbody.querySelectorAll('.item-qty').forEach(input => {
-      input.addEventListener('input', (e) => {
-        hasUserCustomizedData = true;
-        hasUserCustomizedItems = true;
-        const idx = e.target.dataset.idx;
-        state.items[idx].quantity = parseFloat(e.target.value) || 0;
-        const row = e.target.closest('tr');
-        const amtCell = row && row.querySelector('.item-amount-cell');
-        if (amtCell) amtCell.textContent = formatAmountUi(lineItemAmount(state.items[idx]));
-        updateCalculations();
-        schedulePreview();
-        renderInteractiveOverlay();
+      bindRepeatingField(input, 'items', 'quantity', {
+        parseValue: value => parseFloat(value) || 0,
+        afterChange: item => {
+          const row = input.closest('tr');
+          const amtCell = row && row.querySelector('.item-amount-cell');
+          if (amtCell) amtCell.textContent = formatAmountUi(lineItemAmount(item));
+          updateCalculations();
+        }
       });
     });
 
     itemsTbody.querySelectorAll('.item-rate').forEach(input => {
-      input.addEventListener('input', (e) => {
-        hasUserCustomizedData = true;
-        hasUserCustomizedItems = true;
-        const idx = e.target.dataset.idx;
-        const val = parseFloat(e.target.value) || 0;
-        state.items[idx].unit_price = val;
-        if (val < 0) {
-          state.items[idx].discount = 0;
+      bindRepeatingField(input, 'items', 'unit_price', {
+        parseValue: value => parseFloat(value) || 0,
+        afterChange: (item, value) => {
+          if (value < 0) item.discount = 0;
+          const row = input.closest('tr');
+          const amtCell = row && row.querySelector('.item-amount-cell');
+          if (amtCell) amtCell.textContent = formatAmountUi(lineItemAmount(item));
+          updateCalculations();
         }
-        const row = e.target.closest('tr');
-        const amtCell = row && row.querySelector('.item-amount-cell');
-        if (amtCell) amtCell.textContent = formatAmountUi(lineItemAmount(state.items[idx]));
-        updateCalculations();
-        schedulePreview();
-        renderInteractiveOverlay();
       });
     });
 
@@ -6461,7 +6572,7 @@
   // Financial Calculations
   function updateCalculations() {
     const subtotal = computeSubtotalUi();
-    const tax = state.tax_rate ? subtotal * (state.tax_rate / 100.0) : 0.0;
+    const tax = computeTaxUi();
     const discount = state.discount_amount || 0.0;
     const rawTotal = subtotal + tax - discount;
     const grandTotal = allowsNegativeItems(state.doc_type) ? rawTotal : Math.max(0, rawTotal);
@@ -6478,34 +6589,17 @@
     const balanceDueDisplay = document.getElementById('balanceDueDisplay');
     const balanceDueLabel = document.getElementById('balanceDueLabel');
 
-    const isPaid = state.is_paid || state.payment_status === 'paid' || state.doc_type === 'receipt';
-    const isPartial = state.payment_status === 'partial' || (state.amount_paid !== undefined && state.amount_paid !== null && state.amount_paid > 0 && !isPaid);
-
-    if (isPaid) {
-      const paidAmt = state.amount_paid !== undefined && state.amount_paid !== null ? state.amount_paid : grandTotal;
-      if (amountPaidRow) amountPaidRow.style.display = 'flex';
-      if (amountPaidDisplay) animateNumberChange(amountPaidDisplay, formatAmountUi(paidAmt));
-      if (balanceDueRow) balanceDueRow.style.display = 'flex';
-      if (balanceDueDisplay) {
-        animateNumberChange(balanceDueDisplay, formatAmountUi(0.0));
-        balanceDueDisplay.style.color = '#10b981';
-      }
-      if (balanceDueLabel) balanceDueLabel.innerText = 'Balance Due (PAID)';
-    } else if (isPartial) {
-      const paidAmt = state.amount_paid || 0.0;
-      const remainingBalance = Math.max(0, grandTotal - paidAmt);
-      if (amountPaidRow) amountPaidRow.style.display = 'flex';
-      if (amountPaidDisplay) animateNumberChange(amountPaidDisplay, formatAmountUi(paidAmt));
-      if (balanceDueRow) balanceDueRow.style.display = 'flex';
-      if (balanceDueDisplay) {
-        animateNumberChange(balanceDueDisplay, formatAmountUi(remainingBalance));
-        balanceDueDisplay.style.color = remainingBalance === 0 ? '#10b981' : '#ef4444';
-      }
-      if (balanceDueLabel) balanceDueLabel.innerText = remainingBalance === 0 ? 'Balance Due (PAID)' : 'Remaining Balance';
-    } else {
-      if (amountPaidRow) amountPaidRow.style.display = 'none';
-      if (balanceDueRow) balanceDueRow.style.display = 'none';
+    const payment = paymentSummaryUi(grandTotal);
+    const showPayment = state.doc_type === 'receipt' || state.amount_paid != null || payment.isPaid || payment.status === 'partial';
+    if (amountPaidRow) amountPaidRow.style.display = showPayment ? 'flex' : 'none';
+    if (balanceDueRow) balanceDueRow.style.display = showPayment ? 'flex' : 'none';
+    if (amountPaidDisplay) animateNumberChange(amountPaidDisplay, formatAmountUi(payment.amountPaid));
+    if (balanceDueDisplay) {
+      animateNumberChange(balanceDueDisplay, formatAmountUi(payment.balanceDue));
+      balanceDueDisplay.style.color = payment.isPaid ? '#10b981' : 'var(--text-primary)';
     }
+    if (balanceDueLabel) balanceDueLabel.innerText = payment.isPaid ? 'Balance Due (PAID)' : 'Remaining Balance';
+    updateLifecycleUI();
 
     // Synchronize Studio Breadcrumbs
     const crumbCategory = document.getElementById('crumbCategory');
@@ -6525,8 +6619,7 @@
   // Debounced Live Preview
   function schedulePreview() {
     previewRevision += 1;
-    document.getElementById('btnExportPng').disabled = true;
-    document.getElementById('btnPrintDoc').disabled = true;
+    triggerPreviewCompilingAnimation();
     updateReviewSummary();
     updateWorkspaceNotice();
     if (dataMode === 'my_data') {
@@ -6648,12 +6741,12 @@
     const livePreviewImg = document.getElementById('previewImg') || previewImg;
     const pages = currentPages.length ? [...currentPages] : [livePreviewImg?.src].filter(Boolean);
     if (!pages.length) {
-      showUndoToast('Wait for the preview before printing.');
+      showUndoToast('Wait for the preview before printing.', false);
       return;
     }
     const win = window.open('', '_blank');
     if (!win) {
-      showUndoToast('Allow popups for Pressmark to open the print preview.');
+      showUndoToast('Allow popups for Pressmark to open the print preview.', false);
       return;
     }
     win.document.title = `Print ${state.doc_number || 'document'}`;
@@ -6670,7 +6763,7 @@
     Promise.all(images).then(() => {
       win.focus();
       win.print();
-    }).catch(() => showUndoToast('A page could not load for printing. Update the preview and try again.'));
+    }).catch(() => showUndoToast('A page could not load for printing. Update the preview and try again.', false));
   }
 
   // Modals & Photo Extractor
@@ -6745,6 +6838,12 @@
         });
       };
       checkFields(candidate, ['doc_type'], 'string', '', true);
+      const supportedTypes = new Set(Array.from(document.querySelectorAll('.template-pill'), pill => pill.dataset.type));
+      const documentType = resolveArchetypeSlug(candidate.doc_type);
+      if (!candidate.doc_type.trim() || !supportedTypes.has(documentType)) {
+        throw new Error('Choose a supported document type.');
+      }
+      candidate.doc_type = documentType;
       checkFields(candidate, [
         'title', 'doc_number', 'issue_date', 'due_date', 'theme', 'primary_color', 'secondary_color',
         'accent_color', 'surface_color', 'text_color', 'font_family', 'font_scale', 'paper_size', 'logo_data',
@@ -6757,9 +6856,18 @@
       ], 'string', '');
       checkFields(candidate, ['tax_rate', 'discount_amount', 'amount_paid', 'number_decimals', 'year_built'], 'number', '');
       ['number_decimals', 'year_built'].forEach(key => {
-        if (candidate[key] != null && (!Number.isInteger(candidate[key]) || candidate[key] < 0)) {
-          throw new Error(`“${key}” must be a nonnegative whole number.`);
+        const max = key === 'number_decimals' ? 255 : 4294967295;
+        if (candidate[key] != null && (!Number.isInteger(candidate[key]) || candidate[key] < 0 || candidate[key] > max)) {
+          throw new Error(`“${key}” must be a whole number between 0 and ${max}.`);
         }
+      });
+      if (candidate.number_decimals != null) candidate.number_decimals = Math.min(candidate.number_decimals, 4);
+      const checkPercentage = (value, label) => {
+        if (value != null && (value < 0 || value > 100)) throw new Error(`“${label}” must be between 0 and 100.`);
+      };
+      checkPercentage(candidate.tax_rate, 'tax_rate');
+      ['discount_amount', 'amount_paid'].forEach(key => {
+        if (candidate[key] != null && candidate[key] < 0) throw new Error(`“${key}” cannot be negative.`);
       });
       checkFields(candidate, [
         'show_page_numbers', 'show_footer_divider', 'is_paid', 'show_qr_seal', 'show_signature',
@@ -6785,6 +6893,16 @@
           checkFields(entry, fields.numbers || [], 'number', path, true);
           checkFields(entry, fields.optionalStrings || [], 'string', path);
           checkFields(entry, fields.optionalNumbers || [], 'number', path);
+          if (key === 'items') {
+            if (!allowsNegativeItems(candidate.doc_type) && (entry.quantity < 0 || entry.unit_price < 0)) {
+              throw new Error(`Line item ${index + 1} cannot have a negative quantity or price for this document type.`);
+            }
+            // The renderer treats a negative rate as a signed adjustment and
+            // ignores its discount; keep the imported state consistent.
+            if (entry.unit_price < 0) entry.discount = null;
+            if (entry.discount != null && entry.discount < 0) throw new Error(`“${path}discount” cannot be negative.`);
+            checkPercentage(entry.tax_rate, `${path}tax_rate`);
+          }
         });
       });
       return candidate;
