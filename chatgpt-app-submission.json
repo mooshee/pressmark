@@ -17,20 +17,21 @@
     "authentication": {
       "type": "none",
       "supports_guest": true,
-      "instructions": "Pressmark executes statelessly and does not require credentials for document compilation."
+      "instructions": "Document generation is available without credentials. When customer sync is enabled, generation can update customer records and start automated follow-up as described in the privacy policy."
     }
   },
   "tools": {
     "generate_document": {
       "annotations": {
-        "readOnlyHint": true,
-        "destructiveHint": false,
-        "openWorldHint": false
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       },
       "justifications": {
-        "read_only_justification": "Generates a vector PDF in memory; creates no external state mutations.",
-        "destructive_justification": "Non-destructive. Document generation produces an ephemeral artifact.",
-        "open_world_justification": "Does not access external web resources."
+        "read_only_justification": "Creates a PDF and, when customer sync is enabled, sends contact details and a document summary to Pressmark's customer records. It can update an opportunity and enroll the contact in follow-up workflows.",
+        "destructive_justification": "Customer sync can replace existing contact fields and update an existing opportunity's stage.",
+        "open_world_justification": "Configured customer sync sends records to Pressmark's external HighLevel account. Repeated calls can repeat updates and workflow enrollment attempts."
       }
     },
     "preview_document": {
@@ -147,8 +148,8 @@
     }
   ],
   "review_instructions": {
-    "test_account_credentials": "No credentials required. Pressmark operates statelessly and provides full compilation capability to guest users.",
+    "test_account_credentials": "Document generation is available without credentials. Use synthetic document details for review. A configured customer sync can use the signed-in email, otherwise the sender email, then the recipient email.",
     "video_walkthrough_url": "https://pressmark.dev/demo",
-    "data_safety_attestation": "Pressmark adheres to zero-retention ephemeral processing: no user documents, line items, or client details are stored or used for AI model training."
+    "data_safety_attestation": "Pressmark processes document details to render PDFs and previews. It retains account, billing, and usage records. When customer sync is enabled, it sends contact details, document summaries, and activity records to HighLevel and can start follow-up workflows. The document-generation sync does not send the PDF or line-item descriptions. See https://pressmark.dev/privacy."
   }
 }

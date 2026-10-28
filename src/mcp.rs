@@ -163,13 +163,13 @@ impl McpHandler {
             {
                 "name": "generate_document",
                 "title": "Generate Vector PDF Document",
-                "description": "Statelessly synthesize a vector PDF document (invoice, receipt, contract, NDA, or lease) in <25ms without mutating server records. Example: doc_type='invoice', generate_document({\"doc_type\":\"invoice\",\"from\":{\"name\":\"Acme\"},\"to\":{\"name\":\"Client\"}})",
+                "description": "Creates a PDF from the supplied document details. When customer sync is enabled, it also updates Pressmark's customer records with contact details and a document summary, and may start automated follow-up. It uses the signed-in email when available, otherwise the sender email, then the recipient email. See https://pressmark.dev/privacy for the fields shared.",
                 "annotations": {
                     "title": "Generate Vector PDF Document",
-                    "readOnlyHint": true,
-                    "destructiveHint": false,
-                    "idempotentHint": true,
-                    "openWorldHint": false
+                    "readOnlyHint": false,
+                    "destructiveHint": true,
+                    "idempotentHint": false,
+                    "openWorldHint": true
                 },
                 "inputSchema": {
                     "type": "object",
