@@ -169,3 +169,8 @@ cargo run --release
 ```
 
 Open `http://localhost:3842` in your browser for local development, or visit [https://pressmark.dev](https://pressmark.dev) for the live production studio.
+
+
+---
+
+Built and maintained by **[Moosh Works](https://mooshworks.com)**.

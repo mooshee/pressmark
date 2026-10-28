@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "description": "Vector PDF document engine for invoices, estimates, receipts, contracts & real estate agreements.",
+  "description": "Vector PDF synthesis for invoices, estimates, contracts, and real estate forms. (mooshworks.com)",
   "name": "io.github.mooshee/pressmark",
   "remotes": [
     {
@@ -13,6 +13,6 @@
     "url": "https://github.com/mooshee/pressmark"
   },
   "title": "Pressmark",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "websiteUrl": "https://pressmark.dev"
 }
