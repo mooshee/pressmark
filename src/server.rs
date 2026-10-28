@@ -14,7 +14,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::{Form, Json, Router};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use serde::Deserialize;
@@ -124,6 +124,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/states", get(handle_states_catalog))
         .route("/api/v1/pricing", get(handle_pricing))
         .route("/api/v1/checkout", get(handle_checkout_get).post(handle_checkout_post))
+        .route("/api/v1/checkout/continue", post(handle_checkout_continue))
         .route("/api/v1/setup-check", get(handle_setup_check))
         .route("/api/v1/analytics", get(handle_analytics))
         .route("/api/v1/openapi.json", get(handle_openapi))
@@ -779,6 +780,7 @@ async fn handle_pricing() -> impl IntoResponse {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct CheckoutRequest {
+    pub request_id: Option<String>,
     #[serde(alias = "plan")]
     pub plan_id: Option<String>,
     pub price_id: Option<String>,
@@ -804,6 +806,8 @@ fn dispatch_checkout_to_ghl_if_configured(
     let candidate_email = req
         .email
         .as_deref()
+        .map(str::trim)
+        .filter(|email| !email.is_empty())
         .or_else(|| {
             req.client_reference_id
                 .as_deref()
@@ -868,11 +872,12 @@ fn resolve_checkout_response(req: &CheckoutRequest) -> serde_json::Value {
 
     let checkout_url = crate::pricing::generate_checkout_url(
         &matched.stripe_price_id,
-        req.client_reference_id.as_deref(),
+        req.client_reference_id.as_deref().filter(|reference| !reference.is_empty()),
     );
 
     serde_json::json!({
         "success": true,
+        "request_id": req.request_id.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
         "plan_id": matched.id,
         "plan_name": matched.name,
         "price_display": matched.price_display,
@@ -885,44 +890,69 @@ fn resolve_checkout_response(req: &CheckoutRequest) -> serde_json::Value {
 }
 
 async fn handle_checkout_get(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Query(req): Query<CheckoutRequest>,
 ) -> Response {
     let payload = resolve_checkout_response(&req);
-    let user_agent = headers
-        .get(header::USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    let is_redirect = req.redirect.unwrap_or(false);
-    if !crate::storage::Storage::is_crawler_bot_ua(user_agent) {
-        let checkout_channel = if crate::storage::Storage::is_internal_probe_ua(user_agent) {
-            "stripe_probe"
-        } else {
-            "stripe"
-        };
-        state.storage.record_usage_event(
-            "checkout_init",
-            None,
-            checkout_channel,
-            payload["plan_id"].as_str(),
-            None,
-        );
-        dispatch_checkout_to_ghl_if_configured(&state, &headers, &req, &payload);
-    }
-    if is_redirect {
-        if let Some(url) = payload["checkout_url"].as_str() {
-            return axum::response::Redirect::to(url).into_response();
-        }
-    }
-    (StatusCode::OK, Json(payload)).into_response()
+    // Link previews, crawlers and browser prefetches must not start a checkout or notify CRM.
+    let mut response = if req.redirect.unwrap_or(false) {
+        Html(checkout_review_page(&req, &payload)).into_response()
+    } else {
+        Json(payload).into_response()
+    };
+    response.headers_mut().insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
+    response.headers_mut().insert("x-robots-tag", "noindex, nofollow".parse().unwrap());
+    response
+}
+
+fn checkout_html(value: &str) -> String {
+    value.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+        .replace('"', "&quot;").replace('\'', "&#39;")
+}
+
+fn checkout_review_page(req: &CheckoutRequest, payload: &serde_json::Value) -> String {
+    let value = |key: &str| checkout_html(payload[key].as_str().unwrap_or(""));
+    let reference = checkout_html(req.client_reference_id.as_deref().unwrap_or(""));
+    let email = checkout_html(req.email.as_deref().unwrap_or(""));
+    let price = match payload["interval"].as_str() {
+        Some("month") => format!("{} USD per month", value("price_display")),
+        Some("one-time") => format!("{} USD one time", value("price_display")),
+        _ => format!("{} USD", value("price_display")),
+    };
+    format!(r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Review your plan | Pressmark</title><style>body{{margin:0;background:#f6f8fb;color:#182235;font:16px/1.5 system-ui,sans-serif}}main{{max-width:460px;margin:10vh auto;padding:32px;background:white;border:1px solid #dce2eb;border-radius:16px}}h1{{font-size:28px;line-height:1.2}}.brand{{font-weight:700;color:#2541a8}}.price{{font-size:24px;font-weight:600}}button{{width:100%;padding:14px;border:0;border-radius:8px;background:#2847bf;color:white;font:inherit;font-weight:600;cursor:pointer}}button:focus-visible,a:focus-visible{{outline:3px solid #4876e8;outline-offset:3px}}a{{color:#2541a8}}@media(max-width:540px){{main{{margin:24px 16px;padding:24px}}}}</style></head><body><main><p class="brand">Pressmark</p><h1>Review your plan</h1><h2>{name}</h2><p class="price">{price}</p><p>Continue to Stripe to enter your payment details and confirm your purchase.</p><form method="post" action="/api/v1/checkout/continue"><input type="hidden" name="request_id" value="{request_id}"><input type="hidden" name="plan_id" value="{plan_id}"><input type="hidden" name="client_reference_id" value="{reference}"><input type="hidden" name="email" value="{email}"><button type="submit">Continue to payment</button></form><p><a href="/pricing">Back to Pressmark</a></p></main></body></html>"#,
+        name = value("plan_name"), price = price,
+        request_id = value("request_id"), plan_id = value("plan_id"),
+    )
 }
 
 async fn handle_checkout_post(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(req): Json<CheckoutRequest>,
-) -> impl IntoResponse {
+) -> Response {
+    continue_checkout(&state, &headers, req, false)
+}
+
+async fn handle_checkout_continue(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Form(req): Form<CheckoutRequest>,
+) -> Response {
+    continue_checkout(&state, &headers, req, true)
+}
+
+fn continue_checkout(state: &AppState, headers: &HeaderMap, req: CheckoutRequest, redirect: bool) -> Response {
+    let origin = headers.get(header::ORIGIN).and_then(|value| value.to_str().ok());
+    let same_origin = origin.and_then(|value| reqwest::Url::parse(value).ok())
+        .zip(reqwest::Url::parse(&state.base_url).ok())
+        .is_some_and(|(origin, base)| origin.origin() == base.origin());
+    if (origin.is_some() && !same_origin) || (redirect && !same_origin) {
+        return (StatusCode::FORBIDDEN, Json(serde_json::json!({"error":"checkout_origin_rejected"}))).into_response();
+    }
+    let Some(request_id) = req.request_id.as_deref().filter(|id| uuid::Uuid::parse_str(id).is_ok()) else {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({
+            "error": "checkout_request_id_required", "message": "Read the checkout endpoint first and reuse its request_id when submitting or retrying."
+        }))).into_response();
+    };
     let payload = resolve_checkout_response(&req);
     let user_agent = headers
         .get(header::USER_AGENT)
@@ -934,16 +964,24 @@ async fn handle_checkout_post(
         } else {
             "stripe"
         };
-        state.storage.record_usage_event(
-            "checkout_init",
-            None,
-            checkout_channel,
-            payload["plan_id"].as_str(),
-            None,
-        );
-        dispatch_checkout_to_ghl_if_configured(&state, &headers, &req, &payload);
+        use sha2::{Digest, Sha256};
+        let email = req.email.as_deref().map(str::trim).filter(|email| !email.is_empty()).map(str::to_lowercase);
+        let fingerprint = hex::encode(Sha256::digest(serde_json::json!([
+            payload["plan_id"], payload["checkout_url"], email
+        ]).to_string().as_bytes()));
+        match state.storage.record_checkout_start(request_id, &fingerprint, payload["plan_id"].as_str().unwrap_or(""), checkout_channel) {
+            Ok(crate::storage::CheckoutStart::Created) => dispatch_checkout_to_ghl_if_configured(state, headers, &req, &payload),
+            Ok(crate::storage::CheckoutStart::Replayed) => {},
+            Ok(crate::storage::CheckoutStart::Conflict) => return (StatusCode::CONFLICT, Json(serde_json::json!({"error":"checkout_request_changed"}))).into_response(),
+            Err(_) => return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error":"checkout_record_unavailable"}))).into_response(),
+        }
     }
-    (StatusCode::OK, Json(payload))
+    if redirect {
+        if let Some(url) = payload["checkout_url"].as_str() {
+            return axum::response::Redirect::to(url).into_response();
+        }
+    }
+    (StatusCode::OK, Json(payload)).into_response()
 }
 
 async fn handle_favicon() -> impl IntoResponse {

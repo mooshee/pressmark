@@ -288,8 +288,13 @@ pub fn process_stripe_event(event: StripeEvent) -> Result<FulfillmentAction, Str
                 unlocked_tier: tier,
             })
         }
-        "checkout.session.completed" => {
+        "checkout.session.completed" | "checkout.session.async_payment_succeeded" => {
             let obj = &event.data.object;
+            // Completed can mean an asynchronous payment is still pending. Never grant
+            // paid access until Stripe reports settlement; later success has its own event.
+            if obj["payment_status"].as_str() != Some("paid") {
+                return Ok(FulfillmentAction::Ignored { event_type: event.r#type });
+            }
             let session_id = obj["id"].as_str().unwrap_or(&event.id).to_string();
             let amount_total_cents = obj["amount_total"].as_u64().unwrap_or(0);
             let customer_email = obj["customer_details"]["email"]

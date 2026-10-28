@@ -1237,6 +1237,7 @@ async fn test_setup_check_checkout_entitlement_and_discovery_routes() {
             "object": {
                 "id": "cs_live_business_001",
                 "amount_total": 4900,
+                "payment_status": "paid",
                 "customer_details": {
                     "email": "billing.upgrade@pressmark.dev"
                 }
@@ -1412,7 +1413,7 @@ async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
     let res_mcp_gen = router.clone().oneshot(req_mcp_gen).await.unwrap();
     assert_eq!(res_mcp_gen.status(), StatusCode::OK);
 
-    // Crawler bot hitting /api/v1/checkout should NOT record checkout_init, while organic browser does
+    // Both crawler and browser GETs only review checkout; explicit POST records intent.
     let req_bot_checkout = Request::builder()
         .uri("/api/v1/checkout?plan=pass_single_unlock&redirect=true")
         .method("GET")
@@ -1420,7 +1421,7 @@ async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
         .body(Body::empty())
         .unwrap();
     let res_bot_checkout = router.clone().oneshot(req_bot_checkout).await.unwrap();
-    assert_eq!(res_bot_checkout.status(), StatusCode::SEE_OTHER);
+    assert_eq!(res_bot_checkout.status(), StatusCode::OK);
 
     let req_org_checkout = Request::builder()
         .uri("/api/v1/checkout?plan=pass_single_unlock&redirect=true")
@@ -1429,7 +1430,18 @@ async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
         .body(Body::empty())
         .unwrap();
     let res_org_checkout = router.clone().oneshot(req_org_checkout).await.unwrap();
-    assert_eq!(res_org_checkout.status(), StatusCode::SEE_OTHER);
+    assert_eq!(res_org_checkout.status(), StatusCode::OK);
+
+    let req_checkout_start = Request::builder()
+        .uri("/api/v1/checkout")
+        .method("POST")
+        .header("content-type", "application/json")
+        .header("user-agent", "Mozilla/5.0")
+        .body(Body::from(serde_json::json!({
+            "plan": "pass_single_unlock", "request_id": uuid::Uuid::new_v4().to_string()
+        }).to_string()))
+        .unwrap();
+    assert_eq!(router.clone().oneshot(req_checkout_start).await.unwrap().status(), StatusCode::OK);
 
     // Crawler bot and internal probe hitting /templates/residential-lease
     let req_bot_tpl = Request::builder()
