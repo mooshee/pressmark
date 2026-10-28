@@ -8,7 +8,7 @@
 //! 3. Stripe webhook idempotency event tracking
 
 use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, OptionalExtension, Result};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -18,6 +18,13 @@ use crate::auth::{ChatGptSession, PendingAuth};
 pub struct Storage {
     conn: Arc<Mutex<Connection>>,
     db_path: PathBuf,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum CheckoutStart {
+    Created,
+    Replayed,
+    Conflict,
 }
 
 impl Storage {
@@ -107,6 +114,12 @@ impl Storage {
                 processed_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_processed_stripe_at ON processed_stripe_events(processed_at);
+
+            CREATE TABLE IF NOT EXISTS checkout_starts (
+                request_id TEXT PRIMARY KEY,
+                request_fingerprint TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
 
             CREATE TABLE IF NOT EXISTS customer_entitlements (
                 email TEXT PRIMARY KEY,
@@ -563,6 +576,43 @@ impl Storage {
         } else {
             "external_organic"
         }
+    }
+
+    /// Atomically record an explicit checkout action once. Only a request hash is retained.
+    pub fn record_checkout_start(
+        &self,
+        request_id: &str,
+        request_fingerprint: &str,
+        plan_id: &str,
+        channel: &str,
+    ) -> Result<CheckoutStart> {
+        let mut lock = self.conn.lock().unwrap();
+        let transaction = lock.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let existing: Option<String> = transaction
+            .query_row(
+                "SELECT request_fingerprint FROM checkout_starts WHERE request_id = ?1",
+                [request_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if let Some(existing) = existing {
+            return Ok(if existing == request_fingerprint {
+                CheckoutStart::Replayed
+            } else {
+                CheckoutStart::Conflict
+            });
+        }
+        let now = Utc::now().to_rfc3339();
+        transaction.execute(
+            "INSERT INTO checkout_starts (request_id, request_fingerprint, created_at) VALUES (?1, ?2, ?3)",
+            params![request_id, request_fingerprint, now],
+        )?;
+        transaction.execute(
+            "INSERT INTO usage_events (event_type, channel, detail, created_at) VALUES ('checkout_init', ?1, ?2, ?3)",
+            params![channel, plan_id, now],
+        )?;
+        transaction.commit()?;
+        Ok(CheckoutStart::Created)
     }
 
     pub fn record_usage_event(
