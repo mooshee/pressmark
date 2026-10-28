@@ -1646,91 +1646,79 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         _ => {
             // Standard Invoicing, Quotes, POs, Receipts, Work Orders, Bill of Sale, Expense Report
-            let show_num = req.show_line_numbers.unwrap_or(false);
-            if show_num {
-                markup.push_str("#table(\n");
-                markup.push_str("  columns: (auto, 1fr, auto, auto, auto),\n");
-                markup.push_str(&format!("  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n", secondary_hex));
-                markup.push_str(&format!("  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n", secondary_hex, surface_hex));
-                markup.push_str("  inset: (x: 7pt, y: 6.5pt),\n");
-                markup.push_str("  align: (col, row) => if col <= 1 { left + horizon } else { right + horizon },\n");
-                markup.push_str("  table.header(\n");
-                markup.push_str("    [*\\#*], [*Description*], [*Qty / Hrs*], [*Unit Price*], [*Total Amount*]\n");
-                markup.push_str("  ),\n");
+            if !req.items.is_empty() {
+                let show_num = req.show_line_numbers.unwrap_or(false);
+                if show_num {
+                    markup.push_str("#table(\n");
+                    markup.push_str("  columns: (auto, 1fr, auto, auto, auto),\n");
+                    markup.push_str(&format!("  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n", secondary_hex));
+                    markup.push_str(&format!("  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n", secondary_hex, surface_hex));
+                    markup.push_str("  inset: (x: 7pt, y: 6.5pt),\n");
+                    markup.push_str("  align: (col, row) => if col <= 1 { left + horizon } else { right + horizon },\n");
+                    markup.push_str("  table.header(\n");
+                    markup.push_str("    [*\\#*], [*Description*], [*Qty / Hrs*], [*Unit Price*], [*Total Amount*]\n");
+                    markup.push_str("  ),\n");
 
-                for (idx, item) in req.items.iter().enumerate() {
-                    let amount = item.amount();
-                    let unit_label = req.unit_measure.as_deref().unwrap_or("");
-                    let qty_str = if unit_label.is_empty() {
-                        format!("{:.1}", item.quantity)
-                    } else {
-                        format!("{:.1} {}", item.quantity, escape_typst_text(unit_label))
-                    };
-                    let desc_str = if let Some(d) = item.discount.filter(|&d| d > 0.0) {
-                        format!(
-                            "{} #text(size: 7.5pt, fill: rgb(\"#64748b\"))[(Less {} discount)]",
-                            escape_typst_text(&item.description),
-                            req.format_amount_typst(d)
-                        )
-                    } else {
-                        escape_typst_text(&item.description)
-                    };
-                    markup.push_str(&format!(
-                        "  [{}], [{}], [{}], [{}], [{}],\n",
-                        idx + 1, desc_str, qty_str, req.format_amount_typst(item.unit_price), req.format_amount_typst(amount)
-                    ));
+                    for (idx, item) in req.items.iter().enumerate() {
+                        let amount = item.amount();
+                        let unit_label = req.unit_measure.as_deref().unwrap_or("");
+                        let qty_str = if unit_label.is_empty() {
+                            format!("{:.1}", item.quantity)
+                        } else {
+                            format!("{:.1} {}", item.quantity, escape_typst_text(unit_label))
+                        };
+                        let desc_str = if let Some(d) = item.discount.filter(|&d| d > 0.0) {
+                            format!(
+                                "{} #text(size: 7.5pt, fill: rgb(\"#64748b\"))[(Less {} discount)]",
+                                escape_typst_text(&item.description),
+                                req.format_amount_typst(d)
+                            )
+                        } else {
+                            escape_typst_text(&item.description)
+                        };
+                        markup.push_str(&format!(
+                            "  [{}], [{}], [{}], [{}], [{}],\n",
+                            idx + 1, desc_str, qty_str, req.format_amount_typst(item.unit_price), req.format_amount_typst(amount)
+                        ));
+                    }
+
+                    markup.push_str(")\n\n");
+                } else {
+                    markup.push_str("#table(\n");
+                    markup.push_str("  columns: (1fr, auto, auto, auto),\n");
+                    markup.push_str(&format!("  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n", secondary_hex));
+                    markup.push_str(&format!("  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n", secondary_hex, surface_hex));
+                    markup.push_str("  inset: (x: 8pt, y: 7pt),\n");
+                    markup.push_str("  align: (col, row) => if col == 0 { left + horizon } else { right + horizon },\n");
+                    markup.push_str("  table.header(\n");
+                    markup.push_str("    [*Description*], [*Qty / Hrs*], [*Unit Price*], [*Total Amount*]\n");
+                    markup.push_str("  ),\n");
+
+                    for item in &req.items {
+                        let amount = item.amount();
+                        let unit_label = req.unit_measure.as_deref().unwrap_or("");
+                        let qty_str = if unit_label.is_empty() {
+                            format!("{:.1}", item.quantity)
+                        } else {
+                            format!("{:.1} {}", item.quantity, escape_typst_text(unit_label))
+                        };
+                        let desc_str = if let Some(d) = item.discount.filter(|&d| d > 0.0) {
+                            format!(
+                                "{} #text(size: 7.5pt, fill: rgb(\"#64748b\"))[(Less {} discount)]",
+                                escape_typst_text(&item.description),
+                                req.format_amount_typst(d)
+                            )
+                        } else {
+                            escape_typst_text(&item.description)
+                        };
+                        markup.push_str(&format!(
+                            "  [{}], [{}], [{}], [{}],\n",
+                            desc_str, qty_str, req.format_amount_typst(item.unit_price), req.format_amount_typst(amount)
+                        ));
+                    }
+
+                    markup.push_str(")\n\n");
                 }
-
-                if req.items.is_empty() {
-                    markup.push_str(&format!(
-                        "  [1], [Professional Services & Engineering Consulting], [1.0], [{}], [{}],\n",
-                        req.format_amount_typst(500.0), req.format_amount_typst(500.0)
-                    ));
-                }
-
-                markup.push_str(")\n\n");
-            } else {
-                markup.push_str("#table(\n");
-                markup.push_str("  columns: (1fr, auto, auto, auto),\n");
-                markup.push_str(&format!("  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n", secondary_hex));
-                markup.push_str(&format!("  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n", secondary_hex, surface_hex));
-                markup.push_str("  inset: (x: 8pt, y: 7pt),\n");
-                markup.push_str("  align: (col, row) => if col == 0 { left + horizon } else { right + horizon },\n");
-                markup.push_str("  table.header(\n");
-                markup.push_str("    [*Description*], [*Qty / Hrs*], [*Unit Price*], [*Total Amount*]\n");
-                markup.push_str("  ),\n");
-
-                for item in &req.items {
-                    let amount = item.amount();
-                    let unit_label = req.unit_measure.as_deref().unwrap_or("");
-                    let qty_str = if unit_label.is_empty() {
-                        format!("{:.1}", item.quantity)
-                    } else {
-                        format!("{:.1} {}", item.quantity, escape_typst_text(unit_label))
-                    };
-                    let desc_str = if let Some(d) = item.discount.filter(|&d| d > 0.0) {
-                        format!(
-                            "{} #text(size: 7.5pt, fill: rgb(\"#64748b\"))[(Less {} discount)]",
-                            escape_typst_text(&item.description),
-                            req.format_amount_typst(d)
-                        )
-                    } else {
-                        escape_typst_text(&item.description)
-                    };
-                    markup.push_str(&format!(
-                        "  [{}], [{}], [{}], [{}],\n",
-                        desc_str, qty_str, req.format_amount_typst(item.unit_price), req.format_amount_typst(amount)
-                    ));
-                }
-
-                if req.items.is_empty() {
-                    markup.push_str(&format!(
-                        "  [Professional Services & Engineering Consulting], [1.0], [{}], [{}],\n",
-                        req.format_amount_typst(500.0), req.format_amount_typst(500.0)
-                    ));
-                }
-
-                markup.push_str(")\n\n");
             }
 
             render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Total Due:");

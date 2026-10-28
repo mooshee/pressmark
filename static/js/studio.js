@@ -292,6 +292,7 @@
     header: {
       name: 'Document Header & Identity',
       universal: true,
+      canDelete: true,
       variants: [
         { id: 'standard', label: 'Standard Clean Header' },
         { id: 'minimal', label: 'Minimalist Direct' },
@@ -313,6 +314,7 @@
     from: {
       name: 'Issuer Party Card',
       universal: true,
+      canDelete: true,
       variants: [
         { id: 'standard', label: 'Standard Identity Card' },
         { id: 'badged', label: 'Badged Primary Bar' },
@@ -323,6 +325,7 @@
     to: {
       name: 'Recipient Party Card',
       universal: true,
+      canDelete: true,
       variants: [
         { id: 'standard', label: 'Standard Recipient Card' },
         { id: 'badged', label: 'Badged Secondary Bar' },
@@ -339,6 +342,7 @@
     totals: {
       name: 'Financial Summary & Totals',
       universal: false,
+      canDelete: true,
       variants: [
         { id: 'standard', label: 'Standard Balanced Totals' },
         { id: 'compact', label: 'Compact Totals Bar' },
@@ -950,15 +954,23 @@
         <span class="itb-btn" data-action="edit" title="Scroll to form">✏️ Edit</span>
         <span class="itb-btn itb-btn-danger" data-action="delete" title="Delete instance (Del / Backspace)">🗑️ Delete</span>
       `;
+    } else if (type === 'custom_field') {
+      buttonsHtml = `
+        <span class="itb-title">🏷️ Field #${index + 1}</span>
+        <span class="itb-btn" data-action="edit" title="Scroll to form">✏️ Edit</span>
+        <span class="itb-btn itb-btn-danger" data-action="delete" title="Delete instance (Del / Backspace)">🗑️ Delete</span>
+      `;
     } else if (['notes', 'terms', 'remittance', 'compliance'].includes(type)) {
       buttonsHtml = `
         <span class="itb-title">⚙️ ${type.toUpperCase()}</span>
+        <span class="itb-btn" data-action="edit" title="Scroll to form">✏️ Edit</span>
         <span class="itb-btn itb-btn-danger" data-action="delete" title="Delete instance (Del / Backspace)">🗑️ Remove</span>
       `;
     } else {
       buttonsHtml = `
         <span class="itb-title">📝 ${labelText || type}</span>
         <span class="itb-btn" data-action="edit">✏️ Edit in Form</span>
+        <span class="itb-btn itb-btn-danger" data-action="delete" title="Clear section (Del / Backspace)">🗑️ Clear</span>
       `;
     }
     toolbar.innerHTML = buttonsHtml;
@@ -1019,7 +1031,7 @@
         dockBtnDup.style.display = (comp && comp.canDuplicate) ? 'inline-flex' : 'none';
       }
       if (btnDel) {
-        const canDel = (comp && comp.canDelete) || ['item', 'section', 'signature', 'custom_field', 'notes', 'terms', 'remittance', 'compliance'].includes(type);
+        const canDel = (comp && comp.canDelete) || ['item', 'section', 'signature', 'custom_field', 'notes', 'terms', 'remittance', 'compliance', 'from', 'to', 'header', 'totals'].includes(type);
         btnDel.style.display = canDel ? 'inline-flex' : 'none';
       }
     }
@@ -1035,6 +1047,14 @@
     selectedElement = null;
     const selBar = document.getElementById('selectionActionBar');
     if (selBar) selBar.style.display = 'none';
+  }
+
+  function flushPreviewNow() {
+    if (dataMode === 'my_data') {
+      autoSaveUserDocument();
+    }
+    clearTimeout(debounceTimer);
+    requestPreview();
   }
 
   function deleteSelectedElement() {
@@ -1059,9 +1079,11 @@
 
     // Clean up selection pips & toolbar right away so only the card animates out
     deselectElement();
+    hasUserCustomizedData = true;
 
     if (type === 'item') {
       if (state.items.length === 0) return;
+      hasUserCustomizedItems = true;
       const rows = itemsTbody.querySelectorAll('tr');
       if (rows[index]) rows[index].classList.add('anim-row-delete-crimson');
 
@@ -1072,9 +1094,9 @@
         renderLineItemsTable();
         updateCalculations();
         renderInteractiveOverlay();
-        schedulePreview();
+        flushPreviewNow();
         showUndoToast(`🗑️ Deleted Item · [↩ Undo]`);
-      }, 320);
+      }, 120);
     } else if (type === 'section') {
       if (state.sections.length === 0) return;
       const secCards = document.querySelectorAll('#sectionsContainer .section-card');
@@ -1086,9 +1108,9 @@
         state.sections.splice(index, 1);
         renderSectionsList();
         renderInteractiveOverlay();
-        schedulePreview();
+        flushPreviewNow();
         showUndoToast(`🗑️ Deleted Section · [↩ Undo]`);
-      }, 320);
+      }, 120);
     } else if (type === 'signature') {
       if (state.signatures.length === 0) return;
       const sigCards = document.querySelectorAll('#signaturesContainer .sig-block-card');
@@ -1098,11 +1120,18 @@
         const removed = state.signatures[index];
         pushUndo(`Deleted Signatory "${(removed && removed.signer_name) || index + 1}"`);
         state.signatures.splice(index, 1);
+        if (state.signatures.length === 0) {
+          state.signer_name = '';
+          state.signature_data = null;
+          state.show_signature = false;
+          const toggleSig = document.getElementById('toggleSignature');
+          if (toggleSig) toggleSig.checked = false;
+        }
         renderSignaturesList();
         renderInteractiveOverlay();
-        schedulePreview();
+        flushPreviewNow();
         showUndoToast(`🗑️ Deleted Signatory · [↩ Undo]`);
-      }, 320);
+      }, 120);
     } else if (type === 'custom_field') {
       if (state.custom_fields.length === 0) return;
       const fieldRows = document.querySelectorAll('#customFieldsContainer .custom-field-row');
@@ -1114,9 +1143,9 @@
         state.custom_fields.splice(index, 1);
         renderCustomFieldsList();
         renderInteractiveOverlay();
-        schedulePreview();
+        flushPreviewNow();
         showUndoToast(`🗑️ Deleted Field · [↩ Undo]`);
-      }, 320);
+      }, 120);
     } else if (type === 'notes') {
       setTimeout(() => {
         pushUndo('Cleared Payment Notes');
@@ -1124,9 +1153,9 @@
         const el = document.getElementById('notesInput');
         if (el) el.value = '';
         renderInteractiveOverlay();
-        schedulePreview();
+        flushPreviewNow();
         showUndoToast('🗑️ Cleared Notes · [↩ Undo]');
-      }, 320);
+      }, 120);
     } else if (type === 'terms') {
       setTimeout(() => {
         pushUndo('Cleared Terms & Conditions');
@@ -1134,9 +1163,9 @@
         const el = document.getElementById('termsInput');
         if (el) el.value = '';
         renderInteractiveOverlay();
-        schedulePreview();
+        flushPreviewNow();
         showUndoToast('🗑️ Cleared Terms · [↩ Undo]');
-      }, 320);
+      }, 120);
     } else if (type === 'remittance') {
       setTimeout(() => {
         pushUndo('Removed Remittance Stub');
@@ -1144,9 +1173,9 @@
         const el = document.getElementById('toggleRemittance');
         if (el) el.checked = false;
         renderInteractiveOverlay();
-        schedulePreview();
+        flushPreviewNow();
         showUndoToast('🗑️ Removed Remittance Stub · [↩ Undo]');
-      }, 320);
+      }, 120);
     } else if (type === 'compliance') {
       setTimeout(() => {
         pushUndo('Removed Compliance Regime');
@@ -1154,9 +1183,48 @@
         const el = document.getElementById('complianceSelect');
         if (el) el.value = 'none';
         renderInteractiveOverlay();
-        schedulePreview();
+        flushPreviewNow();
         showUndoToast('🗑️ Removed Compliance · [↩ Undo]');
-      }, 320);
+      }, 120);
+    } else if (type === 'from') {
+      setTimeout(() => {
+        pushUndo('Cleared Issuer (From)');
+        state.from = { name: '', company: '', address: '', email: '', phone: '', tax_id: '', website: '', registration_number: '' };
+        syncFormFromState();
+        renderInteractiveOverlay();
+        flushPreviewNow();
+        showUndoToast('🗑️ Cleared Issuer · [↩ Undo]');
+      }, 120);
+    } else if (type === 'to') {
+      setTimeout(() => {
+        pushUndo('Cleared Recipient (To)');
+        state.to = { name: '', company: '', address: '', email: '', phone: '', tax_id: '', website: '', registration_number: '' };
+        syncFormFromState();
+        renderInteractiveOverlay();
+        flushPreviewNow();
+        showUndoToast('🗑️ Cleared Recipient · [↩ Undo]');
+      }, 120);
+    } else if (type === 'header') {
+      setTimeout(() => {
+        pushUndo('Cleared Header Subtitle');
+        state.header_subtitle = '';
+        state.logo_data = null;
+        syncFormFromState();
+        renderInteractiveOverlay();
+        flushPreviewNow();
+        showUndoToast('🗑️ Cleared Header Subtitle · [↩ Undo]');
+      }, 120);
+    } else if (type === 'totals') {
+      setTimeout(() => {
+        pushUndo('Reset Tax & Discount');
+        state.tax_rate = 0;
+        state.discount_amount = 0;
+        syncFormFromState();
+        updateCalculations();
+        renderInteractiveOverlay();
+        flushPreviewNow();
+        showUndoToast('🗑️ Reset Tax & Discount · [↩ Undo]');
+      }, 120);
     }
   }
 
@@ -1226,7 +1294,7 @@
     }
 
     // Activate the appropriate tab
-    if (['item', 'header', 'from', 'to', 'metadata'].includes(type)) {
+    if (['item', 'header', 'from', 'to', 'metadata', 'custom_field', 'totals'].includes(type)) {
       switchSidebarTab('content');
     } else if (['section', 'signature', 'notes', 'terms', 'compliance', 'remittance', 'watermark'].includes(type)) {
       switchSidebarTab('legal');
@@ -1266,6 +1334,19 @@
         cont.closest('.control-card').classList.remove('collapsed');
         cont.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
+    } else if (type === 'custom_field') {
+      const cont = document.getElementById('customFieldsContainer');
+      if (cont) {
+        cont.closest('.control-card').classList.remove('collapsed');
+        cont.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const fieldRow = cont.querySelectorAll('.custom-field-row')[index];
+        if (fieldRow) {
+          fieldRow.classList.add('pulse');
+          setTimeout(() => fieldRow.classList.remove('pulse'), 1200);
+          const input = fieldRow.querySelector('.field-value-input');
+          if (input) input.focus();
+        }
+      }
     } else if (type === 'from' || type === 'to') {
       const el = document.getElementById(type === 'from' ? 'fromName' : 'toName');
       if (el) {
@@ -1275,6 +1356,20 @@
       }
     } else if (type === 'header') {
       const el = document.getElementById('docTitle');
+      if (el) {
+        el.closest('.control-card').classList.remove('collapsed');
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus();
+      }
+    } else if (type === 'totals') {
+      const el = document.getElementById('taxRateInput');
+      if (el) {
+        el.closest('.control-card').classList.remove('collapsed');
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus();
+      }
+    } else if (type === 'notes' || type === 'terms') {
+      const el = document.getElementById(type === 'notes' ? 'notesInput' : 'termsInput');
       if (el) {
         el.closest('.control-card').classList.remove('collapsed');
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2333,8 +2428,11 @@
   }
 
   function triggerPreviewCompilingAnimation() {
-    previewDocWrapper.classList.add('compiling-pulse');
-    previewDocWrapper.classList.add('is-compiling');
+    const wrapper = document.getElementById('previewDocWrapper') || previewDocWrapper;
+    if (wrapper) {
+      wrapper.classList.add('compiling-pulse');
+      wrapper.classList.add('is-compiling');
+    }
     compileTelemetry.classList.add('pulse');
     compileTelemetry.innerHTML = '⚡ Compiling vector document...';
   }
@@ -2621,6 +2719,10 @@
     // Add Signatory button
     document.getElementById('btnAddSignature').addEventListener('click', () => {
       pushUndo('Add Signatory');
+      hasUserCustomizedData = true;
+      state.show_signature = true;
+      const toggleSig = document.getElementById('toggleSignature');
+      if (toggleSig) toggleSig.checked = true;
       state.signatures.push({
         signer_name: '',
         signer_title: 'Authorized Signatory',
@@ -5151,13 +5253,18 @@
       img.alt = `Live Document Preview - Page ${pageIdx + 1}`;
       buffer.appendChild(img);
     } else if (!currentImg.getAttribute('src')) {
+      if (isPrimary) currentImg.id = 'previewImg';
       currentImg.className = 'preview-doc-image preview-layer-current';
       currentImg.src = uri;
     } else if (currentImg.src !== uri && uri) {
+      const reqSeq = (buffer._reqSeq || 0) + 1;
+      buffer._reqSeq = reqSeq;
       if (buffer._crossfadeTimer) {
         clearTimeout(buffer._crossfadeTimer);
         buffer._crossfadeTimer = null;
       }
+      currentImg.classList.remove('preview-layer-next', 'preview-layer-fade-in', 'preview-layer-fade-out');
+      currentImg.classList.add('preview-layer-current');
       buffer.querySelectorAll('.preview-layer-next').forEach(el => {
         if (el !== currentImg) el.remove();
       });
@@ -5166,13 +5273,16 @@
       nextImg.className = 'preview-doc-image preview-layer-next preview-layer-fade-out';
       nextImg.alt = `Live Document Preview - Page ${pageIdx + 1}`;
       nextImg.onload = () => {
+        if (buffer._reqSeq !== reqSeq) return;
         buffer.appendChild(nextImg);
         requestAnimationFrame(() => {
+          if (buffer._reqSeq !== reqSeq) return;
           currentImg.classList.add('preview-layer-fade-out');
           nextImg.classList.remove('preview-layer-fade-out');
           nextImg.classList.add('preview-layer-fade-in');
           buffer._crossfadeTimer = setTimeout(() => {
             buffer._crossfadeTimer = null;
+            if (buffer._reqSeq !== reqSeq) return;
             nextImg.classList.remove('preview-layer-next', 'preview-layer-fade-in', 'preview-layer-fade-out');
             nextImg.classList.add('preview-layer-current');
             buffer.querySelectorAll('.preview-doc-image').forEach(el => {
@@ -5182,6 +5292,7 @@
         });
       };
       nextImg.onerror = () => {
+        if (buffer._reqSeq !== reqSeq) return;
         currentImg.className = 'preview-doc-image preview-layer-current';
         currentImg.src = uri;
       };
@@ -5214,7 +5325,8 @@
     if (btnPrevPage) btnPrevPage.disabled = (pageViewMode === 'stack' || currentPageIndex <= 0);
     if (btnNextPage) btnNextPage.disabled = (pageViewMode === 'stack' || currentPageIndex >= currentTotalPages - 1);
 
-    const pages = (currentPages && currentPages.length > 0) ? currentPages : (previewImg && previewImg.src ? [previewImg.src] : []);
+    const livePreviewImg = document.getElementById('previewImg') || previewImg;
+    const pages = (currentPages && currentPages.length > 0) ? currentPages : (livePreviewImg && livePreviewImg.src ? [livePreviewImg.src] : []);
     const targetPages = (pageViewMode === 'stack') ? pages : [pages[Math.min(currentPageIndex, pages.length - 1)] || ''];
     const targetCount = targetPages.length;
 
@@ -5572,7 +5684,8 @@
     const btnExportPng = document.getElementById('btnExportPng');
     if (btnExportPng) {
       btnExportPng.addEventListener('click', () => {
-        const pages = (currentPages && currentPages.length > 0) ? currentPages : (previewImg && previewImg.src ? [previewImg.src] : []);
+        const livePreviewImg = document.getElementById('previewImg') || previewImg;
+        const pages = (currentPages && currentPages.length > 0) ? currentPages : (livePreviewImg && livePreviewImg.src ? [livePreviewImg.src] : []);
         if (pages.length > 0) {
           pages.forEach((uri, idx) => {
             const a = document.createElement('a');
@@ -5605,7 +5718,7 @@
       card.innerHTML = `
         <div class="sig-block-header">
           <span class="sig-block-title">✍️ Signatory #${index + 1}</span>
-          ${state.signatures.length > 1 ? `<button class="btn-delete-node btn-remove-sig" data-idx="${index}" title="Remove Signatory">×</button>` : ''}
+          <button class="btn-delete-node btn-remove-sig" data-idx="${index}" title="Remove Signatory">×</button>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -5661,6 +5774,7 @@
     // Bind Remove Button
     container.querySelectorAll('.btn-remove-sig').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        hasUserCustomizedData = true;
         const idx = parseInt(e.target.dataset.idx);
         const card = btn.closest('.sig-block-card');
         if (card) card.classList.add('anim-card-delete-crimson');
@@ -5671,11 +5785,18 @@
           const removed = state.signatures[idx];
           pushUndo(`Deleted Signatory "${(removed && removed.signer_name) || idx + 1}"`);
           state.signatures.splice(idx, 1);
+          if (state.signatures.length === 0) {
+            state.signer_name = '';
+            state.signature_data = null;
+            state.show_signature = false;
+            const toggleSig = document.getElementById('toggleSignature');
+            if (toggleSig) toggleSig.checked = false;
+          }
           renderSignaturesList();
           renderInteractiveOverlay();
-          schedulePreview();
+          flushPreviewNow();
           showUndoToast('🗑️ Deleted signatory · [↩ Undo]');
-        }, 320);
+        }, 120);
       });
     });
   }
@@ -5785,6 +5906,7 @@
 
     container.querySelectorAll('.btn-remove-sec').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        hasUserCustomizedData = true;
         const idx = parseInt(e.target.dataset.idx);
         const card = btn.closest('.section-card');
         if (card) card.classList.add('anim-card-delete-crimson');
@@ -5797,9 +5919,9 @@
           state.sections.splice(idx, 1);
           renderSectionsList();
           renderInteractiveOverlay();
-          schedulePreview();
+          flushPreviewNow();
           showUndoToast('🗑️ Deleted section · [↩ Undo]');
-        }, 320);
+        }, 120);
       });
     });
   }
@@ -5839,6 +5961,7 @@
 
     container.querySelectorAll('.btn-remove-field').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        hasUserCustomizedData = true;
         const idx = parseInt(e.target.dataset.idx);
         const row = btn.closest('.custom-field-row');
         if (row) row.classList.add('anim-card-delete-crimson');
@@ -5849,9 +5972,9 @@
           state.custom_fields.splice(idx, 1);
           renderCustomFieldsList();
           renderInteractiveOverlay();
-          schedulePreview();
+          flushPreviewNow();
           showUndoToast('🗑️ Deleted field · [↩ Undo]');
-        }, 320);
+        }, 120);
       });
     });
   }
@@ -5992,9 +6115,9 @@
           renderLineItemsTable();
           updateCalculations();
           renderInteractiveOverlay();
-          schedulePreview();
+          flushPreviewNow();
           showUndoToast('🗑️ Deleted item · [↩ Undo]');
-        }, 320);
+        }, 120);
       });
     });
   }
@@ -6240,12 +6363,14 @@
 
   // Print Document
   function printDocument() {
+    const livePreviewImg = document.getElementById('previewImg') || previewImg;
+    const imgSrc = (currentPages && currentPages.length > 0) ? currentPages[0] : (livePreviewImg ? livePreviewImg.src : '');
     const win = window.open('', '_blank');
     win.document.write(`
       <html>
         <head><title>Print ${state.doc_number}</title></head>
         <body style="margin: 0; display: flex; justify-content: center; align-items: center; background: white;">
-          <img src="${previewImg.src}" style="max-width: 100%; height: auto;" onload="window.print(); window.close();" />
+          <img src="${imgSrc}" style="max-width: 100%; height: auto;" onload="window.print(); window.close();" />
         </body>
       </html>
     `);
