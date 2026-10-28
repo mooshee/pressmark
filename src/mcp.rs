@@ -37,9 +37,28 @@ pub struct JsonRpcResponse {
     pub error: Option<Value>,
 }
 
+impl JsonRpcResponse {
+    pub fn tool_succeeded(&self) -> bool {
+        self.error.is_none() && self.result.as_ref()
+            .map(|result| result.get("isError").and_then(Value::as_bool) != Some(true))
+            .unwrap_or(false)
+    }
+}
+
 pub struct McpHandler;
 
 impl McpHandler {
+    /// Only canonical registry names become public metric keys; unknown input is never a label.
+    pub fn measurement_tool_name(name: Option<&str>) -> String {
+        let Some(name) = name.filter(|name| !name.is_empty()) else { return "unnamed_tool".to_string(); };
+        let tools = Self::get_tools();
+        tools.as_array().into_iter().flatten()
+            .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+            .find(|known| *known == name)
+            .unwrap_or("unknown_tool")
+            .to_string()
+    }
+
     pub fn is_notification(req: &JsonRpcRequest) -> bool {
         req.id.is_none() || req.method.starts_with("notifications/")
     }
