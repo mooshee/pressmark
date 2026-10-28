@@ -134,7 +134,11 @@ fn test_mcp_lifecycle_handshake_and_negative_validation() {
     let disc_res = disc_resp.result.expect("server/discover should return result");
     assert_eq!(disc_res["protocolVersion"], "2026-07-28");
     assert_eq!(disc_res["resultType"], "complete");
-    assert_eq!(disc_res["cacheScope"], "public-anonymous");
+    assert_eq!(disc_res["cacheScope"], "public");
+    assert!(disc_res["supportedVersions"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("2026-07-28")));
 
     // 3. notifications/initialized & ping
     let notif_req = JsonRpcRequest {

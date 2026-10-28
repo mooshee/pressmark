@@ -1,7 +1,7 @@
 ---
 name: invoice-generation
 version: 1.2.1
-description: Synthesizes publication-grade vector PDF invoices, estimates, receipts, proposals, NDAs, and 57 business and real estate document archetypes in sub-25ms with instant PNG previews and 1-scan QR code mobile payments.
+description: Synthesizes vector PDF invoices, estimates, receipts, proposals, NDAs, and 57 business and real estate document archetypes with PNG previews and QR code payment links.
 ---
 
 # Invoice & Document Generation Skill

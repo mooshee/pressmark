@@ -401,10 +401,11 @@ impl McpHandler {
                 jsonrpc: "2.0",
                 id: req.id,
                 result: Some(json!({
+                    "resultType": "complete",
+                    "supportedVersions": SUPPORTED_MCP_PROTOCOLS,
                     "protocolVersion": "2026-07-28",
                     "protocolVersions": SUPPORTED_MCP_PROTOCOLS,
                     "supportedProtocolVersions": SUPPORTED_MCP_PROTOCOLS,
-                    "resultType": "complete",
                     "capabilities": {
                         "tools": { "listChanged": false },
                         "prompts": { "listChanged": false },
@@ -416,7 +417,17 @@ impl McpHandler {
                         "version": MCP_SERVER_VERSION
                     },
                     "ttlMs": 300_000,
-                    "cacheScope": "public-anonymous"
+                    "cacheScope": "public",
+                    "_meta": {
+                        "io.modelcontextprotocol/serverInfo": {
+                            "name": "pressmark",
+                            "title": "Pressmark Vector Document Engine",
+                            "version": MCP_SERVER_VERSION
+                        },
+                        "protocolVersion": "2026-07-28",
+                        "streamingSupported": true,
+                        "cacheTtlMs": 300_000
+                    }
                 })),
                 error: None,
             },

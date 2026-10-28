@@ -1370,17 +1370,24 @@ async fn handle_mcp(
         tool_name.as_deref(),
         compile_ms,
     );
-    if is_2026 {
+    if is_2026 && mcp_method != "initialize" && mcp_method != "ping" && !mcp_method.starts_with("notifications/") {
         if let Some(ref mut result) = resp.result {
             if let Some(obj) = result.as_object_mut() {
                 obj.entry("resultType".to_string())
                     .or_insert_with(|| serde_json::json!("complete"));
-                obj.entry("ttlMs".to_string())
-                    .or_insert_with(|| serde_json::json!(300_000));
-                obj.entry("cacheScope".to_string())
-                    .or_insert_with(|| serde_json::json!("public-anonymous"));
+                if mcp_method != "tools/call" {
+                    obj.entry("ttlMs".to_string())
+                        .or_insert_with(|| serde_json::json!(300_000));
+                    obj.entry("cacheScope".to_string())
+                        .or_insert_with(|| serde_json::json!("public"));
+                }
                 obj.entry("_meta".to_string()).or_insert_with(|| {
                     serde_json::json!({
+                        "io.modelcontextprotocol/serverInfo": {
+                            "name": "pressmark",
+                            "title": "Pressmark Vector Document Engine",
+                            "version": crate::mcp::MCP_SERVER_VERSION
+                        },
                         "protocolVersion": "2026-07-28",
                         "streamingSupported": true,
                         "cacheTtlMs": 300_000

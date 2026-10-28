@@ -1,6 +1,6 @@
 # Pressmark
 
-High-performance vector document synthesis engine. Generate publication-grade invoices, estimates, receipts, contracts, NDAs, and real estate agreements in sub-25ms with vector QR code mobile payments.
+Vector document synthesis engine for generating PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links.
 
 Website: https://pressmark.dev
 MCP Endpoint: https://pressmark.dev/mcp
