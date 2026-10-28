@@ -113,6 +113,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/llms-full.txt", get(handle_llms_full_txt))
         .route("/health", get(handle_health))
         .route("/healthz", get(handle_health))
+        .route("/ready", get(handle_ready))
         .route("/openapi.json", get(handle_openapi))
         // API v1
         .route("/api/v1/generate", post(handle_generate))
@@ -197,6 +198,32 @@ async fn handle_health() -> impl IntoResponse {
         "engine": "pressmark-vector-v1",
         "version": "1.2.1"
     })))
+}
+
+async fn handle_ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let db_ok = state.storage.check_ready().is_ok();
+    let typst_path = crate::engine::find_typst_executable();
+    let typst_ok = typst_path.is_some();
+
+    let all_ok = db_ok && typst_ok;
+    let status_code = if all_ok {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (
+        status_code,
+        Json(serde_json::json!({
+            "service": "pressmark",
+            "status": if all_ok { "ready" } else { "degraded" },
+            "version": "1.2.1",
+            "checks": {
+                "database": if db_ok { "ok" } else { "error" },
+                "typst": if typst_ok { "ok" } else { "missing_binary" }
+            }
+        })),
+    )
 }
 
 async fn handle_index() -> impl IntoResponse {

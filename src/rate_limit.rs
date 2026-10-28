@@ -159,6 +159,7 @@ pub async fn rate_limit_middleware(
     let path = req.uri().path();
     if path == "/health"
         || path == "/healthz"
+        || path == "/ready"
         || path.starts_with("/.well-known/")
         || path.starts_with("/mcp/.well-known/")
         || path == "/robots.txt"

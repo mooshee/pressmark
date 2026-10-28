@@ -69,6 +69,12 @@ impl Storage {
         &self.db_path
     }
 
+    pub fn check_ready(&self) -> Result<()> {
+        let lock = self.conn.lock().unwrap();
+        lock.query_row("SELECT 1;", [], |_| Ok(()))?;
+        Ok(())
+    }
+
     fn init_schema(&self) -> Result<()> {
         let lock = self.conn.lock().unwrap();
 
@@ -122,6 +128,9 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_usage_events_type ON usage_events(event_type);
             CREATE INDEX IF NOT EXISTS idx_usage_events_created ON usage_events(created_at);
             CREATE INDEX IF NOT EXISTS idx_usage_events_created_at ON usage_events(created_at);
+            CREATE INDEX IF NOT EXISTS idx_usage_events_channel_detail ON usage_events(channel, detail);
+            CREATE INDEX IF NOT EXISTS idx_usage_events_archetype ON usage_events(archetype);
+            CREATE INDEX IF NOT EXISTS idx_usage_events_type_detail ON usage_events(event_type, detail);
             UPDATE usage_events SET archetype = REPLACE(archetype, '-', '_') WHERE archetype IS NOT NULL AND archetype LIKE '%-%';
             UPDATE usage_events SET channel = 'web_seo_probe' WHERE event_type = 'template_landing_view' AND channel = 'web_seo' AND substr(created_at, 1, 19) IN (SELECT DISTINCT substr(created_at, 1, 19) FROM usage_events WHERE detail LIKE '%ProductDoctor%' OR channel LIKE '%ProductDoctor%');
             UPDATE usage_events SET channel = 'stripe_probe' WHERE event_type = 'checkout_init' AND channel = 'stripe' AND substr(created_at, 1, 19) IN (SELECT DISTINCT substr(created_at, 1, 19) FROM usage_events WHERE detail LIKE '%ProductDoctor%' OR channel LIKE '%ProductDoctor%');",
@@ -600,7 +609,7 @@ impl Storage {
         let mut crawler_bot_events: i64 = 0;
         let mut internal_probe_events: i64 = 0;
         let mut harness_client_events: i64 = 0;
-        if let Ok(mut stmt) = lock.prepare(
+        if let Ok(mut stmt) = lock.prepare_cached(
             "SELECT channel, detail, count(*) FROM usage_events GROUP BY channel, detail;",
         ) {
             if let Ok(mut rows) = stmt.query([]) {
@@ -633,7 +642,7 @@ impl Storage {
             .unwrap_or(0);
 
         let mut by_type = serde_json::Map::new();
-        if let Ok(mut stmt) = lock.prepare(
+        if let Ok(mut stmt) = lock.prepare_cached(
             "SELECT event_type, count(*) FROM usage_events GROUP BY event_type ORDER BY count(*) DESC;",
         ) {
             if let Ok(mut rows) = stmt.query([]) {
@@ -646,7 +655,7 @@ impl Storage {
         }
 
         let mut by_archetype = serde_json::Map::new();
-        if let Ok(mut stmt) = lock.prepare(
+        if let Ok(mut stmt) = lock.prepare_cached(
             "SELECT archetype, count(*) FROM usage_events WHERE archetype IS NOT NULL GROUP BY archetype ORDER BY count(*) DESC LIMIT 20;",
         ) {
             if let Ok(mut rows) = stmt.query([]) {
@@ -659,7 +668,7 @@ impl Storage {
         }
 
         let mut by_mcp_tool = serde_json::Map::new();
-        if let Ok(mut stmt) = lock.prepare(
+        if let Ok(mut stmt) = lock.prepare_cached(
             "SELECT detail, count(*) FROM usage_events WHERE event_type = 'mcp_tool_call' AND detail IS NOT NULL GROUP BY detail ORDER BY count(*) DESC;",
         ) {
             if let Ok(mut rows) = stmt.query([]) {
@@ -761,4 +770,69 @@ pub fn start_db_pruner_task(storage: Arc<Storage>, interval_secs: u64, max_strip
             }).await;
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_storage_covering_indexes_query_plan() {
+        let storage = Storage::new(":memory:").expect("in-memory storage");
+        let lock = storage.conn.lock().unwrap();
+
+        let mut stmt_channel = lock
+            .prepare_cached(
+                "EXPLAIN QUERY PLAN SELECT channel, detail, count(*) FROM usage_events GROUP BY channel, detail;",
+            )
+            .expect("prepare_cached explain channel");
+        let channel_plan: Vec<String> = stmt_channel
+            .query_map([], |row| row.get::<_, String>(3))
+            .expect("query_map")
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(
+            channel_plan
+                .iter()
+                .any(|d| d.contains("idx_usage_events_channel_detail")),
+            "expected idx_usage_events_channel_detail in plan: {:?}",
+            channel_plan
+        );
+
+        let mut stmt_mcp = lock
+            .prepare_cached(
+                "EXPLAIN QUERY PLAN SELECT detail, count(*) FROM usage_events WHERE event_type = ?1 AND detail IS NOT NULL GROUP BY detail;",
+            )
+            .expect("prepare_cached explain mcp");
+        let mcp_plan: Vec<String> = stmt_mcp
+            .query_map(["mcp_tool_call"], |row| row.get::<_, String>(3))
+            .expect("query_map")
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(
+            mcp_plan
+                .iter()
+                .any(|d| d.contains("idx_usage_events_type_detail")),
+            "expected idx_usage_events_type_detail in plan: {:?}",
+            mcp_plan
+        );
+
+        let mut stmt_arch = lock
+            .prepare_cached(
+                "EXPLAIN QUERY PLAN SELECT archetype, count(*) FROM usage_events WHERE archetype IS NOT NULL AND archetype != '' GROUP BY archetype ORDER BY count(*) DESC LIMIT 20;",
+            )
+            .expect("prepare_cached explain archetype");
+        let arch_plan: Vec<String> = stmt_arch
+            .query_map([], |row| row.get::<_, String>(3))
+            .expect("query_map")
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(
+            arch_plan
+                .iter()
+                .any(|d| d.contains("idx_usage_events_archetype")),
+            "expected idx_usage_events_archetype in plan: {:?}",
+            arch_plan
+        );
+    }
 }

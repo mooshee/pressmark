@@ -794,7 +794,7 @@ async fn test_p0_blocker_1_security_guards_and_rate_limiting() {
     let res4 = router.clone().oneshot(req4).await.unwrap();
     assert_eq!(res4.status(), StatusCode::OK);
 
-    // Verify /health and /healthz endpoints both succeed and bypass rate limit
+    // Verify /health, /healthz and /ready endpoints succeed and bypass rate limit
     let req_hz = Request::builder()
         .uri("/healthz")
         .method("GET")
@@ -802,6 +802,19 @@ async fn test_p0_blocker_1_security_guards_and_rate_limiting() {
         .unwrap();
     let res_hz = router.clone().oneshot(req_hz).await.unwrap();
     assert_eq!(res_hz.status(), StatusCode::OK);
+
+    let req_ready = Request::builder()
+        .uri("/ready")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_ready = router.clone().oneshot(req_ready).await.unwrap();
+    assert_eq!(res_ready.status(), StatusCode::OK);
+    let ready_bytes = axum::body::to_bytes(res_ready.into_body(), usize::MAX).await.unwrap();
+    let ready_json: serde_json::Value = serde_json::from_slice(&ready_bytes).unwrap();
+    assert_eq!(ready_json["status"], "ready");
+    assert_eq!(ready_json["service"], "pressmark");
+    assert_eq!(ready_json["checks"]["database"], "ok");
 
     // Test Body Limit: 5MB default limit (Sending 6MB payload to /api/v1/render-vector)
     let huge_body = vec![b'a'; 6 * 1024 * 1024]; // 6MB exceeds 5MB limit
