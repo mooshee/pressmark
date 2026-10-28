@@ -1365,7 +1365,7 @@ async fn handle_mcp(
         .and_then(|p| p.get("name"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
-        .or_else(|| Some(mcp_method.clone()));
+        .or_else(|| (mcp_method != "tools/call").then(|| mcp_method.clone()));
     fn extract_doc_type_field(obj: &serde_json::Value) -> Option<&serde_json::Value> {
         obj.get("doc_type")
             .or_else(|| obj.get("archetype"))
@@ -1393,12 +1393,6 @@ async fn handle_mcp(
                 .unwrap_or_else(|| s.trim().to_lowercase().replace('-', "_"))
         });
 
-    let mcp_event_type = if mcp_method == "tools/call" {
-        "mcp_tool_call"
-    } else {
-        "mcp_protocol"
-    };
-
     let header_proto = headers
         .get("mcp-protocol-version")
         .or_else(|| headers.get("x-mcp-protocol-version"))
@@ -1416,6 +1410,12 @@ async fn handle_mcp(
     let is_paid_session = session.as_ref().map(|s| s.user.is_subscriber).unwrap_or(false);
     let session_email = session.as_ref().map(|s| s.user.email.as_str());
 
+    let attempt_id = if mcp_method == "tools/call" {
+        state.storage.begin_mcp_tool_attempt(doc_type.as_deref(), user_agent.unwrap_or("mcp"), tool_name.as_deref())
+    } else {
+        None
+    };
+
     let mut resp = McpHandler::handle_request_with_context(
         req,
         Some(&state.storage),
@@ -1428,13 +1428,15 @@ async fn handle_mcp(
         .and_then(|r| r.get("compile_time_ms"))
         .and_then(|v| v.as_u64());
 
-    state.storage.record_usage_event(
-        mcp_event_type,
-        doc_type.as_deref(),
-        user_agent.unwrap_or("mcp"),
-        tool_name.as_deref(),
-        compile_ms,
-    );
+    if mcp_method == "tools/call" {
+        if let Some(id) = attempt_id {
+            let success = resp.tool_succeeded();
+            let error_code = resp.error.as_ref().and_then(|error| error.get("code")).and_then(|value| value.as_i64());
+            state.storage.finish_mcp_tool_attempt(id, success, error_code, compile_ms);
+        }
+    } else {
+        state.storage.record_usage_event("mcp_protocol", doc_type.as_deref(), user_agent.unwrap_or("mcp"), tool_name.as_deref(), compile_ms);
+    }
     if is_2026 && mcp_method != "initialize" && mcp_method != "ping" && !mcp_method.starts_with("notifications/") {
         if let Some(ref mut result) = resp.result {
             if let Some(obj) = result.as_object_mut() {
