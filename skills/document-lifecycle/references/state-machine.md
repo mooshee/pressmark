@@ -1,8 +1,8 @@
-# Document Lifecycle State Machine Reference
+# Document conversion fields
 
 Author: Daniel Hallman
 
-This reference specifies the state transitions, field mutations, and numbering conventions across the Pressmark document billing lifecycle.
+Use this reference to check the fields and document numbers returned by a conversion or payment calculation. These tools prepare documents from supplied details; they do not move money.
 
 ## State Transition Diagram
 
@@ -11,7 +11,7 @@ This reference specifies the state transitions, field mutations, and numbering c
        |
        | convert_document(target_type: "invoice", due_days: 14/30)
        v
-  [Tax Invoice]     (INV-2026-XXXX, status: unpaid)
+  [Tax Invoice]     (INV-2026-XXXX, status: pending)
        |
        +-----------------------+-----------------------+
        | record_payment        | record_payment        | convert_document
@@ -24,13 +24,13 @@ This reference specifies the state transitions, field mutations, and numbering c
                          status: paid)
 ```
 
-## Field Mutations
+## Field changes
 1. **Estimate -> Invoice (`convert_document`):**
    - Document type changes to `invoice`.
    - Prefix changes from `EST-` to `INV-`.
    - `issue_date` updates to today.
    - `due_date` calculated as `issue_date + due_days`.
-   - `payment_status` becomes `unpaid`.
+   - `payment_status` becomes `pending`.
    - If `payment_link` is provided, `payment_qr_code` is set to `true`.
 
 2. **Invoice -> Partial Payment (`record_payment`):**
@@ -49,10 +49,10 @@ This reference specifies the state transitions, field mutations, and numbering c
 
 4. **Invoice -> Official Receipt (`convert_document(target_type: "receipt")`):**
    - Prefix changes from `INV-` to `REC-`.
-   - Title updates to `OFFICIAL RECEIPT / PAYMENT CONFIRMATION`.
+   - Title updates to `OFFICIAL PAYMENT RECEIPT`.
    - Shows zero balance due and payment settlement receipt footer.
 
 5. **Invoice -> Credit Note (`convert_document(target_type: "credit_note")`):**
    - Prefix changes to `CRD-`.
-   - Title updates to `CREDIT NOTE / ADJUSTMENT`.
+   - Title updates to `CREDIT NOTE`.
    - Retains counterparty data, references original invoice number, and displays credit reason.
