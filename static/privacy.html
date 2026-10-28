@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy · Pressmark Vector Document Engine</title>
+  <title>Privacy Policy · Pressmark</title>
   <link rel="stylesheet" href="/css/studio.css">
   <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
   <style>
@@ -115,66 +115,65 @@
       </a>
       <h1>Privacy Policy</h1>
       <div class="legal-meta">
-        Last Updated: October 3, 2026 · Effective Date: October 3, 2026
+        Last Updated: October 28, 2026 · Effective Date: October 28, 2026
       </div>
-      <div class="legal-badge">Stateless Vector Generation & Zero AI Model Training</div>
+      <div class="legal-badge">Document data, account records, and service providers</div>
     </header>
 
     <section>
-      <h2>1. Overview & Commitment to Privacy</h2>
-      <p>Pressmark ("we", "our", or "the Service") provides a high-performance, sub-millisecond vector document synthesis engine that compiles invoices, estimates, receipts, contracts, NDAs, and commercial agreements. This Privacy Policy governs your use of the Pressmark web application at <strong>pressmark.dev</strong>, the Pressmark REST API, ChatGPT Actions, and Model Context Protocol (MCP) endpoints.</p>
-      <p>We believe your financial, commercial, and customer billing data belongs strictly to you. <strong>Pressmark operates on a stateless, in-memory compilation architecture: we do not store, retain, analyze, or sell your generated documents or line item contents.</strong></p>
+      <h2>1. Overview</h2>
+      <p>Pressmark creates PDF documents and previews from the details you provide. This policy covers <strong>pressmark.dev</strong>, its API, and connections from assistants such as ChatGPT.</p>
+      <p>Pressmark processes document content for rendering and keeps separate account, billing, and usage records. When customer sync is enabled, it also records contact details and document summaries in our customer-management service and can start automated follow-up. Generating a PDF does not delete those records.</p>
     </section>
 
     <section>
       <h2>2. Information We Process</h2>
-      <p>When you interact with Pressmark directly or via ChatGPT Actions, we process the minimum information necessary to synthesize your requested documents:</p>
+      <p>Pressmark processes the following information when you use the corresponding features:</p>
       <ul>
         <li><strong>Document Generation Inputs:</strong> Party names, corporate addresses, line item descriptions, rates, quantities, currency symbols, invoice identifiers, notes, and payment terms provided in generation requests.</li>
         <li><strong>Digital Signatures & Logos:</strong> Base64-encoded image assets submitted for inclusion in headers or signature blocks.</li>
-        <li><strong>Authentication Tokens (Optional):</strong> If you authenticate via <em>Sign in with ChatGPT</em> or pass a subscriber token, we verify your OAuth token with OpenAI to confirm subscription tier entitlements (e.g. Plus, Pro, Team, Enterprise).</li>
-        <li><strong>Payment & Checkout Information:</strong> Billing data for optional commercial unlocks or subscriptions is collected and processed exclusively by our PCI-DSS Level 1 certified payment processor, <strong>Stripe, Inc.</strong> Pressmark never receives or stores your full credit card number or bank credentials.</li>
+        <li><strong>Account and session information:</strong> Your name, email, sign-in method, session records, and paid-access status. Guest access also creates a session.</li>
+        <li><strong>Payment and checkout information:</strong> Stripe handles payment checkout. Pressmark records the selected plan, payment amount, payment-event identifiers, and access entitlement. Pressmark does not receive your full card number or bank credentials.</li>
+        <li><strong>Usage records:</strong> Requested actions, document type, access channel, processing time, and outcome. These records help us operate and measure the service.</li>
       </ul>
     </section>
 
     <section>
-      <h2>3. Ephemeral Processing & Zero Data Retention</h2>
-      <p>Pressmark is architected around ephemeral runtime execution:</p>
+      <h2>3. Storage and customer records</h2>
+      <p>Document rendering and customer records have different storage behavior:</p>
       <ul>
-        <li><strong>In-Memory Compilation:</strong> Document data is transformed into vector graphics entirely in memory. Once rendered to PDF or PNG bytes and returned to your client or ChatGPT session, the source payload is immediately dropped from execution memory.</li>
-        <li><strong>Automatic Cache Pruning:</strong> Any temporary raster rendering artifacts or temporary cached assets stored during multi-page rendering are purged automatically by background TTL tasks within 60 minutes.</li>
-        <li><strong>Zero Model Training:</strong> We explicitly warrant that <strong>no user data, invoice details, client identities, or document contents processed through Pressmark or ChatGPT Actions are ever used to train, fine-tune, or improve artificial intelligence models</strong>.</li>
+        <li><strong>Documents and previews:</strong> Pressmark processes your supplied content to create the requested output. Temporary rendering assets may be cached. The Studio can also save documents and company details in your browser.</li>
+        <li><strong>Account, billing, and usage records:</strong> These are stored separately from rendered documents. Expired sessions and older payment-event and usage records are removed periodically. Account entitlements and customer records are not deleted when rendering finishes.</li>
+        <li><strong>Document-generation sync:</strong> When customer sync is enabled and an accepted email is available, Pressmark creates or updates a customer record. It uses the signed-in email when available; otherwise it uses the sender email, or the recipient email if the sender email is absent. This can happen without signing in.</li>
+        <li><strong>Fields shared during generation:</strong> The selected email is recorded with the sender's name, phone number, company, and address, when supplied. The record also includes the document number, title, type, total, currency, and how it was created. Tags record watermark status, the presence of signatures, and the selected compliance setting. Document type and total can also be used to select follow-up. This sync does not send the PDF or line-item descriptions.</li>
+        <li><strong>Account activity and follow-up:</strong> Email sign-in, checkout, payment, and refund events can also update customer records. Depending on the event, access status, document type, and total, the service can update a sales opportunity and enroll the contact in automated follow-up.</li>
+        <li><strong>Model training:</strong> Pressmark does not use submitted document content to train AI models. An assistant you use to access Pressmark has its own data policies.</li>
       </ul>
     </section>
 
     <section>
       <h2>4. Third-Party Integrations</h2>
-      <p>Pressmark integrates strictly with the following trusted infrastructure partners:</p>
+      <p>Pressmark uses these services for the corresponding functions:</p>
       <ul>
-        <li><strong>OpenAI:</strong> When using Pressmark as a Custom GPT or ChatGPT Action, prompt interpretation and user authentication are facilitated through OpenAI OAuth. OpenAI’s privacy practices are governed by the OpenAI Privacy Policy.</li>
+        <li><strong>OpenAI:</strong> Provides connected ChatGPT features and sign-in where available. Its privacy policy applies to data shared through those features.</li>
         <li><strong>Stripe:</strong> Payment processing for subscriptions and single-pass watermark removal. Governed by the Stripe Privacy Policy.</li>
-        <li><strong>Cloudflare:</strong> Edge network acceleration, DDoS defense, and TLS 1.3 encryption in transit.</li>
+        <li><strong>HighLevel:</strong> Stores the customer records described above and runs configured follow-up workflows in Pressmark's customer-management account.</li>
+        <li><strong>Cloudflare:</strong> Website delivery and protection against abusive traffic.</li>
       </ul>
     </section>
 
     <section>
       <h2>5. Security Measures</h2>
-      <p>All data exchanged with Pressmark is protected using enterprise-grade security protocols:</p>
-      <ul>
-        <li>Mandatory TLS 1.3 encryption for all HTTP endpoints.</li>
-        <li>Hardened Linux user namespace isolation and systemd sandboxing.</li>
-        <li>Sliding-window DoS rate limiting and payload validation guards.</li>
-        <li>Strict LFI (Local File Inclusion) path traversal barriers in asset ingestion.</li>
-      </ul>
+      <p>Pressmark uses encrypted connections, request-size limits, rate limits, and checks on document inputs and asset paths.</p>
     </section>
 
     <section>
       <h2>6. Your Rights & Contact Information</h2>
-      <p>Under GDPR, CCPA, and applicable global privacy regulations, you have the right to request access, correction, or immediate deletion of any account records or active subscriber sessions.</p>
+      <p>To request access, correction, or deletion of your account or customer records, contact us below.</p>
       <p>For questions, privacy requests, or data inquiries, contact Daniel Hallman at:</p>
       <p>
         <strong>Email:</strong> <a href="mailto:daniel@mooshworks.com">daniel@mooshworks.com</a><br>
-        <strong>Service:</strong> Pressmark Vector Document Engine<br>
+        <strong>Service:</strong> Pressmark<br>
         <strong>Website:</strong> <a href="https://pressmark.dev">https://pressmark.dev</a>
       </p>
     </section>
