@@ -100,6 +100,8 @@
   };
 
   let debounceTimer = null;
+  let previewRevision = 0;
+  let previewRequestSequence = 0;
   let currentZoom = 100;
 
   // Undo & Redo History State
@@ -108,7 +110,9 @@
   const MAX_UNDO = 60;
 
   // Interactive Canvas & Selection State
-  let interactiveMode = true;
+  let interactiveMode = false;
+  let activeWorkflowStep = 'document';
+  let startedFromExample = false;
   let selectedElement = null; // { type, index, card }
   let dragSource = null; // { type, index, fromPreview }
 
@@ -126,6 +130,7 @@
   // Data Persistence Mode: 'my_data' (stable & protected) vs 'sample_data' (exploring demo data)
   let dataMode = 'my_data';
   let cachedUserDoc = null;
+  let cachedUserHistory = null;
   let hasUserCustomizedData = false;
   let hasUserCustomizedItems = false;
 
@@ -697,11 +702,31 @@
   // UNDO & REDO HISTORY SYSTEM
   // ==========================================================================
 
-  function pushUndo(actionName) {
-    undoStack.push({
+  function captureHistoryEntry(actionName) {
+    return {
       action: actionName,
-      state: JSON.parse(JSON.stringify(state))
-    });
+      state: structuredClone(state),
+      customizedData: hasUserCustomizedData,
+      customizedItems: hasUserCustomizedItems
+    };
+  }
+
+  function restoreDocumentSnapshot(snapshot) {
+    // Replace the document exactly, including optional and imported fields.
+    // Keep the outer object stable because the renderer reads this reference.
+    const restored = structuredClone(snapshot);
+    Object.keys(state).forEach(key => { delete state[key]; });
+    Object.assign(state, restored);
+  }
+
+  function restoreHistoryEntry(entry) {
+    restoreDocumentSnapshot(entry.state);
+    hasUserCustomizedData = entry.customizedData ?? true;
+    hasUserCustomizedItems = entry.customizedItems ?? true;
+  }
+
+  function pushUndo(actionName) {
+    undoStack.push(captureHistoryEntry(actionName));
     if (undoStack.length > MAX_UNDO) {
       undoStack.shift();
     }
@@ -748,11 +773,8 @@
     }
 
     const previous = undoStack.pop();
-    redoStack.push({
-      action: previous.action,
-      state: JSON.parse(JSON.stringify(state))
-    });
-    Object.assign(state, previous.state);
+    redoStack.push(captureHistoryEntry(previous.action));
+    restoreHistoryEntry(previous);
     deselectElement();
     syncFormFromState();
     renderLineItemsTable();
@@ -789,11 +811,8 @@
     }
 
     const next = redoStack.pop();
-    undoStack.push({
-      action: next.action,
-      state: JSON.parse(JSON.stringify(state))
-    });
-    Object.assign(state, next.state);
+    undoStack.push(captureHistoryEntry(next.action));
+    restoreHistoryEntry(next);
     deselectElement();
     syncFormFromState();
     renderLineItemsTable();
@@ -1294,14 +1313,28 @@
     }
 
     // Activate the appropriate tab
-    if (['item', 'header', 'from', 'to', 'metadata', 'custom_field', 'totals'].includes(type)) {
+    if (['header', 'metadata', 'custom_field'].includes(type)) {
+      switchSidebarTab('document');
+    } else if (['item', 'from', 'to', 'totals'].includes(type)) {
       switchSidebarTab('content');
     } else if (['section', 'signature', 'notes', 'terms', 'compliance', 'remittance', 'watermark'].includes(type)) {
       switchSidebarTab('legal');
-    } else if (['archetype', 'theme', 'layout', 'typography', 'format', 'currency'].includes(type)) {
+    } else if (type === 'archetype') {
+      openDocumentTypes();
+    } else if (['theme', 'layout', 'typography', 'format', 'currency'].includes(type)) {
       switchSidebarTab('design');
     } else if (['ai', 'copilot', 'scan'].includes(type)) {
       switchSidebarTab('ai');
+    }
+
+    const fieldIds = { header: 'docTitle', metadata: 'docNumber', custom_field: 'customFieldsContainer', from: 'fromName', to: 'toName', notes: 'notesInput', terms: 'termsInput', watermark: 'watermarkInput' };
+    const targetField = document.getElementById(fieldIds[type]);
+    if (targetField) {
+      let ancestor = targetField.parentElement;
+      while (ancestor && ancestor.id !== 'controlsPane') {
+        if (ancestor.tagName === 'DETAILS') ancestor.open = true;
+        ancestor = ancestor.parentElement;
+      }
     }
 
     if (type === 'item') {
@@ -1696,14 +1729,13 @@
         interactiveMode = !interactiveMode;
         if (interactiveMode) {
           btnToggle.classList.add('active');
-          btnToggle.innerHTML = '🎯 Interactive: ON';
-          showUndoToast('🎯 Interactive Mode ON');
+          btnToggle.textContent = 'Finish editing on page';
         } else {
           btnToggle.classList.remove('active');
-          btnToggle.innerHTML = '👁️ Clean View';
+          btnToggle.textContent = 'Edit on page';
           deselectElement();
-          showUndoToast('👁️ Clean View Enabled');
         }
+        btnToggle.setAttribute('aria-pressed', String(interactiveMode));
         renderInteractiveOverlay();
       });
     }
@@ -2229,6 +2261,7 @@
 
   // Initialization
   function init() {
+    setupGuidedWorkspace();
     bindUndoRedo();
     bindInteractiveControls();
     bindFormInputs();
@@ -2244,8 +2277,10 @@
     bindZoomControls();
     bindDropdowns();
     bindViewModes();
+    setViewMode(window.matchMedia('(max-width: 900px)').matches ? 'editor' : 'split');
     bindSidebarTabs();
     bindGlobalAccordionToggles();
+    bindDialogFocus();
     bindArchetypeSearch();
     bindSidebarAiCopilot();
     bindSidebarScanner();
@@ -2256,6 +2291,7 @@
     bindPartyProfileActions();
     populateCounterpartyDropdown();
     const hasSavedDoc = loadSavedUserDocument();
+    startedFromExample = !hasSavedDoc;
     if (!hasSavedDoc) {
       loadIssuerProfile();
     }
@@ -2264,11 +2300,11 @@
       window.__PRESSMARK_INITIAL_STATE__ ||
       initUrlParams.get('state') ||
       initUrlParams.get('state_code');
-    if (requestedState) {
+    if (requestedState && !hasSavedDoc) {
       state.state_code = String(requestedState).trim().toUpperCase();
     }
     const requestedMuni = initUrlParams.get('municipality') || initUrlParams.get('city');
-    if (requestedMuni) {
+    if (requestedMuni && !hasSavedDoc) {
       state.municipality = String(requestedMuni).trim();
     }
     const requestedTemplate =
@@ -2276,16 +2312,16 @@
       initUrlParams.get('template') ||
       initUrlParams.get('archetype') ||
       initUrlParams.get('doc_type');
-    if (requestedTemplate) {
+    // URL presets seed new documents. A saved draft keeps its identity and
+    // jurisdiction until the user explicitly changes them in the editor.
+    if (requestedTemplate && !hasSavedDoc) {
       const normalizedType = resolveArchetypeSlug(requestedTemplate);
       const targetPill = document.querySelector(`.template-pill[data-type="${normalizedType}"]`);
       if (targetPill) {
         document.querySelectorAll('.template-pill').forEach(p => p.classList.remove('active'));
         targetPill.classList.add('active');
       }
-      if (!hasSavedDoc || state.doc_type !== normalizedType) {
-        loadSampleDataForArchetype(normalizedType);
-      }
+      loadSampleDataForArchetype(normalizedType);
       applyDocumentTypeDefaults(normalizedType);
     }
     setupDynamicInteractions();
@@ -2296,6 +2332,7 @@
     renderCustomFieldsList();
     renderLineItemsTable();
     updateCalculations();
+    switchWorkflowStep('document', false);
     renderInteractiveOverlay();
     requestPreview();
     checkChatGptSession();
@@ -2432,40 +2469,48 @@
   }
 
   function triggerPreviewCompilingAnimation() {
+    document.getElementById('btnExportPng').disabled = true;
+    document.getElementById('btnPrintDoc').disabled = true;
     const wrapper = document.getElementById('previewDocWrapper') || previewDocWrapper;
     if (wrapper) {
       wrapper.classList.add('compiling-pulse');
       wrapper.classList.add('is-compiling');
     }
     compileTelemetry.classList.add('pulse');
-    compileTelemetry.innerHTML = '⚡ Compiling vector document...';
+    compileTelemetry.textContent = 'Updating…';
   }
 
   // Bind Form Inputs to State
   function bindFormInputs() {
-    const bind = (id, prop, targetObj = state) => {
+    const bind = (id, prop, scope = null, parseValue = null) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.value = targetObj[prop] !== undefined ? targetObj[prop] : '';
-      let initialVal = el.value;
-      el.addEventListener('focus', () => {
-        initialVal = el.value;
-      });
-      el.addEventListener('input', (e) => {
-        if (targetObj === state.from || targetObj === state.to || ['title', 'header_subtitle', 'notes', 'terms'].includes(prop)) {
-          hasUserCustomizedData = true;
+      const getTarget = () => scope ? state[scope] : state;
+      el.value = getTarget()[prop] ?? '';
+      let editing = false;
+      const applyInput = () => {
+        // Restores, profiles and imports may replace either party object.
+        const target = getTarget();
+        const value = parseValue ? parseValue(el.value)
+          : el.type === 'number' ? parseFloat(el.value) || 0 : el.value;
+        if (Object.is(target[prop], value)) return;
+        if (!editing) {
+          pushUndo(`Edit ${prop}`);
+          editing = true;
         }
-        targetObj[prop] = e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
+        hasUserCustomizedData = true;
+        target[prop] = value;
         updateCalculations();
         schedulePreview();
         renderInteractiveOverlay();
-      });
+      };
+      el.addEventListener('focus', () => { editing = false; });
+      el.addEventListener('input', applyInput);
       el.addEventListener('change', () => {
-        if (el.value !== initialVal) {
-          pushUndo(`Edit ${prop}`);
-          initialVal = el.value;
-        }
+        applyInput();
+        editing = false;
       });
+      el.addEventListener('blur', () => { editing = false; });
     };
 
     bind('docTitle', 'title');
@@ -2496,15 +2541,7 @@
     bind('dateFormatSelect', 'date_format');
     bind('unitMeasureSelect', 'unit_measure');
 
-    const numDecSelect = document.getElementById('numberDecimalsSelect');
-    if (numDecSelect) {
-      numDecSelect.value = state.number_decimals !== undefined ? String(state.number_decimals) : '2';
-      numDecSelect.addEventListener('change', (e) => {
-        state.number_decimals = parseInt(e.target.value, 10) || 0;
-        updateCalculations();
-        schedulePreview();
-      });
-    }
+    bind('numberDecimalsSelect', 'number_decimals', null, value => parseInt(value, 10) || 0);
 
     const taxPresetSelect = document.getElementById('taxPresetSelect');
     if (taxPresetSelect) {
@@ -2513,6 +2550,8 @@
         if (val !== 'custom') {
           const rate = parseFloat(val);
           if (!isNaN(rate)) {
+            pushUndo('Change tax rate');
+            hasUserCustomizedData = true;
             state.tax_rate = rate;
             const taxInput = document.getElementById('taxRateInput');
             if (taxInput) taxInput.value = rate;
@@ -2524,24 +2563,24 @@
     }
 
     // From Party Contact & Entity Details
-    bind('fromName', 'name', state.from);
-    bind('fromCompany', 'company', state.from);
-    bind('fromAddress', 'address', state.from);
-    bind('fromEmail', 'email', state.from);
-    bind('fromPhone', 'phone', state.from);
-    bind('fromTaxId', 'tax_id', state.from);
-    bind('fromWebsite', 'website', state.from);
-    bind('fromRegNumber', 'registration_number', state.from);
+    bind('fromName', 'name', 'from');
+    bind('fromCompany', 'company', 'from');
+    bind('fromAddress', 'address', 'from');
+    bind('fromEmail', 'email', 'from');
+    bind('fromPhone', 'phone', 'from');
+    bind('fromTaxId', 'tax_id', 'from');
+    bind('fromWebsite', 'website', 'from');
+    bind('fromRegNumber', 'registration_number', 'from');
 
     // To Party Contact & Entity Details
-    bind('toName', 'name', state.to);
-    bind('toCompany', 'company', state.to);
-    bind('toAddress', 'address', state.to);
-    bind('toEmail', 'email', state.to);
-    bind('toPhone', 'phone', state.to);
-    bind('toTaxId', 'tax_id', state.to);
-    bind('toWebsite', 'website', state.to);
-    bind('toRegNumber', 'registration_number', state.to);
+    bind('toName', 'name', 'to');
+    bind('toCompany', 'company', 'to');
+    bind('toAddress', 'address', 'to');
+    bind('toEmail', 'email', 'to');
+    bind('toPhone', 'phone', 'to');
+    bind('toTaxId', 'tax_id', 'to');
+    bind('toWebsite', 'website', 'to');
+    bind('toRegNumber', 'registration_number', 'to');
 
     // Checkboxes / Toggles
     const bindToggle = (id, prop) => {
@@ -2550,6 +2589,7 @@
       el.checked = !!state[prop];
       el.addEventListener('change', (e) => {
         pushUndo(`Toggle ${prop}`);
+        hasUserCustomizedData = true;
         state[prop] = e.target.checked;
         schedulePreview();
         renderInteractiveOverlay();
@@ -2589,40 +2629,22 @@
 
     const amountPaidGroup = document.getElementById('amountPaidGroup');
     const amountPaidInput = document.getElementById('amountPaidInput');
-    if (amountPaidInput) {
-      amountPaidInput.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        state.amount_paid = isNaN(val) ? undefined : val;
-        updateCalculations();
-        schedulePreview();
-      });
-    }
+    bind('amountPaidInput', 'amount_paid', null, value => value.trim() === '' ? undefined : parseFloat(value));
 
     const payStatusSelect = document.getElementById('paymentStatusSelect');
     if (payStatusSelect) {
       payStatusSelect.addEventListener('change', (e) => {
         pushUndo(`Change payment status to ${e.target.value}`);
+        hasUserCustomizedData = true;
         state.payment_status = e.target.value;
         if (state.payment_status === 'paid') {
           state.is_paid = true;
           if (amountPaidGroup) amountPaidGroup.style.display = 'none';
           if (!state.paid_at) state.paid_at = new Date().toISOString().split('T')[0];
-          if (!state.transaction_reference) {
-            state.transaction_reference = 'STRIPE-REC-' + Math.floor(100000 + Math.random() * 900000);
-            const refInput = document.getElementById('transactionRefInput');
-            if (refInput) refInput.value = state.transaction_reference;
-          }
         } else if (state.payment_status === 'partial') {
           state.is_paid = false;
           if (amountPaidGroup) amountPaidGroup.style.display = 'block';
-          if (!state.amount_paid) {
-            const subtotal = state.items.reduce((sum, item) => sum + lineItemAmount(item), 0);
-            const tax = state.tax_rate ? subtotal * (state.tax_rate / 100.0) : 0.0;
-            const rawTotal = subtotal + tax - (state.discount_amount || 0);
-            const grandTotal = allowsNegativeItems(state.doc_type) ? rawTotal : Math.max(0, rawTotal);
-            state.amount_paid = Math.round((grandTotal / 2) * 100) / 100;
-            if (amountPaidInput) amountPaidInput.value = state.amount_paid;
-          }
+          if (amountPaidInput) amountPaidInput.value = state.amount_paid ?? '';
         } else {
           state.is_paid = false;
           state.amount_paid = undefined;
@@ -2654,13 +2676,7 @@
     }
 
     // Watermark input
-    const wmInput = document.getElementById('watermarkInput');
-    if (wmInput) {
-      wmInput.addEventListener('input', (e) => {
-        state.watermark = e.target.value;
-        schedulePreview();
-      });
-    }
+    bind('watermarkInput', 'watermark');
 
     // Logo upload
     const logoFile = document.getElementById('logoFileInput');
@@ -2670,6 +2686,8 @@
         if (file) {
           const reader = new FileReader();
           reader.onload = function(evt) {
+            pushUndo('Change logo');
+            hasUserCustomizedData = true;
             state.logo_data = evt.target.result;
             schedulePreview();
           };
@@ -2761,10 +2779,27 @@
 
   // Accordion Toggles
   function bindAccordions() {
-    document.querySelectorAll('.card-header-toggle').forEach(header => {
+    document.querySelectorAll('.card-header-toggle').forEach((header, index) => {
+      const card = header.closest('.control-card');
+      const body = card.querySelector('.card-body');
+      if (body) {
+        if (!body.id) body.id = `editor-group-${index}`;
+        header.setAttribute('aria-controls', body.id);
+      }
+      new MutationObserver(() => header.setAttribute('aria-expanded', String(!card.classList.contains('collapsed')))).observe(card, {attributes: true, attributeFilter: ['class']});
+      header.setAttribute('role', 'button');
+      header.tabIndex = 0;
+      header.setAttribute('aria-expanded', String(!header.closest('.control-card').classList.contains('collapsed')));
       header.addEventListener('click', () => {
         const card = header.closest('.control-card');
         card.classList.toggle('collapsed');
+        header.setAttribute('aria-expanded', String(!card.classList.contains('collapsed')));
+      });
+      header.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          header.click();
+        }
       });
     });
   }
@@ -2776,14 +2811,8 @@
       tab.addEventListener('click', () => {
         tabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        const cat = tab.dataset.category;
-        document.querySelectorAll('.template-pill').forEach(pill => {
-          if (cat === 'all' || pill.dataset.category === cat) {
-            pill.style.display = 'flex';
-          } else {
-            pill.style.display = 'none';
-          }
-        });
+        tabs.forEach(item => item.setAttribute('aria-pressed', String(item === tab)));
+        filterDocumentTypes();
       });
     });
   }
@@ -2819,7 +2848,13 @@
           }, 380);
         }, 120);
         schedulePreview();
-        showUndoToast(`Switched archetype to ${pill.innerText.trim()} · [↩ Undo]`);
+        const chooser = document.getElementById('documentTypePicker');
+        if (chooser) {
+          chooser.open = false;
+          chooser.hidden = true;
+        }
+        switchWorkflowStep('document');
+        showUndoToast(`Document type changed to ${pill.innerText.trim()} · Undo available`);
       });
     });
   }
@@ -2889,65 +2924,18 @@
     const conf = map[type] || map.invoice;
     state.doc_type = type;
     state.title = conf.title;
-    state.doc_number = `${conf.prefix}2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    state.doc_number = `${conf.prefix}${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     state.recordable = (type === 'property_deed');
     state.notary_required = ['property_deed', 'mechanics_lien_waiver', 'tenant_estoppel'].includes(type);
-    state.is_paid = Boolean(conf.is_paid);
-    state.payment_status = state.is_paid ? 'paid' : 'unpaid';
-    const isPaidCheck = document.getElementById('isPaidCheck');
-    if (isPaidCheck) isPaidCheck.checked = state.is_paid;
 
-    const isPayableArchetype = type.startsWith('invoice') || [
-      'proforma_invoice',
-      'retainer_agreement',
-      'notice_to_vacate',
-      'tenant_rent_ledger'
-    ].includes(type);
-    const isTaxableCommercial = type.startsWith('invoice') || [
-      'estimate',
-      'quote',
-      'proforma_invoice',
-      'purchase_order',
-      'receipt',
-      'credit_note'
-    ].includes(type);
-
-    if (dataMode === 'sample_data' || !hasUserCustomizedItems) {
-      const customFromSnapshot = (dataMode === 'my_data' && hasUserCustomizedData && state.from)
-        ? Object.assign({}, state.from)
-        : null;
+    if (dataMode === 'sample_data') {
       loadSampleDataForArchetype(type);
-      if (dataMode === 'my_data' && localStorage.getItem(STORAGE_KEY_ISSUER)) {
-        loadIssuerProfile();
-      } else if (customFromSnapshot) {
-        state.from = customFromSnapshot;
-      }
-    } else {
-      // In My Data mode after explicit line-item customization, preserve typed party/items
-      // while sanitizing incompatible financial/payment/legal fields for the target archetype.
-      state.amount_paid = null;
-      state.include_clerk_stamp = false;
-      state.execution_mode = null;
-      if (!isPayableArchetype) {
-        state.payment_qr_code = false;
-        state.payment_link = '';
-      }
-      if (!isTaxableCommercial) {
-        state.tax_rate = 0;
-        state.discount_amount = 0;
-        state.notes = '';
-        state.terms = '';
-        state.footer_text = '';
-      }
-      if (!allowsNegativeItems(type) && Array.isArray(state.items)) {
-        state.items = state.items.map(it => ({
-          ...it,
-          quantity: Math.abs(Number(it.quantity) || 1),
-          unit_price: Math.abs(Number(it.unit_price) || 0)
-        }));
-      }
-      attachDefaultSectionsForArchetype(type, true);
     }
+    // Personal drafts keep authored and imported values even when the new
+    // template does not display them. Only an explicit sample action loads
+    // examples; a type change is never evidence of payment or a refund.
+    const isPaidCheck = document.getElementById('isPaidCheck');
+    if (isPaidCheck) isPaidCheck.checked = !!state.is_paid;
 
     const docTitleEl = document.getElementById('docTitle');
     if (docTitleEl) docTitleEl.value = state.title;
@@ -2958,7 +2946,7 @@
 
     adaptFormToArchetype(type);
     updateLifecycleUI();
-    if (dataMode === 'my_data' && hasUserCustomizedData) {
+    if (dataMode === 'my_data') {
       autoSaveUserDocument();
     }
   }
@@ -3043,6 +3031,10 @@
     if (stepperBar) {
       stepperBar.style.display = isBillingLifecycleArchetype(state.doc_type) ? 'flex' : 'none';
     }
+    const billingDisclosure = document.getElementById('billingActionsDisclosure');
+    if (billingDisclosure) billingDisclosure.hidden = !isBillingLifecycleArchetype(state.doc_type);
+    const billingMenuItem = document.getElementById('btnOpenDocumentActions');
+    if (billingMenuItem) billingMenuItem.hidden = !isBillingLifecycleArchetype(state.doc_type);
 
     if (stepEstimate) {
       stepEstimate.classList.toggle('active', active === 'estimate');
@@ -3147,20 +3139,17 @@
       if (!state.paid_at) {
         state.paid_at = new Date().toISOString().split('T')[0];
       }
-      if (!state.transaction_reference) {
-        state.transaction_reference = 'STRIPE-REC-' + Math.floor(100000 + Math.random() * 900000);
-      }
       if (!state.payment_method) {
-        state.payment_method = 'Stripe / Card / Apple Pay';
+        state.payment_method = 'Recorded manually';
       }
     } else if (targetState === 'credit_note') {
       state.doc_type = 'credit_note';
       state.title = 'CREDIT NOTE';
       state.doc_number = `CRD-${baseId}`;
       state.is_paid = false;
-      state.payment_status = 'refunded';
+      if (state.payment_status !== 'refunded') state.payment_status = 'unpaid';
       if (!state.notes) {
-        state.notes = 'Credit adjustment issued. Balance refunded or credited to customer account.';
+        state.notes = 'Credit adjustment issued.';
       }
     }
 
@@ -4611,10 +4600,20 @@
       const raw = localStorage.getItem(STORAGE_KEY_USER_DOC);
       if (!raw) return false;
       const doc = JSON.parse(raw);
-      if (doc && typeof doc === 'object' && doc.title) {
-        Object.assign(state, doc);
-        return true;
-      }
+      if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return false;
+      if (typeof doc.doc_type !== 'string' && typeof doc.title !== 'string') return false;
+      const isRecord = value => value && typeof value === 'object' && !Array.isArray(value);
+      if (['from', 'to'].some(key => doc[key] !== undefined && !isRecord(doc[key]))) return false;
+      const collections = ['items', 'sections', 'signatures', 'custom_fields'];
+      if (collections.some(key => doc[key] !== undefined && !Array.isArray(doc[key]))) return false;
+      const restored = { ...doc, doc_type: doc.doc_type || 'invoice', from: doc.from || {}, to: doc.to || {} };
+      collections.forEach(key => { restored[key] = doc[key] || []; });
+      restoreDocumentSnapshot(restored);
+      // A saved draft is user-owned regardless of which fields were edited
+      // in this browser session. Never infer ownership from item edits.
+      hasUserCustomizedData = true;
+      hasUserCustomizedItems = true;
+      return true;
     } catch (e) {}
     return false;
   }
@@ -4631,12 +4630,20 @@
       btnSample.classList.remove('active');
 
       if (cachedUserDoc) {
-        Object.assign(state, cachedUserDoc);
+        restoreDocumentSnapshot(cachedUserDoc);
+        hasUserCustomizedData = cachedUserHistory?.customizedData ?? true;
+        hasUserCustomizedItems = cachedUserHistory?.customizedItems ?? true;
       } else if (loadSavedUserDocument()) {
         // Loaded successfully from storage
       } else {
         loadIssuerProfile();
       }
+      undoStack.splice(0, undoStack.length, ...structuredClone(cachedUserHistory?.undo || []));
+      redoStack.splice(0, redoStack.length, ...structuredClone(cachedUserHistory?.redo || []));
+      cachedUserDoc = null;
+      cachedUserHistory = null;
+      deselectElement();
+      updateUndoRedoButtons();
 
       adaptFormToArchetype(state.doc_type);
       syncFormFromState();
@@ -4647,17 +4654,29 @@
       updateCalculations();
       renderInteractiveOverlay();
       schedulePreview();
-      showUndoToast('🛡️ My Data mode active: Your inputs are preserved across all archetypes');
+      showUndoToast('Returned to your document');
     });
 
     btnSample.addEventListener('click', () => {
       if (dataMode === 'sample_data') return;
-      cachedUserDoc = JSON.parse(JSON.stringify(state));
+      cachedUserDoc = structuredClone(state);
+      cachedUserHistory = structuredClone({
+        undo: undoStack,
+        redo: redoStack,
+        customizedData: hasUserCustomizedData,
+        customizedItems: hasUserCustomizedItems
+      });
       autoSaveUserDocument();
 
       dataMode = 'sample_data';
       btnSample.classList.add('active');
       btnMyData.classList.remove('active');
+      undoStack.length = 0;
+      redoStack.length = 0;
+      hasUserCustomizedData = false;
+      hasUserCustomizedItems = false;
+      deselectElement();
+      updateUndoRedoButtons();
 
       loadSampleDataForArchetype(state.doc_type);
 
@@ -4670,7 +4689,7 @@
       updateCalculations();
       renderInteractiveOverlay();
       schedulePreview();
-      showUndoToast('🎲 Sample Data mode active: Freely explore curated industry presets');
+      showUndoToast('Exploring an example. Your document is saved separately.');
     });
   }
 
@@ -4966,6 +4985,9 @@
   // 🎲 Randomize Scene
   let sceneIndex = 0;
   function randomizeScene() {
+    if (dataMode === 'my_data') {
+      document.getElementById('btnModeSampleData').click();
+    }
     pushUndo('Surprise Me (Random Scene)');
     const scene = RANDOM_SCENES[sceneIndex % RANDOM_SCENES.length];
     sceneIndex++;
@@ -5005,11 +5027,11 @@
   function syncFormFromState() {
     const setVal = (id, val) => {
       const el = document.getElementById(id);
-      if (el && val !== undefined) el.value = val;
+      if (el) el.value = val ?? '';
     };
     const setCheck = (id, val) => {
       const el = document.getElementById(id);
-      if (el && val !== undefined) el.checked = !!val;
+      if (el) el.checked = !!val;
     };
 
     if (state.issue_date) state.issue_date = normalizeDateIso(state.issue_date);
@@ -5035,6 +5057,7 @@
     setVal('footerTextInput', state.footer_text || '');
     setVal('notesInput', state.notes || '');
     setVal('termsInput', state.terms || '');
+    setVal('watermarkInput', state.watermark);
 
     // Sync Formatters & Localization
     setVal('currencySelect', state.currency || 'USD');
@@ -5077,6 +5100,9 @@
     setVal('paymentStatusSelect', state.payment_status || (state.is_paid ? 'paid' : 'unpaid'));
     setVal('paymentMethodInput', state.payment_method || 'Stripe / Card / Apple Pay');
     setVal('transactionRefInput', state.transaction_reference || '');
+    setVal('amountPaidInput', state.amount_paid);
+    const amountPaidGroup = document.getElementById('amountPaidGroup');
+    if (amountPaidGroup) amountPaidGroup.style.display = state.payment_status === 'partial' ? 'block' : 'none';
     setCheck('togglePaymentQr', state.payment_qr_code !== false);
     updateLifecycleUI();
 
@@ -5175,6 +5201,7 @@
 
     document.querySelectorAll('.segmented-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.view === mode);
+      btn.setAttribute('aria-pressed', String(btn.dataset.view === mode));
     });
 
     if (mode === 'preview') {
@@ -5365,12 +5392,7 @@
     const btnOpen = document.getElementById('btnOpenArchetypeModal');
     if (btnOpen) {
       btnOpen.addEventListener('click', () => {
-        switchSidebarTab('design');
-        const archetypeCard = document.querySelector('#tabContent-design .control-card');
-        if (archetypeCard) {
-          archetypeCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          archetypeCard.classList.remove('collapsed');
-        }
+        openDocumentTypes();
       });
     }
 
@@ -5382,7 +5404,7 @@
         chip.classList.add('active');
         const cat = chip.dataset.category;
 
-        switchSidebarTab('design');
+        openDocumentTypes();
 
         const categoryTabs = document.querySelectorAll('.category-tab');
         categoryTabs.forEach(ct => {
@@ -5505,7 +5527,7 @@
       } else {
         cardLineItems.style.display = 'block';
         if (lineItemsTitle) {
-          lineItemsTitle.innerText = `💰 ${tax.items}`;
+          lineItemsTitle.innerText = tax.items;
         }
       }
     }
@@ -5533,26 +5555,227 @@
     });
   }
 
-  // Sidebar Workflow Tabs
-  function switchSidebarTab(tabName) {
-    document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.tab === tabName);
+  // One navigation controller owns both guided steps and contextual editor links.
+  const workflowSteps = [
+    { id: 'document', pane: 'document', title: 'Document setup', description: 'Choose a type, title and dates.' },
+    { id: 'details', pane: 'content', title: 'People and items', description: 'Add who it’s for and what it covers.' },
+    { id: 'terms', pane: 'legal', title: 'Terms and signatures', description: 'Open the sections your document needs.' },
+    { id: 'design', pane: 'design', title: 'Document design', description: 'Choose a style and adjust the formatting.' },
+    { id: 'review', pane: 'review', title: 'Review your document', description: 'Check every page before exporting.' }
+  ];
+
+  function setupGuidedWorkspace() {
+    const documentPane = document.getElementById('tabContent-document');
+    const contentPane = document.getElementById('tabContent-content');
+    const designPane = document.getElementById('tabContent-design');
+    const termsPane = document.getElementById('tabContent-legal');
+    const metadataCard = document.getElementById('docTitle').closest('.control-card');
+    metadataCard.classList.add('document-identity-card');
+    metadataCard.querySelector('.card-header-toggle').hidden = true;
+    const templateCard = designPane.querySelector('.control-card');
+
+    documentPane.appendChild(document.getElementById('archetypePrimaryHeader'));
+    const picker = document.createElement('details');
+    picker.id = 'documentTypePicker';
+    picker.className = 'workspace-options';
+    picker.hidden = true;
+    const pickerLabel = document.createElement('summary');
+    pickerLabel.textContent = 'Browse document types';
+    picker.append(pickerLabel, templateCard);
+    documentPane.append(picker, metadataCard);
+    templateCard.classList.remove('collapsed');
+    templateCard.querySelector('.card-header-toggle').hidden = true;
+
+    const extraMetadata = document.createElement('details');
+    extraMetadata.className = 'workspace-options';
+    const extraMetadataLabel = document.createElement('summary');
+    extraMetadataLabel.textContent = 'Subtitle and custom fields';
+    extraMetadata.appendChild(extraMetadataLabel);
+    const customFields = document.getElementById('customFieldsContainer');
+    const customFieldsToolbar = customFields.previousElementSibling;
+    extraMetadata.append(document.getElementById('headerSubtitle').closest('.form-group'), customFieldsToolbar, customFields);
+    metadataCard.querySelector('.card-body').appendChild(extraMetadata);
+
+    ['from', 'to'].forEach(party => {
+      const labels = { Name: 'Contact name', Company: 'Company', Address: 'Address', Email: 'Email', Phone: 'Phone', TaxId: 'Tax ID', Website: 'Website', RegNumber: 'Registration number' };
+      Object.entries(labels).forEach(([suffix, text]) => {
+        const field = document.getElementById(party + suffix);
+        const label = document.createElement('label');
+        label.className = 'form-label';
+        label.htmlFor = field.id;
+        label.textContent = text;
+        field.before(label);
+      });
+      const extra = document.createElement('details');
+      extra.className = 'workspace-options';
+      const label = document.createElement('summary');
+      label.textContent = 'Contact and registration details';
+      extra.appendChild(label);
+      const emailRow = document.getElementById(party + 'Email').closest('.form-row');
+      const taxRow = document.getElementById(party + 'TaxId').closest('.form-row');
+      const registration = document.getElementById(party + 'RegNumber').closest('.form-group');
+      const parent = emailRow.parentElement;
+      extra.append(emailRow, taxRow, registration);
+      parent.appendChild(extra);
     });
+
+    const dataOptions = document.createElement('details');
+    dataOptions.className = 'workspace-options';
+    const dataLabel = document.createElement('summary');
+    dataLabel.textContent = 'Your data and examples';
+    const dataHelp = document.createElement('p');
+    dataHelp.textContent = 'Explore examples, then return to your document with your details preserved.';
+    dataOptions.append(dataLabel, dataHelp, document.getElementById('dataModeControl'));
+    documentPane.append(dataOptions);
+    const exampleNote = document.createElement('p');
+    exampleNote.className = 'example-notice';
+    exampleNote.id = 'exampleNotice';
+    documentPane.prepend(exampleNote);
+
+    termsPane.prepend(document.getElementById('cardPaymentCheckout'));
+    document.getElementById('billingActionsContainer').appendChild(document.getElementById('lifecycleStepperBar'));
+
+    // Keep expert actions available in a single document menu.
+    const documentMenu = document.querySelector('#dropdownMore .dropdown-menu');
+    document.querySelectorAll('#dropdownTools .dropdown-item').forEach(item => documentMenu.appendChild(item));
+    document.getElementById('dropdownTools').hidden = true;
+    document.getElementById('studioBreadcrumbs').hidden = true;
+    document.getElementById('archetypeCategoryChips').hidden = true;
+    document.querySelector('.sidebar-tab-strip').hidden = true;
+    document.querySelector('.tab-utility-bar').hidden = true;
+    document.querySelectorAll('.nav-divider').forEach(divider => divider.hidden = true);
+
+    // One open group per stage provides a useful start without hiding capabilities.
+    [contentPane, termsPane, designPane].forEach(pane => {
+      pane.querySelectorAll(':scope > .control-card').forEach((card, index) => card.classList.toggle('collapsed', index > 0));
+    });
+    // Notes are the first terms task; payment details remain an explicit disclosure.
+    const notesCard = document.getElementById('notesInput').closest('.control-card');
+    termsPane.prepend(notesCard);
+    notesCard.classList.remove('collapsed');
+    document.getElementById('cardPaymentCheckout').classList.add('collapsed');
+
+    // Connect visible labels to their controls without changing existing binding IDs.
+    document.querySelectorAll('.form-group').forEach(group => {
+      const label = group.querySelector('label.form-label');
+      const field = group.querySelector('input[id], select[id], textarea[id]');
+      if (label && field && !label.htmlFor) label.htmlFor = field.id;
+    });
+    document.querySelectorAll('.workflow-steps button').forEach(button => {
+      button.addEventListener('click', () => switchWorkflowStep(button.dataset.step));
+    });
+    document.getElementById('btnWorkflowBack').addEventListener('click', () => {
+      const index = workflowSteps.findIndex(step => step.id === activeWorkflowStep);
+      switchWorkflowStep(workflowSteps[Math.max(0, index - 1)].id);
+    });
+    document.getElementById('btnWorkflowNext').addEventListener('click', event => {
+      const index = workflowSteps.findIndex(step => step.id === activeWorkflowStep);
+      if (index === workflowSteps.length - 1) {
+        event.stopPropagation();
+        document.getElementById('btnExportMenu').click();
+        document.getElementById('btnDownloadPdf').focus();
+      } else {
+        switchWorkflowStep(workflowSteps[Math.min(workflowSteps.length - 1, index + 1)].id);
+      }
+    });
+    document.getElementById('btnReviewPreview').addEventListener('click', () => setViewMode('preview'));
+    document.getElementById('btnRetryPreview').addEventListener('click', requestPreview);
+    document.getElementById('btnOpenAssistant').addEventListener('click', () => switchSidebarTab('ai'));
+    document.getElementById('btnOpenDocumentActions').addEventListener('click', () => {
+      switchWorkflowStep('review');
+      document.getElementById('billingActionsDisclosure').open = true;
+    });
+  }
+
+  function openDocumentTypes() {
+    switchWorkflowStep('document');
+    const picker = document.getElementById('documentTypePicker');
+    picker.open = true;
+    picker.hidden = false;
+    document.getElementById('archetypeSearchInput').focus();
+  }
+
+  function updateReviewSummary() {
+    const summary = document.getElementById('reviewSummary');
+    if (!summary) return;
+    const values = [
+      ['Document', state.title || currentTaxonomyName || 'Untitled document'],
+      ['Number', state.doc_number || 'Not added'],
+      ['From', state.from.company || state.from.name || 'Not added'],
+      ['To', state.to.company || state.to.name || 'Not added'],
+      ['Pages', String(currentTotalPages || 1)]
+    ];
+    summary.replaceChildren();
+    values.forEach(([label, value]) => {
+      const row = document.createElement('div');
+      const term = document.createElement('dt');
+      const detail = document.createElement('dd');
+      term.textContent = label;
+      detail.textContent = value;
+      row.append(term, detail);
+      summary.appendChild(row);
+    });
+  }
+
+  function updateWorkspaceNotice() {
+    const note = document.getElementById('exampleNotice');
+    if (!note) return;
+    note.hidden = !startedFromExample && dataMode !== 'sample_data';
+    note.textContent = dataMode === 'sample_data' ? 'Example data. Return to My data to continue your document.' : 'Example document. Replace the sample details.';
+  }
+
+  function switchWorkflowStep(stepName, focus = true) {
+    const step = workflowSteps.find(item => item.id === stepName);
+    if (!step) return;
+    activeWorkflowStep = step.id;
+    const index = workflowSteps.indexOf(step);
+    document.querySelectorAll('.sidebar-tab-content').forEach(pane => {
+      const selected = pane.id === `tabContent-${step.pane}`;
+      pane.hidden = !selected;
+      pane.style.display = selected ? 'flex' : 'none';
+      pane.classList.toggle('active', selected);
+    });
+    document.querySelectorAll('.workflow-steps button').forEach(button => {
+      const selected = button.dataset.step === step.id;
+      button.classList.toggle('active', selected);
+      if (selected) button.setAttribute('aria-current', 'step');
+      else button.removeAttribute('aria-current');
+    });
+    document.getElementById('workflowTitle').textContent = step.title;
+    document.getElementById('workflowDescription').textContent = step.description;
+    document.getElementById('workflowStepCount').textContent = `Step ${index + 1} of ${workflowSteps.length}`;
+    document.getElementById('btnWorkflowBack').disabled = index === 0;
+    document.getElementById('btnWorkflowNext').textContent = index === workflowSteps.length - 1 ? 'Choose export format' : `Continue to ${workflowSteps[index + 1].id}`;
+    updateWorkspaceNotice();
+    updateReviewSummary();
+    document.querySelectorAll('.card-header-toggle').forEach(header => header.setAttribute('aria-expanded', String(!header.closest('.control-card').classList.contains('collapsed'))));
+    if (focus) {
+      const main = document.querySelector('.main-container');
+      if (main.classList.contains('view-mode-preview')) setViewMode(window.matchMedia('(max-width: 900px)').matches ? 'editor' : 'split');
+      document.getElementById('controlsPane').scrollTop = 0;
+      document.getElementById('workflowTitle').focus({ preventScroll: true });
+    }
+  }
+
+  function switchSidebarTab(tabName) {
+    if (tabName !== 'ai') {
+      switchWorkflowStep(({content: 'details', legal: 'terms'})[tabName] || tabName);
+      return;
+    }
+    switchWorkflowStep('document');
     document.querySelectorAll('.sidebar-tab-content').forEach(content => {
       const isTarget = content.id === `tabContent-${tabName}`;
+      content.hidden = !isTarget;
       content.style.display = isTarget ? 'flex' : 'none';
       if (isTarget) content.classList.add('active');
       else content.classList.remove('active');
     });
 
-    const titles = {
-      content: 'Document Content',
-      design: 'Design & Formatting',
-      legal: 'Legal & Execution',
-      ai: 'AI Copilot & OCR'
-    };
-    const activeLabel = document.getElementById('activeTabName');
-    if (activeLabel) activeLabel.innerText = titles[tabName] || 'Document Content';
+    document.getElementById('workflowTitle').textContent = 'Writing assistant';
+    document.getElementById('workflowDescription').textContent = 'Draft text or scan a receipt, then review the result in your document.';
+    document.getElementById('workflowStepCount').textContent = 'Writing assistant';
+    document.getElementById('btnWorkflowBack').disabled = false;
+    document.getElementById('btnWorkflowNext').textContent = 'Continue to details';
   }
 
   function bindSidebarTabs() {
@@ -5589,22 +5812,62 @@
   }
 
   // Archetype Live Search Filter
+  function filterDocumentTypes() {
+    const query = document.getElementById('archetypeSearchInput').value.trim().toLowerCase();
+    const category = document.querySelector('.category-tab.active')?.dataset.category || 'all';
+    let count = 0;
+    document.querySelectorAll('.template-pill').forEach(pill => {
+      const matches = (category === 'all' || pill.dataset.category === category) && (!query || `${pill.textContent} ${pill.dataset.type}`.toLowerCase().includes(query));
+      pill.style.display = matches ? 'flex' : 'none';
+      if (matches) count += 1;
+    });
+    document.getElementById('documentTypeEmpty').hidden = count !== 0;
+  }
+
   function bindArchetypeSearch() {
     const searchInput = document.getElementById('archetypeSearchInput');
     if (!searchInput) return;
 
-    searchInput.addEventListener('input', () => {
-      const q = searchInput.value.trim().toLowerCase();
-      const pills = document.querySelectorAll('.template-pill');
-      pills.forEach(pill => {
-        const text = pill.innerText.toLowerCase();
-        const type = (pill.dataset.type || '').toLowerCase();
-        if (!q || text.includes(q) || type.includes(q)) {
-          pill.style.display = 'flex';
-        } else {
-          pill.style.display = 'none';
+    searchInput.addEventListener('input', filterDocumentTypes);
+  }
+
+  function bindDialogFocus() {
+    let activeDialog = null;
+    const returnTargets = new WeakMap();
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.tabIndex = -1;
+      new MutationObserver(() => {
+        const visible = getComputedStyle(modal).display !== 'none';
+        if (visible && activeDialog !== modal) {
+          const current = document.activeElement;
+          returnTargets.set(modal, current.closest('.dropdown')?.querySelector('.btn-dropdown-trigger') || current);
+          activeDialog = modal;
+          (modal.querySelector('textarea, input:not([type="hidden"]), button, a[href]') || modal).focus();
+        } else if (!visible && activeDialog === modal) {
+          activeDialog = null;
+          returnTargets.get(modal)?.focus();
         }
-      });
+      }).observe(modal, {attributes: true, attributeFilter: ['style', 'class']});
+    });
+    document.addEventListener('keydown', event => {
+      if (!activeDialog) return;
+      if (event.key === 'Escape') {
+        activeDialog.classList.remove('active', 'open');
+        if (activeDialog.style.display === 'flex') activeDialog.style.display = 'none';
+        event.preventDefault();
+      } else if (event.key === 'Tab') {
+        const targets = [...activeDialog.querySelectorAll('button, a[href], input, select, textarea, [tabindex="0"]')].filter(node => !node.disabled && node.getClientRects().length);
+        if (!targets.length) { event.preventDefault(); activeDialog.focus(); return; }
+        const first = targets[0];
+        const last = targets[targets.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !activeDialog.contains(document.activeElement))) {
+          event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !activeDialog.contains(document.activeElement))) {
+          event.preventDefault(); first.focus();
+        }
+      }
     });
   }
 
@@ -5695,14 +5958,15 @@
             const a = document.createElement('a');
             a.href = uri;
             const suffix = pages.length > 1 ? `_p${idx + 1}` : '';
-            a.download = `${(state.doc_number || 'document').replace(/[^a-zA-Z0-9_-]/g, '_')}${suffix}.png`;
+            const format = uri.startsWith('data:image/svg+xml') ? 'svg' : uri.startsWith('data:image/jpeg') ? 'jpg' : 'png';
+            a.download = `${(state.doc_number || 'document').replace(/[^a-zA-Z0-9_-]/g, '_')}${suffix}.${format}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
           });
-          showUndoToast(pages.length > 1 ? `🖼️ Exported all ${pages.length} high-res PNG pages` : '🖼️ High-Res PNG Exported');
+          showUndoToast(pages.length > 1 ? `Downloaded ${pages.length} page images` : 'Downloaded page image');
         } else {
-          showUndoToast('⚠️ Please wait for preview to finish compiling');
+          showUndoToast('Wait for the preview to finish updating.');
         }
       });
     }
@@ -6260,6 +6524,11 @@
 
   // Debounced Live Preview
   function schedulePreview() {
+    previewRevision += 1;
+    document.getElementById('btnExportPng').disabled = true;
+    document.getElementById('btnPrintDoc').disabled = true;
+    updateReviewSummary();
+    updateWorkspaceNotice();
     if (dataMode === 'my_data') {
       autoSaveUserDocument();
     }
@@ -6268,7 +6537,11 @@
   }
 
   async function requestPreview() {
+    const revision = previewRevision;
+    const sequence = ++previewRequestSequence;
     triggerPreviewCompilingAnimation();
+    document.getElementById('btnRetryPreview').hidden = true;
+    compileTelemetry.removeAttribute('data-state');
 
     try {
       const reqHeaders = { 'Content-Type': 'application/json' };
@@ -6281,6 +6554,7 @@
         body: JSON.stringify(state)
       });
       const data = await resp.json();
+      if (sequence !== previewRequestSequence || revision !== previewRevision) return;
       if (data.success && (data.image_data_uri || (data.pages && data.pages.length > 0))) {
         currentPages = (data.pages && data.pages.length > 0) ? data.pages : [data.image_data_uri];
         currentTotalPages = data.total_pages || currentPages.length || 1;
@@ -6289,11 +6563,10 @@
         renderMultiPagePreview();
 
         compileTelemetry.classList.remove('pulse');
-        const computeTag = (currentChatGptSession && currentChatGptSession.user && currentChatGptSession.user.is_subscriber)
-          ? ` · <span style="color:#34d399">⚡ ${currentChatGptSession.user.plan_display} Compute</span>`
-          : '';
-        const pageCountTag = currentTotalPages > 1 ? ` · ${currentTotalPages} Pages` : '';
-        compileTelemetry.innerHTML = `⚡ <strong>${data.compile_time_ms}ms</strong> · Pressmark Vector Engine${pageCountTag}${computeTag}`;
+        compileTelemetry.textContent = `${currentTotalPages} ${currentTotalPages === 1 ? 'page' : 'pages'} · Up to date`;
+        document.getElementById('btnExportPng').disabled = false;
+        document.getElementById('btnPrintDoc').disabled = false;
+        updateReviewSummary();
 
         document.querySelectorAll('.preview-page-frame').forEach(f => {
           f.classList.remove('compiling-pulse', 'is-compiling', 'layout-morph-exit');
@@ -6305,14 +6578,19 @@
         }
       } else {
         compileTelemetry.classList.remove('pulse');
-        compileTelemetry.innerHTML = `<span style="color:#f87171">⚠️ ${data.error || 'Vector synthesis notice'}</span>`;
+        compileTelemetry.textContent = 'Preview out of date. Try again.';
+        compileTelemetry.dataset.state = 'error';
+        document.getElementById('btnRetryPreview').hidden = false;
         document.querySelectorAll('.preview-page-frame').forEach(f => {
           f.classList.remove('compiling-pulse', 'is-compiling', 'layout-morph-exit');
         });
       }
     } catch (err) {
+      if (sequence !== previewRequestSequence || revision !== previewRevision) return;
       compileTelemetry.classList.remove('pulse');
-      compileTelemetry.innerHTML = `<span style="color:#f87171">⚠️ Engine connection notice</span>`;
+      compileTelemetry.textContent = 'Preview unavailable. Check your connection.';
+      compileTelemetry.dataset.state = 'error';
+      document.getElementById('btnRetryPreview').hidden = false;
       document.querySelectorAll('.preview-page-frame').forEach(f => {
         f.classList.remove('compiling-pulse', 'is-compiling', 'layout-morph-exit');
       });
@@ -6368,17 +6646,31 @@
   // Print Document
   function printDocument() {
     const livePreviewImg = document.getElementById('previewImg') || previewImg;
-    const imgSrc = (currentPages && currentPages.length > 0) ? currentPages[0] : (livePreviewImg ? livePreviewImg.src : '');
+    const pages = currentPages.length ? [...currentPages] : [livePreviewImg?.src].filter(Boolean);
+    if (!pages.length) {
+      showUndoToast('Wait for the preview before printing.');
+      return;
+    }
     const win = window.open('', '_blank');
-    win.document.write(`
-      <html>
-        <head><title>Print ${state.doc_number}</title></head>
-        <body style="margin: 0; display: flex; justify-content: center; align-items: center; background: white;">
-          <img src="${imgSrc}" style="max-width: 100%; height: auto;" onload="window.print(); window.close();" />
-        </body>
-      </html>
-    `);
-    win.document.close();
+    if (!win) {
+      showUndoToast('Allow popups for Pressmark to open the print preview.');
+      return;
+    }
+    win.document.title = `Print ${state.doc_number || 'document'}`;
+    const style = win.document.createElement('style');
+    style.textContent = '@page { margin: 0; } body { margin: 0; background: white; } img { display: block; width: 100%; height: auto; break-after: page; } img:last-child { break-after: auto; }';
+    win.document.head.appendChild(style);
+    const images = pages.map((source, index) => {
+      const img = win.document.createElement('img');
+      img.src = source;
+      img.alt = `Page ${index + 1}`;
+      win.document.body.appendChild(img);
+      return img.decode();
+    });
+    Promise.all(images).then(() => {
+      win.focus();
+      win.print();
+    }).catch(() => showUndoToast('A page could not load for printing. Update the preview and try again.'));
   }
 
   // Modals & Photo Extractor
@@ -6400,29 +6692,150 @@
     document.getElementById('btnOpenScan').addEventListener('click', () => scanModal.style.display = 'flex');
     document.getElementById('btnCloseScan').addEventListener('click', () => scanModal.style.display = 'none');
 
+    const jsonTextarea = document.getElementById('jsonTextarea');
+    const jsonImportError = document.createElement('p');
+    jsonImportError.id = 'jsonImportError';
+    jsonImportError.setAttribute('role', 'alert');
+    jsonImportError.style.color = 'var(--accent-red)';
+    jsonImportError.style.fontSize = '13px';
+    jsonImportError.style.marginTop = '8px';
+    jsonImportError.hidden = true;
+    jsonTextarea.insertAdjacentElement('afterend', jsonImportError);
+    jsonTextarea.setAttribute('aria-describedby', 'jsonImportError');
+    const clearJsonError = () => {
+      jsonImportError.hidden = true;
+      jsonImportError.textContent = '';
+      jsonTextarea.removeAttribute('aria-invalid');
+    };
+    const showJsonError = error => {
+      jsonImportError.textContent = `Could not import this document. ${error.message}`;
+      jsonImportError.hidden = false;
+      jsonTextarea.setAttribute('aria-invalid', 'true');
+      jsonTextarea.focus();
+    };
+    jsonTextarea.addEventListener('input', clearJsonError);
+
+    const validateImportedDocument = parsed => {
+      const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+      if (!isRecord(parsed)) throw new Error('Use a JSON object containing document fields.');
+      const validateValue = value => {
+        if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('Numbers must be finite.');
+        if (value && typeof value === 'object') {
+          Object.entries(value).forEach(([key, child]) => {
+            if (['__proto__', 'constructor', 'prototype'].includes(key)) throw new Error(`The field “${key}” is not supported.`);
+            validateValue(child);
+          });
+        }
+      };
+      validateValue(parsed);
+      ['from', 'to'].forEach(key => {
+        if (Object.hasOwn(parsed, key) && !isRecord(parsed[key])) throw new Error(`“${key}” must be an object with contact fields.`);
+      });
+      const candidate = { ...structuredClone(state), ...parsed };
+      ['from', 'to'].forEach(key => {
+        candidate[key] = { ...state[key], ...parsed[key] };
+      });
+      const checkFields = (record, names, type, path, required = false) => {
+        names.forEach(name => {
+          const value = record[name];
+          if (!required && (value === undefined || value === null)) return;
+          if (typeof value !== type || (type === 'number' && !Number.isFinite(value))) {
+            throw new Error(`“${path}${name}” must be ${type === 'object' ? 'an object' : `a ${type}`}.`);
+          }
+        });
+      };
+      checkFields(candidate, ['doc_type'], 'string', '', true);
+      checkFields(candidate, [
+        'title', 'doc_number', 'issue_date', 'due_date', 'theme', 'primary_color', 'secondary_color',
+        'accent_color', 'surface_color', 'text_color', 'font_family', 'font_scale', 'paper_size', 'logo_data',
+        'signature_data', 'signer_name', 'signer_title', 'currency', 'notes', 'terms', 'header_subtitle',
+        'footer_text', 'background_style', 'status', 'watermark', 'compliance_mode', 'layout_style',
+        'spacing_density', 'execution_mode', 'branding_mode', 'audit_hash', 'currency_symbol_mode',
+        'currency_placement', 'currency_separators', 'date_format', 'phone_format', 'unit_measure',
+        'payment_link', 'payment_status', 'payment_method', 'paid_at', 'transaction_reference',
+        'state_code', 'municipality', 'county'
+      ], 'string', '');
+      checkFields(candidate, ['tax_rate', 'discount_amount', 'amount_paid', 'number_decimals', 'year_built'], 'number', '');
+      ['number_decimals', 'year_built'].forEach(key => {
+        if (candidate[key] != null && (!Number.isInteger(candidate[key]) || candidate[key] < 0)) {
+          throw new Error(`“${key}” must be a nonnegative whole number.`);
+        }
+      });
+      checkFields(candidate, [
+        'show_page_numbers', 'show_footer_divider', 'is_paid', 'show_qr_seal', 'show_signature',
+        'show_remittance_stub', 'show_line_numbers', 'include_clerk_stamp', 'payment_qr_code',
+        'recordable', 'notary_required', 'lease_package_mode'
+      ], 'boolean', '');
+      ['from', 'to'].forEach(key => {
+        checkFields(candidate[key], ['name'], 'string', `${key}.`, true);
+        checkFields(candidate[key], ['company', 'address', 'email', 'phone', 'tax_id', 'website', 'registration_number'], 'string', `${key}.`);
+      });
+      const collections = {
+        items: { strings: ['description'], numbers: ['quantity', 'unit_price'], optionalNumbers: ['tax_rate', 'discount'] },
+        sections: { strings: ['title', 'content'] },
+        signatures: { strings: ['signer_name'], optionalStrings: ['signer_title', 'date', 'signature_data'] },
+        custom_fields: { strings: ['label', 'value'] }
+      };
+      Object.entries(collections).forEach(([key, fields]) => {
+        if (!Array.isArray(candidate[key])) throw new Error(`“${key}” must be an array.`);
+        candidate[key].forEach((entry, index) => {
+          const path = `${key}[${index}].`;
+          if (!isRecord(entry)) throw new Error(`“${key}[${index}]” must be an object.`);
+          checkFields(entry, fields.strings || [], 'string', path, true);
+          checkFields(entry, fields.numbers || [], 'number', path, true);
+          checkFields(entry, fields.optionalStrings || [], 'string', path);
+          checkFields(entry, fields.optionalNumbers || [], 'number', path);
+        });
+      });
+      return candidate;
+    };
+    const refreshImportedDocument = () => {
+      adaptFormToArchetype(state.doc_type);
+      syncFormFromState();
+      renderLineItemsTable();
+      renderSectionsList();
+      renderSignaturesList();
+      renderCustomFieldsList();
+      updateCalculations();
+      renderInteractiveOverlay();
+    };
+
     document.getElementById('btnCopyJson').addEventListener('click', () => {
-      document.getElementById('jsonTextarea').value = JSON.stringify(state, null, 2);
+      clearJsonError();
+      jsonTextarea.value = JSON.stringify(state, null, 2);
       jsonModal.style.display = 'flex';
     });
     document.getElementById('btnCloseJson').addEventListener('click', () => jsonModal.style.display = 'none');
 
     document.getElementById('btnApplyJson').addEventListener('click', () => {
+      let candidate;
       try {
-        const parsed = JSON.parse(document.getElementById('jsonTextarea').value);
+        candidate = validateImportedDocument(JSON.parse(jsonTextarea.value));
+      } catch (error) {
+        showJsonError(error);
+        return;
+      }
+      const previous = captureHistoryEntry('Apply JSON State');
+      const previousUndo = undoStack.slice();
+      const previousRedo = redoStack.slice();
+      try {
         pushUndo('Apply JSON State');
-        Object.assign(state, parsed);
-        syncFormFromState();
-        renderLineItemsTable();
-        renderSectionsList();
-        renderSignaturesList();
-        renderCustomFieldsList();
-        updateCalculations();
-        renderInteractiveOverlay();
+        restoreDocumentSnapshot(candidate);
+        hasUserCustomizedData = true;
+        hasUserCustomizedItems = true;
+        deselectElement();
+        refreshImportedDocument();
         schedulePreview();
+        clearJsonError();
         jsonModal.style.display = 'none';
-        showUndoToast('Applied JSON document configuration · [↩ Undo]');
-      } catch (err) {
-        alert('Invalid JSON: ' + err.message);
+        showUndoToast('Imported document. Undo is available.');
+      } catch (error) {
+        restoreHistoryEntry(previous);
+        undoStack.splice(0, undoStack.length, ...previousUndo);
+        redoStack.splice(0, redoStack.length, ...previousRedo);
+        updateUndoRedoButtons();
+        refreshImportedDocument();
+        showJsonError(error);
       }
     });
 

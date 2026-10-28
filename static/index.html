@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pressmark Studio · Sub-Millisecond Vector Invoices, Leases & Documents</title>
-  <meta name="description" content="Sub-millisecond Rust-native vector document engine. Generate publication-grade invoices, commercial leases, estimates, and legal agreements with live preview, Stripe QR payment links, and ChatGPT / MCP agent integration.">
+  <title>Pressmark · Invoices, agreements and documents</title>
+  <meta name="description" content="Create invoices, agreements and business documents. Add your details, choose a design, and review your document with a live preview before exporting.">
   <meta name="keywords" content="vector document engine, invoice generator, pdf invoice, rust pdf, commercial lease agreement, stripe payment link qr, chatgpt document plugin, model context protocol, mcp server">
   <meta name="author" content="Daniel Hallman">
   <meta name="robots" content="index, follow">
@@ -13,24 +13,24 @@
   <!-- OpenGraph Metadata -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://pressmark.dev/">
-  <meta property="og:title" content="Pressmark Studio · Sub-Millisecond Vector Document Engine">
-  <meta property="og:description" content="Generate crisp, print-ready vector PDF invoices, commercial leases, and legal agreements in under 15ms. 1-scan QR code mobile payments, PEPPOL compliance, and ChatGPT / MCP integration.">
+  <meta property="og:title" content="Pressmark · Invoices, agreements and documents">
+  <meta property="og:description" content="Create your document, add your details, and review every page before exporting.">
   <meta property="og:image" content="https://pressmark.dev/assets/hero.jpg">
   <meta property="og:site_name" content="Pressmark">
 
   <!-- Twitter Card Metadata -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:site" content="@pressmark">
-  <meta name="twitter:title" content="Pressmark Studio · Sub-Millisecond Vector Document Engine">
-  <meta name="twitter:description" content="Generate crisp, print-ready vector PDF invoices, commercial leases, and legal agreements in under 15ms with live preview and Stripe payments.">
+  <meta name="twitter:title" content="Pressmark · Invoices, agreements and documents">
+  <meta name="twitter:description" content="Create your document, add your details, and review every page before exporting.">
   <meta name="twitter:image" content="https://pressmark.dev/assets/hero.jpg">
 
   <!-- Theme & Favicons -->
-  <meta name="theme-color" content="#090d16">
+  <meta name="theme-color" content="#f5f5f7">
   <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
   <link rel="apple-touch-icon" href="/assets/logo.jpg">
   <link rel="alternate" type="text/markdown" href="https://pressmark.dev/llms.txt" title="Pressmark LLMs Index">
-  <link rel="stylesheet" href="/css/studio.css?v=1.2.5">
+  <link rel="stylesheet" href="/css/studio.css?v=1.3.0">
 
   <!-- Google Analytics 4 (G-4ZM1ZEHH43) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-4ZM1ZEHH43"></script>
@@ -129,6 +129,7 @@
   </script>
 </head>
 <body>
+  <a class="skip-link" href="#controlsPane">Skip to editor</a>
 
   <!-- TOP NAVBAR -->
   <header class="navbar" id="topNavbar">
@@ -136,8 +137,8 @@
       <button type="button" class="mobile-nav-toggle" id="btnMobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
       <img src="/assets/logo.jpg" alt="Pressmark Logo" class="nav-logo">
       <div class="brand-text-group">
-        <h1 class="brand-text" style="margin:0;font-size:inherit;font-weight:inherit;">PRESSMARK</h1>
-        <span class="brand-pill">Precision Vector Engine</span>
+        <h1 class="brand-text">Pressmark</h1>
+        <span class="brand-pill">Document studio</span>
       </div>
     </div>
 
@@ -146,7 +147,7 @@
       <div class="segmented-control" id="viewModeSelector">
         <button class="segmented-btn active" data-view="split" id="viewBtnSplit" title="Split Screen (Editor & Preview)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-          <span>Split</span>
+          <span>Workspace</span>
         </button>
         <button class="segmented-btn" data-view="editor" id="viewBtnEditor" title="Editor Only">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -191,28 +192,28 @@
       <!-- Tools Dropdown -->
       <div class="dropdown" id="dropdownTools">
         <button class="btn btn-secondary btn-sm btn-dropdown-trigger" type="button" id="btnToolsMenu">
-          <span>✨ Tools</span>
+          <span>Tools</span>
           <span class="dropdown-chevron">▾</span>
         </button>
         <div class="dropdown-menu">
           <button class="dropdown-item" id="btnRandomize">
             <span class="dropdown-icon">🎲</span>
             <div class="dropdown-item-info">
-              <span class="dropdown-item-title">Surprise Me</span>
-              <span class="dropdown-item-desc">Randomize theme, industry & layout</span>
+              <span class="dropdown-item-title">Explore an example</span>
+              <span class="dropdown-item-desc">Try a different document and design</span>
             </div>
           </button>
           <button class="dropdown-item" id="btnOpenScan">
             <span class="dropdown-icon">📷</span>
             <div class="dropdown-item-info">
-              <span class="dropdown-item-title">Scan Receipt / Photo</span>
+              <span class="dropdown-item-title">Scan a receipt</span>
               <span class="dropdown-item-desc">Extract vendor and line items from an image</span>
             </div>
           </button>
           <button class="dropdown-item" id="btnClone">
             <span class="dropdown-icon">📋</span>
             <div class="dropdown-item-info">
-              <span class="dropdown-item-title">Clone Document</span>
+              <span class="dropdown-item-title">Duplicate document</span>
               <span class="dropdown-item-desc">Duplicate as a new revision</span>
             </div>
           </button>
@@ -222,29 +223,35 @@
       <!-- More Dropdown -->
       <div class="dropdown" id="dropdownMore">
         <button class="btn btn-secondary btn-sm btn-dropdown-trigger" type="button" id="btnMoreMenu">
-          <span>⋯ More</span>
+          <span>Document</span>
           <span class="dropdown-chevron">▾</span>
         </button>
         <div class="dropdown-menu">
+          <button class="dropdown-item" id="btnOpenAssistant" type="button">
+            <div class="dropdown-item-info"><span class="dropdown-item-title">Writing assistant</span><span class="dropdown-item-desc">Draft text or scan a receipt</span></div>
+          </button>
+          <button class="dropdown-item" id="btnOpenDocumentActions" type="button">
+            <div class="dropdown-item-info"><span class="dropdown-item-title">Billing actions</span><span class="dropdown-item-desc">Convert an invoice or record a payment</span></div>
+          </button>
           <button class="dropdown-item" id="btnCopyJson">
             <span class="dropdown-icon">{ }</span>
             <div class="dropdown-item-info">
-              <span class="dropdown-item-title">Document JSON</span>
-              <span class="dropdown-item-desc">Export or paste raw schema</span>
+              <span class="dropdown-item-title">Import or export data</span>
+              <span class="dropdown-item-desc">Save or load a document as JSON</span>
             </div>
           </button>
           <button class="dropdown-item" id="btnOpenGpt">
             <span class="dropdown-icon">🔌</span>
             <div class="dropdown-item-info">
-              <span class="dropdown-item-title">ChatGPT Action API</span>
-              <span class="dropdown-item-desc">Connect Custom GPT / Action</span>
+              <span class="dropdown-item-title">Connect ChatGPT</span>
+              <span class="dropdown-item-desc">Set up a custom GPT action</span>
             </div>
           </button>
           <div class="dropdown-divider"></div>
           <button class="dropdown-item" id="btnOpenPricing">
             <span class="dropdown-icon">💳</span>
             <div class="dropdown-item-info">
-              <span class="dropdown-item-title">Pricing & Unlock Plans</span>
+              <span class="dropdown-item-title">Plans and pricing</span>
               <span class="dropdown-item-desc">From $2.99 single pass to Pro</span>
             </div>
           </button>
@@ -323,22 +330,22 @@
           <button class="dropdown-item dropdown-item-featured" id="btnDownloadPdf">
             <span class="dropdown-icon">📄</span>
             <div class="dropdown-item-info">
-              <span class="dropdown-item-title">Vector PDF</span>
-              <span class="dropdown-item-desc">Crisp, print-ready CMYK/RGB PDF</span>
+              <span class="dropdown-item-title">Download PDF</span>
+              <span class="dropdown-item-desc">All pages in one document</span>
             </div>
           </button>
           <button class="dropdown-item" id="btnExportPng">
             <span class="dropdown-icon">🖼️</span>
             <div class="dropdown-item-info">
-              <span class="dropdown-item-title">High-Res PNG</span>
-              <span class="dropdown-item-desc">300 PPI transparent or solid render</span>
+              <span class="dropdown-item-title">Download page images</span>
+              <span class="dropdown-item-desc">Save an image of each page</span>
             </div>
           </button>
           <button class="dropdown-item" id="btnPrintDoc">
             <span class="dropdown-icon">🖨️</span>
             <div class="dropdown-item-info">
-              <span class="dropdown-item-title">Print Document</span>
-              <span class="dropdown-item-desc">Send directly to system printer</span>
+              <span class="dropdown-item-title">Print document</span>
+              <span class="dropdown-item-desc">Open the print dialog</span>
             </div>
           </button>
         </div>
@@ -347,10 +354,27 @@
   </header>
 
   <!-- MAIN TWO-COLUMN STUDIO LAYOUT -->
-  <main class="main-container">
+  <main class="main-container view-mode-split">
 
     <!-- LEFT CONTROLS PANEL -->
-    <aside class="controls-pane" id="controlsPane">
+    <aside class="controls-pane" id="controlsPane" tabindex="-1" aria-label="Document editor">
+
+      <div class="studio-workflow">
+        <nav class="workflow-steps" aria-label="Document setup">
+          <button type="button" data-step="document" aria-current="step"><span>1</span>Document</button>
+          <button type="button" data-step="details"><span>2</span>Details</button>
+          <button type="button" data-step="terms"><span>3</span>Terms</button>
+          <button type="button" data-step="design"><span>4</span>Design</button>
+          <button type="button" data-step="review"><span>5</span>Review</button>
+        </nav>
+        <div class="workflow-heading">
+          <span id="workflowStepCount">Step 1 of 5</span>
+          <h2 id="workflowTitle" tabindex="-1">Start with your document.</h2>
+          <p id="workflowDescription">Choose a document type and give it a name. You can move between steps at any time.</p>
+        </div>
+      </div>
+
+      <div class="sidebar-tab-content" id="tabContent-document"></div>
 
       <!-- SEMANTIC STUDIO BREADCRUMBS -->
       <nav class="studio-breadcrumbs" id="studioBreadcrumbs" aria-label="Document Breadcrumbs">
@@ -365,7 +389,7 @@
       <!-- ========================================================
            STEP 1: PRIMARY DOCUMENT ARCHETYPE & CATEGORY SELECTOR
            ======================================================== -->
-      <div class="archetype-primary-header" id="archetypePrimaryHeader">
+      <div class="archetype-primary-header workspace-context" id="archetypePrimaryHeader">
         <div class="archetype-hero-card">
           <div class="archetype-hero-meta">
             <span class="archetype-icon-badge" id="currentArchetypeIcon">📄</span>
@@ -375,7 +399,7 @@
             </div>
           </div>
           <button type="button" class="btn btn-primary btn-sm btn-select-archetype" id="btnOpenArchetypeModal" title="Select Document Archetype & Domain">
-            <span>📂 Switch Archetype (57)</span>
+            <span>Change type</span>
           </button>
         </div>
 
@@ -395,7 +419,7 @@
            ======================================================== -->
       <div class="lifecycle-stepper-bar" id="lifecycleStepperBar" role="region" aria-label="Document Lifecycle Stages">
         <div class="lifecycle-header-row">
-          <span class="lifecycle-title" title="Convert your current client and line items between Quote, Invoice, Paid Receipt, and Credit Note">BILLING STAGE · CONVERT THIS DOCUMENT</span>
+          <span class="lifecycle-title" title="Convert your current client and line items between Quote, Invoice, Paid Receipt, and Credit Note">Billing actions</span>
           <span class="lifecycle-badge" id="lifecycleStatusBadge">Tax Invoice</span>
         </div>
         <div class="lifecycle-stage-summary" id="lifecycleStageSummary">INV-2026-0042 · Billable invoice with QR payment link (click any stage below to convert)</div>
@@ -427,7 +451,7 @@
       </div>
 
       <!-- SIDEBAR WORKFLOW TAB STRIP -->
-      <div class="sidebar-tab-strip">
+      <div class="sidebar-tab-strip" hidden>
         <button class="sidebar-tab-btn active" data-tab="content" id="tabBtnContent">
           <span class="tab-icon">📝</span>
           <span class="tab-label">Content</span>
@@ -461,12 +485,12 @@
       <!-- ==========================================
            TAB 1: DOCUMENT CONTENT
            ========================================== -->
-      <div class="sidebar-tab-content active" id="tabContent-content">
+      <div class="sidebar-tab-content" id="tabContent-content">
 
         <!-- CARD: METADATA & DATES -->
         <section class="control-card">
           <div class="card-header-toggle">
-            <div class="card-title">🔢 Metadata & Document Numbers</div>
+            <div class="card-title">Document details</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
@@ -510,7 +534,7 @@
         <!-- CARD: ENTITIES & PARTIES -->
         <section class="control-card">
           <div class="card-header-toggle">
-            <div class="card-title">🏢 Parties, Entities & Contact</div>
+            <div class="card-title">People and businesses</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
@@ -677,13 +701,13 @@
         <!-- CARD: PAYMENT, STRIPE CHECKOUT & VECTOR QR CODE -->
         <section class="control-card" id="cardPaymentCheckout">
           <div class="card-header-toggle">
-            <div class="card-title">💳 Payment, Stripe Link & Vector QR</div>
+            <div class="card-title">Payment details</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
             <div class="form-group">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <label class="form-label" style="margin-bottom: 0;">Payment Link / Stripe Checkout URL</label>
+                <label class="form-label" style="margin-bottom: 0;">Payment link</label>
                 <button type="button" class="btn-copy-input" id="btnCopyPaymentLink" title="Copy payment link to clipboard">
                   <span>📋 Copy Link</span>
                 </button>
@@ -745,23 +769,24 @@
         <!-- CARD: TEMPLATE ARCHETYPE & CATEGORIES -->
         <section class="control-card">
           <div class="card-header-toggle">
-            <div class="card-title">📂 Document Archetype & Category</div>
+            <div class="card-title">Document types</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
             <!-- Archetype Quick Search -->
             <div class="archetype-search-box">
-              <input type="text" id="archetypeSearchInput" class="form-input" placeholder="🔍 Search 57 archetypes..." autocomplete="off">
+              <input type="search" id="archetypeSearchInput" class="form-input" aria-label="Search document types" placeholder="Search 57 document types" autocomplete="off">
             </div>
 
             <div class="category-tabs">
-              <div class="category-tab active" data-category="all">All (57)</div>
-              <div class="category-tab" data-category="invoices">Invoices (8)</div>
-              <div class="category-tab" data-category="estimates">Quotes & PO (6)</div>
-              <div class="category-tab" data-category="agreements">Agreements (6)</div>
-              <div class="category-tab" data-category="real_estate">Real Estate & CRE (29)</div>
-              <div class="category-tab" data-category="operations">Ops & Legal (8)</div>
+              <button type="button" class="category-tab active" data-category="all" aria-pressed="true">All (57)</button>
+              <button type="button" class="category-tab" data-category="invoices" aria-pressed="false">Invoices (8)</button>
+              <button type="button" class="category-tab" data-category="estimates" aria-pressed="false">Quotes &amp; orders (6)</button>
+              <button type="button" class="category-tab" data-category="agreements" aria-pressed="false">Agreements (6)</button>
+              <button type="button" class="category-tab" data-category="real_estate" aria-pressed="false">Real estate (29)</button>
+              <button type="button" class="category-tab" data-category="operations" aria-pressed="false">Operations (8)</button>
             </div>
+            <p id="documentTypeEmpty" class="example-notice" role="status" hidden>No document types match. Try another search or category.</p>
             <div class="template-grid">
               <button class="template-pill active" data-type="invoice" data-category="invoices">📄 Tax Invoice</button>
               <button class="template-pill" data-type="invoice_standard" data-category="invoices">📋 Standard Commercial</button>
@@ -827,7 +852,7 @@
         <!-- CARD: BRAND, LAYOUT & TYPOGRAPHY -->
         <section class="control-card">
           <div class="card-header-toggle">
-            <div class="card-title">🎨 Brand, Layout & Typography</div>
+            <div class="card-title">Style and layout</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
@@ -1036,7 +1061,7 @@
         <!-- CARD: DATA FORMATTERS & LOCALIZATION -->
         <section class="control-card">
           <div class="card-header-toggle">
-            <div class="card-title">🌐 Data Formatters & Localization</div>
+            <div class="card-title">Numbers, dates and currency</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
@@ -1157,7 +1182,7 @@
         <!-- CARD: CUSTOM DOCUMENT SECTIONS -->
         <section class="control-card">
           <div class="card-header-toggle">
-            <div class="card-title">📑 Custom Document Sections</div>
+            <div class="card-title">Sections and clauses</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
@@ -1174,7 +1199,7 @@
         <!-- CARD: MULTI-SIGNATORY EXECUTION -->
         <section class="control-card">
           <div class="card-header-toggle">
-            <div class="card-title">✍️ Multi-Signatory Execution</div>
+            <div class="card-title">Signatures</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
@@ -1191,7 +1216,7 @@
         <!-- CARD: NOTES & LEGAL TERMS -->
         <section class="control-card">
           <div class="card-header-toggle">
-            <div class="card-title">📜 Notes & Legal Terms</div>
+            <div class="card-title">Notes and terms</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
@@ -1204,8 +1229,8 @@
               <textarea id="termsInput" class="form-textarea" rows="2"></textarea>
             </div>
             <div class="form-group">
-              <label class="form-label">Footer Attestation / Legal Microcopy</label>
-              <input type="text" id="footerTextInput" class="form-input" placeholder="e.g. Certified Vector Output · Pressmark Precision Engine">
+              <label class="form-label">Footer text</label>
+              <input type="text" id="footerTextInput" class="form-input" placeholder="A short note at the bottom of each page">
             </div>
           </div>
         </section>
@@ -1213,7 +1238,7 @@
         <!-- CARD: COMPLIANCE & ENTERPRISE VERIFICATION -->
         <section class="control-card">
           <div class="card-header-toggle">
-            <div class="card-title">🛡️ Enterprise Compliance & Seals</div>
+            <div class="card-title">Document requirements</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
@@ -1387,7 +1412,7 @@
         <!-- CARD: WATERMARK OVERLAY TEST -->
         <section class="control-card collapsed">
           <div class="card-header-toggle">
-            <div class="card-title">🏷️ Watermark Overlay Test</div>
+            <div class="card-title">Watermark</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
@@ -1430,7 +1455,7 @@
         <!-- CARD: NATURAL LANGUAGE STUDIO COPILOT -->
         <section class="control-card">
           <div class="card-header-toggle">
-            <div class="card-title">✨ Natural Language Studio Copilot</div>
+            <div class="card-title">Draft with a prompt</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
@@ -1461,7 +1486,7 @@
         <!-- CARD: RECEIPT & PHOTO SCANNER -->
         <section class="control-card">
           <div class="card-header-toggle">
-            <div class="card-title">📷 Receipt & Photo Scanner</div>
+            <div class="card-title">Scan a receipt</div>
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
@@ -1479,17 +1504,38 @@
 
       </div>
 
+      <div class="sidebar-tab-content" id="tabContent-review" style="display:none;">
+        <section class="document-summary">
+          <h3>At a glance</h3>
+          <dl class="review-summary" id="reviewSummary"></dl>
+          <p>Review the names, amounts and terms in the preview before exporting.</p>
+          <button type="button" class="btn btn-secondary" id="btnReviewPreview">View document</button>
+        </section>
+        <details class="workspace-options" id="billingActionsDisclosure">
+          <summary>Billing actions</summary>
+          <p>These actions change the document’s billing status. They do not collect or refund a payment.</p>
+          <div id="billingActionsContainer"></div>
+        </details>
+      </div>
+      <footer class="workflow-footer">
+        <button type="button" class="btn btn-secondary" id="btnWorkflowBack">Back</button>
+        <button type="button" class="btn btn-primary" id="btnWorkflowNext">Continue to details</button>
+      </footer>
+      <div class="studio-help"><a href="/privacy" target="_blank" rel="noopener">Privacy</a><a href="/terms" target="_blank" rel="noopener">Terms</a><a href="/docs" target="_blank" rel="noopener">Help</a></div>
     </aside>
 
     <!-- RIGHT LIVE PREVIEW PANE -->
     <section class="preview-pane">
       <div class="preview-toolbar">
-        <div class="telemetry-badge" id="compileTelemetry">
-          ⚡ 18ms compile · Pressmark Vector Engine
-        </div>
+        <span class="preview-title">Live preview</span>
+        <div class="telemetry-badge" id="compileTelemetry" role="status" aria-live="polite">Preparing preview…</div>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnRetryPreview" hidden>Retry</button>
+        <details class="preview-options">
+          <summary>View options</summary>
+          <div class="preview-options-body">
         <div class="preview-center-bar">
-          <button class="btn btn-secondary btn-sm active" id="btnToggleInteractive" title="Toggle interactive preview overlay for tapping, selecting, dragging and deleting instances">
-            🎯 Interactive: ON
+          <button class="btn btn-secondary btn-sm" id="btnToggleInteractive" aria-pressed="false" title="Select and edit elements on the preview">
+            Edit on page
           </button>
           <div class="page-nav-controls" id="pageNavControls">
             <button class="btn btn-secondary btn-sm" id="btnPrevPage" title="Previous Page" disabled>◀</button>
@@ -1508,6 +1554,8 @@
           <button class="btn btn-secondary btn-sm" id="btnZoomReset" title="Reset to 100%">100%</button>
           <button class="btn btn-secondary btn-sm" id="btnZoomFit" title="Fit to Screen Width">Fit</button>
         </div>
+          </div>
+        </details>
       </div>
 
       <div class="preview-viewport" id="previewViewport">
@@ -1516,6 +1564,7 @@
           <div class="preview-doc-wrapper preview-page-frame" id="previewDocWrapper" data-page-index="0">
             <div class="page-number-tag" id="pageNumberTag0">Page 1</div>
             <div class="preview-stage-buffer">
+              <div class="preview-placeholder" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
               <img id="previewImg" class="preview-doc-image preview-layer-current" src="" alt="Live Document Preview">
             </div>
             <div id="previewInteractiveOverlay" class="preview-interactive-overlay"></div>
@@ -1768,6 +1817,6 @@
   <div class="ai-message-toast" id="aiToast"></div>
   <div class="undo-toast" id="undoToast"></div>
 
-  <script src="/js/studio.js?v=1.2.5"></script>
+  <script src="/js/studio.js?v=1.3.0"></script>
 </body>
 </html>

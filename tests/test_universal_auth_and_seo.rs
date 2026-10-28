@@ -98,14 +98,14 @@ async fn test_html_head_seo_opengraph_and_breadcrumbs() {
     let html = String::from_utf8_lossy(&body_bytes);
 
     // Verify Title and Meta tags
-    assert!(html.contains("<title>Pressmark Studio · Sub-Millisecond Vector Invoices, Leases & Documents</title>"));
+    assert!(html.contains("<title>Pressmark · Invoices, agreements and documents</title>"));
     assert!(html.contains("<meta name=\"description\""));
-    assert!(html.contains("Sub-millisecond Rust-native vector document engine"));
+    assert!(html.contains("Create invoices, agreements and business documents."));
     assert!(html.contains("<meta name=\"author\" content=\"Daniel Hallman\">"));
     assert!(html.contains("<link rel=\"canonical\" href=\"https://pressmark.dev/\">"));
 
     // Verify OpenGraph
-    assert!(html.contains("<meta property=\"og:title\" content=\"Pressmark Studio · Sub-Millisecond Vector Document Engine\">"));
+    assert!(html.contains("<meta property=\"og:title\" content=\"Pressmark · Invoices, agreements and documents\">"));
     assert!(html.contains("<meta property=\"og:image\" content=\"https://pressmark.dev/assets/hero.jpg\">"));
 
     // Verify Twitter Card

@@ -1758,7 +1758,7 @@ async fn test_all_copilot_quick_presets_auth_redirect_and_storage_pruning() {
     // Verify static/index.html has 57 template-pill buttons and updated copy
     let html = std::fs::read_to_string("static/index.html").unwrap();
     assert_eq!(html.matches("class=\"template-pill").count(), 57);
-    assert!(html.contains("Switch Archetype (57)"));
+    assert!(html.contains("Change type"));
     assert!(!html.contains("Neural Receipt"));
 
     // Verify storage prune_stale_data runs cleanly with usage_events retention
@@ -1820,6 +1820,18 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     )
     .unwrap();
     assert!(html_lease.contains("<title>Residential Lease Agreement Template & PDF Generator · Pressmark Studio</title>"));
+    let (lease_title, lease_description) =
+        pressmark::models::DocumentType::ResidentialLease.seo_metadata();
+    for expected_tag in [
+        format!("<meta name=\"description\" content=\"{}\">", lease_description),
+        format!("<meta property=\"og:title\" content=\"{}\">", lease_title),
+        format!("<meta property=\"og:description\" content=\"{}\">", lease_description),
+    ] {
+        assert!(
+            html_lease.contains(&expected_tag),
+            "Missing template metadata: {expected_tag}"
+        );
+    }
     assert!(html_lease.contains("<link rel=\"canonical\" href=\"https://pressmark.dev/templates/residential-lease\">"));
     assert!(html_lease.contains("window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"residential_lease\";"));
 

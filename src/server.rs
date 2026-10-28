@@ -295,11 +295,11 @@ async fn handle_template_landing(
         Ok(raw_html) => {
             let mut html = raw_html
                 .replace(
-                    "<title>Pressmark Studio · Sub-Millisecond Vector Invoices, Leases & Documents</title>",
+                    "<title>Pressmark · Invoices, agreements and documents</title>",
                     &format!("<title>{}</title>", seo_title),
                 )
                 .replace(
-                    "<meta name=\"description\" content=\"Sub-millisecond Rust-native vector document engine. Generate publication-grade invoices, commercial leases, estimates, and legal agreements with live preview, Stripe QR payment links, and ChatGPT / MCP agent integration.\">",
+                    "<meta name=\"description\" content=\"Create invoices, agreements and business documents. Add your details, choose a design, and review your document with a live preview before exporting.\">",
                     &format!("<meta name=\"description\" content=\"{}\">", seo_desc),
                 )
                 .replace(
@@ -311,11 +311,11 @@ async fn handle_template_landing(
                     &format!("<meta property=\"og:url\" content=\"{}\">", canonical_url),
                 )
                 .replace(
-                    "<meta property=\"og:title\" content=\"Pressmark Studio · Sub-Millisecond Vector Document Engine\">",
+                    "<meta property=\"og:title\" content=\"Pressmark · Invoices, agreements and documents\">",
                     &format!("<meta property=\"og:title\" content=\"{}\">", seo_title),
                 )
                 .replace(
-                    "<meta property=\"og:description\" content=\"Generate crisp, print-ready vector PDF invoices, commercial leases, and legal agreements in under 15ms. 1-scan QR code mobile payments, PEPPOL compliance, and ChatGPT / MCP integration.\">",
+                    "<meta property=\"og:description\" content=\"Create your document, add your details, and review every page before exporting.\">",
                     &format!("<meta property=\"og:description\" content=\"{}\">", seo_desc),
                 );
 
