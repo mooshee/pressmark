@@ -11,6 +11,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension, Result};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::auth::{ChatGptSession, PendingAuth};
 
@@ -18,6 +19,8 @@ use crate::auth::{ChatGptSession, PendingAuth};
 pub struct Storage {
     conn: Arc<Mutex<Connection>>,
     db_path: PathBuf,
+    mcp_attempt_write_failures: Arc<AtomicU64>,
+    mcp_outcome_write_failures: Arc<AtomicU64>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -55,6 +58,8 @@ impl Storage {
         let storage = Self {
             conn: Arc::new(Mutex::new(conn)),
             db_path,
+            mcp_attempt_write_failures: Arc::new(AtomicU64::new(0)),
+            mcp_outcome_write_failures: Arc::new(AtomicU64::new(0)),
         };
 
         storage.init_schema()?;
@@ -144,9 +149,21 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_usage_events_channel_detail ON usage_events(channel, detail);
             CREATE INDEX IF NOT EXISTS idx_usage_events_archetype ON usage_events(archetype);
             CREATE INDEX IF NOT EXISTS idx_usage_events_type_detail ON usage_events(event_type, detail);
-            UPDATE usage_events SET archetype = REPLACE(archetype, '-', '_') WHERE archetype IS NOT NULL AND archetype LIKE '%-%';
-            UPDATE usage_events SET channel = 'web_seo_probe' WHERE event_type = 'template_landing_view' AND channel = 'web_seo' AND substr(created_at, 1, 19) IN (SELECT DISTINCT substr(created_at, 1, 19) FROM usage_events WHERE detail LIKE '%ProductDoctor%' OR channel LIKE '%ProductDoctor%');
-            UPDATE usage_events SET channel = 'stripe_probe' WHERE event_type = 'checkout_init' AND channel = 'stripe' AND substr(created_at, 1, 19) IN (SELECT DISTINCT substr(created_at, 1, 19) FROM usage_events WHERE detail LIKE '%ProductDoctor%' OR channel LIKE '%ProductDoctor%');",
+            UPDATE usage_events SET archetype = REPLACE(archetype, '-', '_') WHERE archetype IS NOT NULL AND archetype LIKE '%-%';",
+        )?;
+
+        // Nullable columns preserve the unknown outcome of historical attempts.
+        let columns: Vec<String> = lock.prepare("PRAGMA table_info(usage_events)")?
+            .query_map([], |row| row.get(1))?.collect::<Result<_>>()?;
+        for (name, kind) in [("outcome", "TEXT"), ("completed_at", "TEXT"), ("error_code", "INTEGER")] {
+            if !columns.iter().any(|column| column == name) {
+                lock.execute_batch(&format!("ALTER TABLE usage_events ADD COLUMN {name} {kind};"))?;
+            }
+        }
+        lock.execute_batch("CREATE TABLE IF NOT EXISTS usage_measurement_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);")?;
+        lock.execute(
+            "INSERT OR IGNORE INTO usage_measurement_metadata (key, value) VALUES ('mcp_outcomes_started_at', ?1)",
+            [Utc::now().to_rfc3339()],
         )?;
 
         Ok(())
@@ -555,11 +572,9 @@ impl Storage {
             "hallmanlab",
             "seo-audit",
             "seo_audit",
-            "xh/",
-            "curl/",
             "pressmark-smoke",
+            "pressmark-measurement-qa/",
             "hallman-lab-ops-heartbeats",
-            "uptime",
         ];
         PROBE_MARKERS.iter().any(|m| lower.contains(m))
     }
@@ -574,7 +589,7 @@ impl Storage {
         {
             "crawler_bot"
         } else {
-            "external_organic"
+            "unclassified"
         }
     }
 
@@ -649,13 +664,46 @@ impl Storage {
         }
     }
 
+    /// Persist an attempt before execution; interrupted work stays pending, never successful.
+    pub fn begin_mcp_tool_attempt(&self, archetype: Option<&str>, channel: &str, tool: Option<&str>) -> Option<i64> {
+        let tool = crate::mcp::McpHandler::measurement_tool_name(tool);
+        let result = self.conn.lock().map_err(|_| "storage lock poisoned".to_string()).and_then(|lock| {
+            lock.execute(
+                "INSERT INTO usage_events (event_type, archetype, channel, detail, created_at, outcome) VALUES ('mcp_tool_call', ?1, ?2, ?3, ?4, 'pending')",
+                params![archetype, channel, tool, Utc::now().to_rfc3339()],
+            ).map_err(|error| error.to_string())?;
+            Ok(lock.last_insert_rowid())
+        });
+        match result {
+            Ok(id) => Some(id),
+            Err(error) => {
+                self.mcp_attempt_write_failures.fetch_add(1, Ordering::Relaxed);
+                tracing::warn!("MCP attempt measurement write failed: {}", error);
+                None
+            }
+        }
+    }
+
+    pub fn finish_mcp_tool_attempt(&self, id: i64, success: bool, error_code: Option<i64>, compile_ms: Option<u64>) {
+        let result = self.conn.lock().map_err(|_| "storage lock poisoned".to_string()).and_then(|lock| {
+            lock.execute(
+                "UPDATE usage_events SET outcome = ?1, completed_at = ?2, error_code = ?3, compile_ms = ?4 WHERE id = ?5 AND event_type = 'mcp_tool_call' AND outcome = 'pending'",
+                params![if success { "success" } else { "failure" }, Utc::now().to_rfc3339(), error_code, compile_ms.map(|v| v as i64), id],
+            ).map_err(|error| error.to_string())
+        });
+        if !matches!(result, Ok(1)) {
+            self.mcp_outcome_write_failures.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!("MCP outcome measurement write failed; the attempt remains unresolved");
+        }
+    }
+
     pub fn analytics_summary(&self) -> serde_json::Value {
         let lock = self.conn.lock().unwrap();
         let total_events: i64 = lock
             .query_row("SELECT count(*) FROM usage_events;", [], |r| r.get(0))
             .unwrap_or(0);
 
-        let mut external_organic_events: i64 = 0;
+        let mut unclassified_events: i64 = 0;
         let mut crawler_bot_events: i64 = 0;
         let mut internal_probe_events: i64 = 0;
         let mut harness_client_events: i64 = 0;
@@ -677,7 +725,7 @@ impl Storage {
                     match Self::classify_usage_actor(&ch, det.as_deref()) {
                         "crawler_bot" => crawler_bot_events += cnt,
                         "internal_probe" => internal_probe_events += cnt,
-                        _ => external_organic_events += cnt,
+                        _ => unclassified_events += cnt,
                     }
                 }
             }
@@ -685,7 +733,7 @@ impl Storage {
 
         let distinct_mcp_channels: i64 = lock
             .query_row(
-                "SELECT count(DISTINCT channel) FROM usage_events WHERE channel LIKE 'mcp%';",
+                "SELECT count(DISTINCT channel) FROM usage_events WHERE event_type IN ('mcp_protocol', 'mcp_tool_call');",
                 [],
                 |r| r.get(0),
             )
@@ -724,11 +772,51 @@ impl Storage {
             if let Ok(mut rows) = stmt.query([]) {
                 while let Ok(Some(row)) = rows.next() {
                     if let (Ok(k), Ok(v)) = (row.get::<_, String>(0), row.get::<_, i64>(1)) {
-                        by_mcp_tool.insert(k, serde_json::json!(v));
+                        let key = if k == "unnamed_tool" { k } else { crate::mcp::McpHandler::measurement_tool_name(Some(&k)) };
+                        let previous = by_mcp_tool.get(&key).and_then(serde_json::Value::as_i64).unwrap_or(0);
+                        by_mcp_tool.insert(key, serde_json::json!(previous + v));
                     }
                 }
             }
         }
+
+        let mut mcp_outcomes = serde_json::json!({"success": 0, "failure": 0, "pending": 0, "unknown": 0});
+        let mut mcp_by_tool = serde_json::Map::new();
+        let mut mcp_by_actor = serde_json::Map::new();
+        let mut mcp_attempts = 0_i64;
+        let mut mcp_query_ok = false;
+        if let Ok(mut stmt) = lock.prepare_cached(
+            "SELECT COALESCE(detail, '(unnamed)'), channel, COALESCE(outcome, 'unknown'), count(*) FROM usage_events WHERE event_type = 'mcp_tool_call' GROUP BY detail, channel, outcome;",
+        ) {
+            if let Ok(mut rows) = stmt.query([]) {
+                mcp_query_ok = true;
+                loop {
+                    match rows.next() {
+                        Ok(Some(row)) => {
+                            let values = (row.get::<_, String>(0), row.get::<_, String>(1), row.get::<_, String>(2), row.get::<_, i64>(3));
+                            let (Ok(tool), Ok(channel), Ok(raw_outcome), Ok(count)) = values else { mcp_query_ok = false; break; };
+                            let outcome = match raw_outcome.as_str() { "success" => "success", "failure" => "failure", "pending" => "pending", _ => "unknown" };
+                            mcp_attempts += count;
+                            mcp_outcomes[outcome] = serde_json::json!(mcp_outcomes[outcome].as_i64().unwrap_or(0) + count);
+                            let tool = if tool == "unnamed_tool" || tool == "(unnamed)" { "unnamed_tool".to_string() } else { crate::mcp::McpHandler::measurement_tool_name(Some(&tool)) };
+                            for (map, key) in [(&mut mcp_by_tool, tool), (&mut mcp_by_actor, Self::classify_usage_actor(&channel, None).to_string())] {
+                                let entry = map.entry(key).or_insert_with(|| serde_json::json!({"attempts": 0, "success": 0, "failure": 0, "pending": 0, "unknown": 0}));
+                                entry["attempts"] = serde_json::json!(entry["attempts"].as_i64().unwrap_or(0) + count);
+                                entry[outcome] = serde_json::json!(entry[outcome].as_i64().unwrap_or(0) + count);
+                            }
+                        }
+                        Ok(None) => break,
+                        Err(_) => { mcp_query_ok = false; break; }
+                    }
+                }
+            }
+        }
+        let retained_window: Option<(Option<String>, Option<String>)> = lock.query_row(
+            "SELECT MIN(created_at), MAX(created_at) FROM usage_events", [], |row| Ok((row.get(0)?, row.get(1)?)),
+        ).ok();
+        let outcomes_started_at: Option<String> = lock.query_row(
+            "SELECT value FROM usage_measurement_metadata WHERE key = 'mcp_outcomes_started_at'", [], |row| row.get(0),
+        ).ok();
 
         let avg_compile_ms: f64 = lock
             .query_row(
@@ -738,25 +826,51 @@ impl Storage {
             )
             .unwrap_or(0.0);
 
-        let (sessions_count, stripe_events_count, entitlements_count) = {
+        let (sessions_count, stripe_events_count, entitlements_count, paid_entitlements_count) = {
             let s: i64 = lock.query_row("SELECT count(*) FROM sessions;", [], |r| r.get(0)).unwrap_or(0);
             let st: i64 = lock.query_row("SELECT count(*) FROM processed_stripe_events;", [], |r| r.get(0)).unwrap_or(0);
             let e: i64 = lock.query_row("SELECT count(*) FROM customer_entitlements;", [], |r| r.get(0)).unwrap_or(0);
-            (s, st, e)
+            let paid: i64 = lock.query_row("SELECT count(*) FROM customer_entitlements WHERE amount_cents > 0;", [], |r| r.get(0)).unwrap_or(0);
+            (s, st, e, paid)
         };
 
         serde_json::json!({
             "total_usage_events": total_events,
-            "external_organic_events": external_organic_events,
+            "measurement_schema_version": 2,
+            "unclassified_events": unclassified_events,
             "crawler_bot_events": crawler_bot_events,
             "internal_probe_events": internal_probe_events,
             "harness_client_events": harness_client_events,
             "distinct_mcp_channels": distinct_mcp_channels,
             "actor_breakdown": {
-                "external_organic": external_organic_events,
+                "unclassified": unclassified_events,
                 "crawler_bot": crawler_bot_events,
-                "internal_probe": internal_probe_events,
-                "harness_client": harness_client_events
+                "internal_probe": internal_probe_events
+            },
+            "attribution": {
+                "basis": "User-agent and named probe hints; caller supplied, not verified identities",
+                "unique_users": null,
+                "customer_count": null,
+                "note": "Unclassified includes generic command-line, browser and agent clients. Harness client events overlap actor categories. Distinct MCP channels count client strings, not identities. Neither metric identifies customers."
+            },
+            "retained_usage_window": {
+                "first_event_at": retained_window.as_ref().and_then(|window| window.0.as_ref()),
+                "last_event_at": retained_window.as_ref().and_then(|window| window.1.as_ref()),
+                "query_scope": "all_retained_events",
+                "retention_days": 90,
+                "durable_storage": self.db_path.to_str() != Some(":memory:"),
+                "full_window_coverage_established": false
+            },
+            "mcp_measurement": {
+                "query_complete": mcp_query_ok,
+                "outcomes_started_at": outcomes_started_at,
+                "attempts": if mcp_query_ok { serde_json::json!(mcp_attempts) } else { serde_json::Value::Null },
+                "outcomes": if mcp_query_ok { mcp_outcomes } else { serde_json::Value::Null },
+                "by_tool": if mcp_query_ok { serde_json::json!(mcp_by_tool) } else { serde_json::Value::Null },
+                "by_actor": if mcp_query_ok { serde_json::json!(mcp_by_actor) } else { serde_json::Value::Null },
+                "attempt_write_failures_since_process_start": self.mcp_attempt_write_failures.load(Ordering::Relaxed),
+                "outcome_write_failures_since_process_start": self.mcp_outcome_write_failures.load(Ordering::Relaxed),
+                "definitions": "Attempts are parsed tools/call requests reaching the handler. Success is a tool result without a JSON-RPC or tool error. Pending means completion was not recorded. Historical outcomes are unknown. Protocol discovery and malformed HTTP/JSON requests are excluded. Counts do not establish users, customers, payment or delivery."
             },
             "events_by_type": by_type,
             "top_archetypes": by_archetype,
@@ -764,7 +878,8 @@ impl Storage {
             "avg_compile_ms": (avg_compile_ms * 10.0).round() / 10.0,
             "sessions_count": sessions_count,
             "stripe_events_count": stripe_events_count,
-            "paid_entitlements_count": entitlements_count
+            "entitlements_count": entitlements_count,
+            "paid_entitlements_count": paid_entitlements_count
         })
     }
 

@@ -1471,11 +1471,11 @@ async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
     let analytics_bytes = axum::body::to_bytes(res_analytics.into_body(), 1024 * 1024).await.unwrap();
     let analytics_json: serde_json::Value = serde_json::from_slice(&analytics_bytes).unwrap();
     let total_ev = analytics_json["total_usage_events"].as_i64().unwrap();
-    let organic_ev = analytics_json["external_organic_events"].as_i64().unwrap();
+    let unclassified_ev = analytics_json["unclassified_events"].as_i64().unwrap();
     let bot_ev = analytics_json["crawler_bot_events"].as_i64().unwrap();
     let probe_ev = analytics_json["internal_probe_events"].as_i64().unwrap();
     assert!(total_ev >= 7);
-    assert_eq!(total_ev, organic_ev + bot_ev + probe_ev);
+    assert_eq!(total_ev, unclassified_ev + bot_ev + probe_ev);
     assert_eq!(bot_ev, 1);
     assert_eq!(probe_ev, 1);
     assert_eq!(analytics_json["events_by_type"]["checkout_init"], 1);

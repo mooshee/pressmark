@@ -4,7 +4,7 @@
     "name": "Daniel Hallman",
     "url": "https://pressmark.dev"
   },
-  "description": "Vector document synthesis engine for generating PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links.",
+  "description": "Vector PDF synthesis for invoices, estimates, contracts, and real estate forms. Generate PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links. Built by Moosh Works (https://mooshworks.com).",
   "extensions": {
     "com.openai": {
       "categories": [
@@ -25,7 +25,7 @@
         "developerName": "Daniel Hallman",
         "displayName": "Pressmark",
         "logo": "./assets/icon.png",
-        "longDescription": "Vector document synthesis engine for generating PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links.",
+        "longDescription": "Vector PDF synthesis for invoices, estimates, contracts, and real estate forms. Generate PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links. Built by Moosh Works (https://mooshworks.com).",
         "privacyPolicyURL": "https://pressmark.dev/privacy",
         "shortDescription": "PDF Invoices & Contracts",
         "supportURL": "https://github.com/mooshee/pressmark/issues",
@@ -34,7 +34,7 @@
       },
       "privacyPolicy": "https://pressmark.dev/privacy",
       "publication": {
-        "release_notes": "Release v1.2.1: verified Streamable HTTP MCP tools and skills for Pressmark."
+        "release_notes": "Release v1.2.2: verified Streamable HTTP MCP tools and skills for Pressmark."
       },
       "review": {
         "commerce": false,
@@ -105,7 +105,7 @@
     "developerName": "Daniel Hallman",
     "displayName": "Pressmark",
     "logo": "./assets/icon.png",
-    "longDescription": "Vector document synthesis engine for generating PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links.",
+    "longDescription": "Vector PDF synthesis for invoices, estimates, contracts, and real estate forms. Generate PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links. Built by Moosh Works (https://mooshworks.com).",
     "privacyPolicyURL": "https://pressmark.dev/privacy",
     "shortDescription": "PDF Invoices & Contracts",
     "supportURL": "https://github.com/mooshee/pressmark/issues",
@@ -123,5 +123,5 @@
   ],
   "name": "pressmark",
   "repository": "https://github.com/mooshee/pressmark",
-  "version": "1.2.1"
+  "version": "1.2.2"
 }

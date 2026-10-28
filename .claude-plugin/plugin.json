@@ -1,9 +1,9 @@
 {
   "author": {
     "name": "Daniel Hallman",
-    "email": "daniel@mooshworks.com"
+    "url": "https://mooshworks.com"
   },
-  "description": "High-performance vector document synthesis engine. Generate publication-grade invoices, estimates, receipts, contracts, NDAs, and real estate agreements in sub-25ms with vector QR code mobile payments.",
+  "description": "Vector PDF synthesis for invoices, estimates, contracts, and real estate forms. Generate PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links. Built by Moosh Works (https://mooshworks.com).",
   "homepage": "https://pressmark.dev",
   "keywords": [
     "invoicing",
@@ -11,12 +11,10 @@
     "estimates",
     "receipts",
     "contracts",
-    "real-estate",
     "vector-pdf",
     "payments"
   ],
-  "license": "MIT",
   "name": "pressmark",
   "repository": "https://github.com/mooshee/pressmark",
-  "version": "1.2.1"
+  "version": "1.2.2"
 }

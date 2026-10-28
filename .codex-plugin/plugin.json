@@ -1,61 +1,131 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "pressmark",
-  "version": "1.2.1",
-  "description": "Publication-grade vector PDF invoices, estimates, receipts, contracts, and proposals with instant previews, custom branding, and 1-scan QR code mobile payments.",
   "author": {
-    "name": "Daniel Hallman",
     "email": "daniel@mooshworks.com",
-    "url": "https://pressmark.dev"
+    "name": "Daniel Hallman",
+    "url": "https://mooshworks.com"
+  },
+  "description": "Vector PDF synthesis for invoices, estimates, contracts, and real estate forms. Generate PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links. Built by Moosh Works (https://mooshworks.com).",
+  "extensions": {
+    "com.openai": {
+      "categories": [
+        "Productivity",
+        "Business"
+      ],
+      "displayName": "Pressmark",
+      "interface": {
+        "brandColor": "#4F46E5",
+        "capabilities": [],
+        "category": "Business & Operations",
+        "composerIcon": "./assets/icon.png",
+        "defaultPrompt": [
+          "Generate a freelance consulting invoice with Stripe payment link and mobile QR code.",
+          "Convert project estimate EST-2026-0042 into an official tax invoice.",
+          "Draft a commercial triple-net (NNN) lease summary with CAM allocation."
+        ],
+        "developerName": "Daniel Hallman",
+        "displayName": "Pressmark",
+        "logo": "./assets/icon.png",
+        "longDescription": "Vector PDF synthesis for invoices, estimates, contracts, and real estate forms. Generate PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links. Built by Moosh Works (https://mooshworks.com).",
+        "privacyPolicyURL": "https://pressmark.dev/privacy",
+        "shortDescription": "PDF Invoices & Contracts",
+        "supportURL": "https://github.com/mooshee/pressmark/issues",
+        "termsOfServiceURL": "https://pressmark.dev/terms",
+        "websiteURL": "https://pressmark.dev"
+      },
+      "privacyPolicy": "https://pressmark.dev/privacy",
+      "publication": {
+        "release_notes": "Release v1.2.2: verified Streamable HTTP MCP tools and skills for Pressmark."
+      },
+      "review": {
+        "commerce": false,
+        "commerce_description": "Pressmark provides MCP tool execution and structured output. It does not process direct in-chat payments.",
+        "test_cases": {
+          "negative": [
+            {
+              "description": "Scope gating: do not trigger for unrelated geography and weather inquiries",
+              "prompt": "What is the capital of France and what will the weather be like there tomorrow?"
+            },
+            {
+              "description": "Scope gating: do not trigger for airline travel or hotel reservations",
+              "prompt": "Book a direct roundtrip flight from New York to London departing next Friday."
+            },
+            {
+              "description": "Scope gating: do not trigger for personal bank account transfers",
+              "prompt": "Transfer $500 from my checking account to my savings account right now."
+            }
+          ],
+          "positive": [
+            {
+              "description": "Freelance consulting invoice with Stripe checkout link and mobile QR code",
+              "expected_behavior": "A publication-grade vector PDF invoice totaling $3,750.00 with inline high-res PNG preview and embedded vector SVG QR code.",
+              "prompt": "Generate a freelance consulting invoice from Daniel Hallman at Moosh Works (daniel@mooshworks.com) to Acme Corp (billing@acme.com) for 15 hours of Systems Architecture at $250/hr, due in 14 days, with payment link https://buy.stripe.com/test_inv_123 and a mobile QR code.",
+              "tools_triggered": "generate_document, preview_document"
+            },
+            {
+              "description": "Estimate-to-Invoice lifecycle conversion",
+              "expected_behavior": "Document re-sequenced to INV-2026-0042, issue date updated to today, due date set to +30 days, status marked pending with payment link.",
+              "prompt": "Convert my project estimate EST-2026-0042 ($5,000 for Mobile App Design) into an official Tax Invoice due in 30 days with payment link https://buy.stripe.com/test_app_456.",
+              "tools_triggered": "convert_document"
+            },
+            {
+              "description": "Commercial Triple-Net (NNN) lease summary with CAM allocation",
+              "expected_behavior": "A multi-page commercial lease instrument with itemized monthly base rent ($11,083.33) and CAM ($2,479.17) totaling $13,562.50/mo, operating expense pass-throughs, and mutual signature lines.",
+              "prompt": "Draft a commercial triple-net (NNN) lease summary for Suite 400 at 100 Innovation Way between Hallman Properties LLC (Landlord) and TechVentures Inc (Tenant), 3,500 sq ft at $38/sqft/yr base rent, plus $8.50/sqft/yr estimated CAM charges, starting November 1, 2026.",
+              "tools_triggered": "generate_document"
+            },
+            {
+              "description": "Invoice payment settlement and official receipt generation",
+              "expected_behavior": "Official payment receipt document stamped 'PAID IN FULL', balance due updated to $0.00, and transaction audit trail recorded.",
+              "prompt": "Record full payment of $3,750 for invoice INV-2026-001 received via Stripe Card on October 7, 2026 (transaction ID: ch_3N82jK4v15aw) and generate an official paid receipt.",
+              "tools_triggered": "record_payment"
+            },
+            {
+              "description": "Real-time totals calculation with sales tax and discount inquiry",
+              "expected_behavior": "Calculates subtotal $3,600.00, tax $333.00, discount $150.00, grand total $3,783.00, and returns the Solo Pro subscription and single-pass pricing.",
+              "prompt": "Calculate line-item totals with 9.25% sales tax and a $150 early-payment discount for 3 laptops at $1,200 each, and tell me the subscription cost to remove watermarks on future exports.",
+              "tools_triggered": "calculate_totals, get_pricing"
+            }
+          ]
+        }
+      },
+      "termsOfService": "https://pressmark.dev/terms"
+    }
   },
   "homepage": "https://pressmark.dev",
-  "repository": "https://github.com/mooshee/pressmark",
-  "license": "MIT",
-  "skills": "./skills/",
-  "mcpServers": "./.mcp.json",
-  "keywords": [
-    "invoice",
-    "invoicing",
-    "estimate",
-    "quote",
-    "receipt",
-    "contract",
-    "pdf",
-    "vector",
-    "stripe",
-    "billing",
-    "real-estate"
-  ],
   "interface": {
-    "displayName": "Pressmark Document & Invoice Studio",
-    "shortDescription": "Sub-25ms vector PDF invoices, estimates, receipts, contracts & real estate agreements",
-    "longDescription": "Generate publication-grade vector PDF invoices, estimates, receipts, credit notes, NDAs, contracts, and real estate agreements with instant 144-PPI PNG previews and 1-scan QR code mobile payments.",
-    "developerName": "Daniel Hallman",
-    "category": "Productivity",
-    "capabilities": ["Interactive", "Write"],
-    "websiteURL": "https://pressmark.dev",
-    "privacyPolicyURL": "https://pressmark.dev/privacy",
-    "termsOfServiceURL": "https://pressmark.dev/terms",
+    "brandColor": "#4F46E5",
+    "capabilities": [],
+    "category": "Business & Operations",
+    "composerIcon": "./assets/icon.png",
     "defaultPrompt": [
       "Generate a freelance consulting invoice with Stripe payment link and mobile QR code.",
       "Convert project estimate EST-2026-0042 into an official tax invoice.",
       "Draft a commercial triple-net (NNN) lease summary with CAM allocation."
     ],
-    "brandColor": "#4F46E5",
-    "composerIcon": "./assets/icon.svg",
-    "logo": "./assets/icon.svg",
-    "screenshots": ["./assets/banner.png"]
+    "developerName": "Daniel Hallman",
+    "displayName": "Pressmark",
+    "logo": "./assets/icon.png",
+    "longDescription": "Vector PDF synthesis for invoices, estimates, contracts, and real estate forms. Generate PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links. Built by Moosh Works (https://mooshworks.com).",
+    "privacyPolicyURL": "https://pressmark.dev/privacy",
+    "shortDescription": "PDF Invoices & Contracts",
+    "supportURL": "https://github.com/mooshee/pressmark/issues",
+    "termsOfServiceURL": "https://pressmark.dev/terms",
+    "websiteURL": "https://pressmark.dev"
   },
-  "extensions": {
-    "com.openai": {
-      "displayName": "Pressmark Document & Invoice Studio",
-      "categories": [
-        "Productivity",
-        "Business",
-        "Finance"
-      ],
-      "privacyPolicy": "https://pressmark.dev/privacy",
-      "termsOfService": "https://pressmark.dev/terms"
-    }
-  }
+  "keywords": [
+    "invoicing",
+    "document-generation",
+    "estimates",
+    "receipts",
+    "contracts",
+    "vector-pdf",
+    "payments"
+  ],
+  "license": "MIT",
+  "mcpServers": "./.mcp.json",
+  "name": "pressmark",
+  "repository": "https://github.com/mooshee/pressmark",
+  "skills": "./skills/",
+  "version": "1.2.2"
 }

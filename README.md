@@ -169,3 +169,9 @@ cargo run --release
 ```
 
 Open `http://localhost:3842` in your browser for local development, or visit [https://pressmark.dev](https://pressmark.dev) for the live production studio.
+
+See [usage measurement](docs/measurement.md) for analytics definitions, historical-data limits and operator verification.
+
+---
+
+Built and maintained by **[Moosh Works](https://mooshworks.com)**.
