@@ -1211,29 +1211,74 @@ impl DocumentRequest {
         extract_doc_base_id(doc_num)
     }
 
+    fn declared_payment_status(&self) -> Option<&str> {
+        self.payment_status
+            .as_deref()
+            .map(str::trim)
+            .filter(|status| !status.is_empty())
+    }
+
+    fn payment_marked_paid(&self) -> bool {
+        if let Some(status) = self.declared_payment_status() {
+            status.eq_ignore_ascii_case("paid")
+        } else if let Some(is_paid) = self.is_paid {
+            is_paid
+        } else {
+            // Preserve legacy receipt requests only when payment metadata is absent.
+            self.doc_type == DocumentType::Receipt && self.amount_paid.is_none()
+        }
+    }
+
+    /// Keep recorded amounts intact; only omitted amounts use full-payment shorthand.
+    pub fn amount_paid_effective(&self) -> f64 {
+        self.amount_paid.unwrap_or_else(|| {
+            if self.payment_marked_paid() {
+                self.grand_total().max(0.0)
+            } else {
+                0.0
+            }
+        })
+    }
+
     pub fn balance_due(&self) -> f64 {
         let total = self.grand_total();
-        if self.is_paid == Some(true) || self.payment_status.as_deref() == Some("paid") {
-            0.0
-        } else if let Some(paid) = self.amount_paid {
-            (total - paid).max(0.0)
+        let balance = total - self.amount_paid_effective();
+        if total < 0.0 {
+            balance
         } else {
-            total
+            balance.max(0.0)
         }
     }
 
     pub fn is_paid_state(&self) -> bool {
-        self.is_paid == Some(true)
-            || self.payment_status.as_deref() == Some("paid")
-            || self.doc_type == DocumentType::Receipt
-            || (self.amount_paid.is_some() && self.balance_due() <= 0.001)
+        let total = self.grand_total();
+        if total < 0.0 || self.balance_due() > 0.001 {
+            return false;
+        }
+        if self.declared_payment_status().is_some() || self.is_paid.is_some() {
+            self.payment_marked_paid()
+        } else if self.amount_paid.is_some() {
+            total > 0.0
+        } else {
+            self.payment_marked_paid()
+        }
     }
 
     pub fn effective_payment_status(&self) -> &str {
         if self.is_paid_state() {
-            "paid"
-        } else if let Some(ref st) = self.payment_status {
-            st.as_str()
+            return "paid";
+        }
+        if let Some(status) = self.declared_payment_status() {
+            if !status.eq_ignore_ascii_case("paid") {
+                return status;
+            }
+        }
+        // A full-payment claim cannot override an explicitly smaller amount.
+        if self.grand_total() > 0.0
+            && self.amount_paid_effective() > 0.0
+            && self.balance_due() > 0.001
+        {
+            "partial"
         } else {
             "unpaid"
         }

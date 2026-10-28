@@ -571,7 +571,7 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
         primary_hex, total_label, primary_hex, req.format_amount_typst(grand_total)
     ));
     if req.is_paid_state() || req.amount_paid.is_some() {
-        let paid = req.amount_paid.unwrap_or(grand_total);
+        let paid = req.amount_paid_effective();
         let balance = req.balance_due();
         table_markup.push_str(&format!(
             "    [#text(size: 8.5pt, fill: rgb(\"#059669\"))[Amount Paid:]], [#text(size: 8.5pt, weight: \"bold\", fill: rgb(\"#059669\"))[{}]],\n",
@@ -782,7 +782,11 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
     let status_label = if let Some(ref st) = req.status {
         st.as_str()
     } else if req.doc_type == DocumentType::CreditNote {
-        "CREDIT / REFUNDED"
+        if req.effective_payment_status() == "refunded" {
+            "CREDIT / REFUNDED"
+        } else {
+            "CREDIT NOTE"
+        }
     } else if req.doc_type == DocumentType::Estimate || req.doc_type == DocumentType::QuotationTender {
         "ESTIMATE / QUOTE"
     } else if req.due_date.is_none()
@@ -807,7 +811,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         "OFFICIALLY ISSUED"
     } else if is_paid {
         "PAID / SETTLED"
-    } else if req.payment_status.as_deref() == Some("partial") || (req.amount_paid.is_some() && req.balance_due() > 0.0) {
+    } else if req.effective_payment_status() == "partial" {
         "PARTIALLY PAID"
     } else {
         "PAYMENT PENDING"
@@ -1788,7 +1792,12 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 }
             }
 
-            render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Total Due:");
+            let total_label = if req.amount_paid.is_some() || req.is_paid_state() {
+                "Document total:"
+            } else {
+                "Total Due:"
+            };
+            render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, total_label);
         }
     }
 
@@ -1931,7 +1940,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             "#remittance-stub(\n  doc-number: \"{}\",\n  client-name: \"{}\",\n  amount-due: \"{}\",\n  due-date: \"{}\",\n  issuer-name: \"{}\"\n)\n\n",
             escape_typst_string_literal(&req.effective_doc_number()),
             escape_typst_string_literal(&req.to.name),
-            escape_typst_string_literal(&req.format_amount(req.grand_total())),
+            escape_typst_string_literal(&req.format_amount(req.balance_due())),
             escape_typst_string_literal(&req.format_date(remittance_due_date)),
             escape_typst_string_literal(company_name)
         ));

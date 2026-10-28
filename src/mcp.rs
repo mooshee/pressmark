@@ -845,7 +845,7 @@ impl McpHandler {
                                 let discount = doc_req.discount_amount.unwrap_or(0.0);
                                 let grand_total = doc_req.grand_total();
                                 let balance_due = doc_req.balance_due();
-                                let amount_paid = doc_req.amount_paid.unwrap_or(0.0);
+                                let amount_paid = doc_req.amount_paid_effective();
                                 let is_paid = doc_req.is_paid_state();
 
                                 JsonRpcResponse {
@@ -863,7 +863,7 @@ impl McpHandler {
                                                     doc_req.format_amount(grand_total),
                                                     doc_req.format_amount(amount_paid),
                                                     doc_req.format_amount(balance_due),
-                                                    if is_paid { "PAID" } else { "UNPAID" }
+                                                    doc_req.effective_payment_status().to_ascii_uppercase()
                                                 )
                                             }
                                         ],
@@ -1003,12 +1003,11 @@ impl McpHandler {
 }
 
 fn format_document_markdown(doc: &DocumentRequest, action_title: &str, compile_ms: u128) -> String {
-    let status_badge = if doc.is_paid_state() {
-        "**PAID IN FULL** ✅"
-    } else if doc.amount_paid.is_some() && doc.balance_due() > 0.0 {
-        "**PARTIALLY PAID** 💳"
-    } else {
-        "**PAYMENT PENDING** ⏳"
+    let status_badge = match doc.effective_payment_status() {
+        "paid" => "**PAID IN FULL** ✅",
+        "partial" => "**PARTIALLY PAID** 💳",
+        "refunded" => "**REFUNDED**",
+        _ => "**PAYMENT PENDING** ⏳",
     };
 
     let issue_date_str = doc
@@ -1049,8 +1048,8 @@ fn format_document_markdown(doc: &DocumentRequest, action_title: &str, compile_m
         }
     }
     md.push_str(&format!("- **Grand Total:** {}\n", doc.format_amount(doc.grand_total())));
-    if let Some(paid) = doc.amount_paid {
-        md.push_str(&format!("- **Amount Paid:** {}\n", doc.format_amount(paid)));
+    if doc.amount_paid.is_some() || doc.is_paid_state() {
+        md.push_str(&format!("- **Amount Paid:** {}\n", doc.format_amount(doc.amount_paid_effective())));
         md.push_str(&format!("- **Balance Due:** {}\n", doc.format_amount(doc.balance_due())));
     }
 
