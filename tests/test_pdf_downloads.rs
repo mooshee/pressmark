@@ -95,9 +95,7 @@ async fn all_http_pdf_tools_return_working_links_to_the_exact_generated_bytes() 
         assert!(content.iter().any(
             |item| item["type"] == "text" && item["text"].as_str().unwrap_or("").contains(url)
         ));
-        assert!(content
-            .iter()
-            .any(|item| item["type"] == "resource_link" && item["uri"] == url));
+        assert!(!content.iter().any(|item| item["type"] == "resource_link"));
         let expected_pdf = BASE64
             .decode(result["pdf_base64"].as_str().unwrap())
             .unwrap();
@@ -105,7 +103,7 @@ async fn all_http_pdf_tools_return_working_links_to_the_exact_generated_bytes() 
         assert!(reread["error"].is_null(), "{reread}");
         assert_eq!(reread["result"]["contents"][0]["mimeType"], "application/pdf");
         assert_eq!(BASE64.decode(reread["result"]["contents"][0]["blob"].as_str().unwrap()).unwrap(), expected_pdf);
-        assert_eq!(result["content"].as_array().unwrap().iter().filter(|item| item["type"] == "resource" || item["type"] == "resource_link").count(), 1);
+        assert_eq!(content.iter().filter(|item| item["type"] == "resource" || item["type"] == "resource_link").count(), 0);
 
         let download = router
             .clone()
@@ -194,14 +192,14 @@ async fn downloads_have_no_listing_and_unknown_links_do_not_leak_details() {
 }
 
 #[tokio::test]
-async fn download_content_matches_the_negotiated_mcp_version() {
+async fn download_links_work_without_file_materialization_for_every_mcp_version() {
     let router = app();
-    for (protocol, has_resource_link) in [
-        ("2024-11-05", false),
-        ("2025-03-26", false),
-        ("2025-06-18", true),
-        ("2025-11-25", true),
-        ("2026-07-28", true),
+    for protocol in [
+        "2024-11-05",
+        "2025-03-26",
+        "2025-06-18",
+        "2025-11-25",
+        "2026-07-28",
     ] {
         let response = router.clone().oneshot(Request::builder().uri("/mcp").method("POST")
             .header("content-type", "application/json")
@@ -216,24 +214,17 @@ async fn download_content_matches_the_negotiated_mcp_version() {
         let response: Value = serde_json::from_slice(&body).unwrap();
         let result = &response["result"];
         let content = result["content"].as_array().unwrap();
-        assert_eq!(
-            content.iter().any(|item| item["type"] == "resource_link"),
-            has_resource_link
-        );
+        assert!(!content.iter().any(|item| item["type"] == "resource_link"));
         assert!(content.iter().any(|item| item["type"] == "text"
             && item["text"]
                 .as_str()
                 .unwrap_or_default()
                 .contains("[Download PDF]")));
-        assert_eq!(content
+        assert!(!content
             .iter()
             .any(|item| item["type"] == "resource"
-                && item["resource"]["mimeType"] == "application/pdf"), !has_resource_link);
-        let uri = if has_resource_link {
-            content.iter().find(|item| item["type"] == "resource_link").unwrap()["uri"].as_str().unwrap()
-        } else {
-            content.iter().find(|item| item["type"] == "resource").unwrap()["resource"]["uri"].as_str().unwrap()
-        };
+                && item["resource"]["mimeType"] == "application/pdf"));
+        let uri = result["download"]["url"].as_str().unwrap();
         let reread = read_resource(&router, uri).await;
         assert!(reread["error"].is_null(), "{reread}");
         assert_eq!(reread["result"]["contents"][0]["mimeType"], "application/pdf");
@@ -276,6 +267,9 @@ async fn previews_are_exact_png_resources_and_invalid_or_expired_uris_never_retu
     assert_eq!(result["preview"]["expires_in_seconds"], 900);
     let uri = result["preview"]["url"].as_str().expect("preview link");
     let content = result["content"].as_array().unwrap();
+    assert!(!content.iter().any(|item| item["type"] == "resource_link"));
+    assert!(!content.iter().any(|item| item["type"] == "text"
+        && item["text"].as_str().unwrap_or_default().contains("![")));
     let image = content.iter().find(|item| item["type"] == "image").unwrap();
     let expected_png = BASE64.decode(image["data"].as_str().unwrap()).unwrap();
     assert!(expected_png.starts_with(b"\x89PNG\r\n\x1a\n"));

@@ -1666,7 +1666,7 @@ fn read_download_resource(state: &AppState, request: &JsonRpcRequest) -> Option<
     })
 }
 
-fn attach_preview_download(state: &AppState, result: &mut serde_json::Value, doc_type: &str, protocol: &str) {
+fn attach_preview_download(state: &AppState, result: &mut serde_json::Value, doc_type: &str, _protocol: &str) {
     use crate::downloads::{DownloadError, MAX_DOWNLOAD_BYTES};
     let Some(encoded) = result["content"].as_array().and_then(|items| items.iter()
         .find(|item| item["type"] == "image" && item["mimeType"] == "image/png"))
@@ -1684,11 +1684,7 @@ fn attach_preview_download(state: &AppState, result: &mut serde_json::Value, doc
             result["structuredContent"]["preview"] = metadata;
             if let Some(content) = result["content"].as_array_mut() {
                 content.insert(0, serde_json::json!({"type": "text", "text": format!(
-                    "![Document preview]({})\n\nThis is the generated document preview. Use this image; do not substitute an illustration. The link expires in 15 minutes and may stop working sooner if the service restarts. Anyone with the link can view the preview while it is valid.", link.url)}));
-                if matches!(protocol, "2025-06-18" | "2025-11-25" | "2026-07-28") {
-                    content.push(serde_json::json!({"type": "resource_link", "uri": link.url,
-                        "name": link.filename, "mimeType": "image/png", "description": "Generated document preview. Link expires in 15 minutes."}));
-                }
+                    "[Open document preview]({})\n\nThe link expires in 15 minutes and may stop working sooner if the service restarts. Anyone with the link can view the preview while it is valid.", link.url)}));
             }
         },
         Err(error) => {
@@ -1697,7 +1693,7 @@ fn attach_preview_download(state: &AppState, result: &mut serde_json::Value, doc
     }
 }
 
-fn attach_pdf_download(state: &AppState, result: &mut serde_json::Value, fallback_type: &str, protocol: &str) {
+fn attach_pdf_download(state: &AppState, result: &mut serde_json::Value, fallback_type: &str, _protocol: &str) {
     use crate::downloads::{DownloadError, MAX_DOWNLOAD_BYTES};
     let Some(encoded) = result.get("pdf_base64").and_then(|v| v.as_str()) else { return; };
     let stored = if encoded.len() > ((MAX_DOWNLOAD_BYTES + 2) / 3) * 4 {
@@ -1718,21 +1714,8 @@ fn attach_pdf_download(state: &AppState, result: &mut serde_json::Value, fallbac
             result["download"] = metadata.clone();
             result["structuredContent"]["download"] = metadata;
             if let Some(content) = result["content"].as_array_mut() {
-                let resource_links = matches!(protocol, "2025-06-18" | "2025-11-25" | "2026-07-28");
-                if resource_links {
-                    content.retain(|item| !(item["type"] == "resource" && item["resource"]["mimeType"] == "application/pdf"));
-                } else {
-                    for item in content.iter_mut().filter(|item| item["type"] == "resource" && item["resource"]["mimeType"] == "application/pdf") {
-                        item["resource"]["uri"] = serde_json::json!(link.url);
-                    }
-                }
+                content.retain(|item| !(item["type"] == "resource" && item["resource"]["mimeType"] == "application/pdf"));
                 content.insert(0, serde_json::json!({"type": "text", "text": message}));
-                if resource_links {
-                    content.push(serde_json::json!({
-                        "type": "resource_link", "uri": link.url, "name": link.filename,
-                        "mimeType": "application/pdf", "description": "Generated PDF. Download link expires in 15 minutes."
-                    }));
-                }
             }
         }
         Err(error) => {
