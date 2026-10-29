@@ -220,7 +220,7 @@ async fn handle_health() -> impl IntoResponse {
         "status": "healthy",
         "service": "pressmark",
         "engine": "pressmark-vector-v1",
-        "version": "1.2.1"
+        "version": crate::mcp::MCP_SERVER_VERSION
     })))
 }
 
@@ -241,7 +241,7 @@ async fn handle_ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         Json(serde_json::json!({
             "service": "pressmark",
             "status": if all_ok { "ready" } else { "degraded" },
-            "version": "1.2.1",
+            "version": crate::mcp::MCP_SERVER_VERSION,
             "checks": {
                 "database": if db_ok { "ok" } else { "error" },
                 "typst": if typst_ok { "ok" } else { "missing_binary" }
@@ -2873,7 +2873,7 @@ mod tests {
             });
             let init_res = init_resp.result.unwrap();
             assert_eq!(init_res["protocolVersion"], proto);
-            assert_eq!(init_res["serverInfo"]["version"], "1.2.1");
+            assert_eq!(init_res["serverInfo"]["version"], crate::mcp::MCP_SERVER_VERSION);
         }
 
         let fallback_resp = McpHandler::handle_request(JsonRpcRequest {

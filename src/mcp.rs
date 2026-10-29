@@ -10,7 +10,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-pub const MCP_SERVER_VERSION: &str = "1.2.1";
+pub const MCP_SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const SUPPORTED_MCP_PROTOCOLS: &[&str] = &[
     "2026-07-28",
     "2025-11-25",
