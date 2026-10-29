@@ -23,6 +23,17 @@ pressmark.dev, www.pressmark.dev {
     # Compression for text, JSON, SVG, CSS, JS
     encode zstd gzip
 
+    # PDF download URLs grant access until expiry; do not retain them in access logs.
+    @temporaryPdf path /api/v1/downloads/*
+    log_skip @temporaryPdf
+    header @temporaryPdf {
+        >Cache-Control "private, no-store, max-age=0"
+        >CDN-Cache-Control "no-store"
+        >Cloudflare-CDN-Cache-Control "no-store"
+        >Referrer-Policy "no-referrer"
+        >X-Robots-Tag "noindex, nofollow, noarchive"
+    }
+
     # Unbuffered streaming for MCP JSON-RPC & Server-Sent Events
     @mcp path /mcp*
     reverse_proxy @mcp 127.0.0.1:3842 {
