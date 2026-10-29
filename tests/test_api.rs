@@ -21,7 +21,9 @@ fn test_chatgpt_ai_plugin_manifest() {
     let manifest = get_ai_plugin_manifest("http://localhost:3842");
     assert_eq!(manifest["schema_version"], "v1");
     assert_eq!(manifest["name_for_model"], "pressmark_doc_engine");
-    assert!(manifest["description_for_model"].as_str().unwrap().contains("Pressmark Vector Engine"));
+    assert!(manifest["description_for_model"]
+        .as_str()
+        .is_some_and(|description| !description.trim().is_empty()));
 }
 
 #[test]

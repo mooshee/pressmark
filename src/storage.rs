@@ -83,7 +83,8 @@ impl Storage {
 
     pub fn check_ready(&self) -> Result<()> {
         let lock = self.conn.lock().unwrap();
-        lock.query_row("SELECT 1;", [], |_| Ok(()))?;
+        lock.prepare_cached("SELECT 1;")?
+            .query_row([], |_| Ok(()))?;
         Ok(())
     }
 
@@ -144,7 +145,6 @@ impl Storage {
                 created_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_usage_events_type ON usage_events(event_type);
-            CREATE INDEX IF NOT EXISTS idx_usage_events_created ON usage_events(created_at);
             CREATE INDEX IF NOT EXISTS idx_usage_events_created_at ON usage_events(created_at);
             CREATE INDEX IF NOT EXISTS idx_usage_events_channel_detail ON usage_events(channel, detail);
             CREATE INDEX IF NOT EXISTS idx_usage_events_archetype ON usage_events(archetype);
@@ -153,7 +153,7 @@ impl Storage {
         )?;
 
         // Nullable columns preserve the unknown outcome of historical attempts.
-        let columns: Vec<String> = lock.prepare("PRAGMA table_info(usage_events)")?
+        let columns: Vec<String> = lock.prepare_cached("PRAGMA table_info(usage_events)")?
             .query_map([], |row| row.get(1))?.collect::<Result<_>>()?;
         for (name, kind) in [("outcome", "TEXT"), ("completed_at", "TEXT"), ("error_code", "INTEGER")] {
             if !columns.iter().any(|column| column == name) {
@@ -161,10 +161,10 @@ impl Storage {
             }
         }
         lock.execute_batch("CREATE TABLE IF NOT EXISTS usage_measurement_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);")?;
-        lock.execute(
+        lock.prepare_cached(
             "INSERT OR IGNORE INTO usage_measurement_metadata (key, value) VALUES ('mcp_outcomes_started_at', ?1)",
-            [Utc::now().to_rfc3339()],
-        )?;
+        )?
+        .execute([Utc::now().to_rfc3339()])?;
 
         Ok(())
     }
@@ -175,7 +175,7 @@ impl Storage {
         let lock = self.conn.lock().unwrap();
         let user_json = serde_json::to_string(&session.user).unwrap_or_default();
 
-        lock.execute(
+        lock.prepare_cached(
             "INSERT INTO sessions (
                 session_id, user_id, user_json, access_token, refresh_token,
                 scope, expires_at, created_at, delegated_compute_active
@@ -188,18 +188,18 @@ impl Storage {
                 scope = excluded.scope,
                 expires_at = excluded.expires_at,
                 delegated_compute_active = excluded.delegated_compute_active;",
-            params![
-                session.session_id,
-                session.user.id,
-                user_json,
-                session.access_token,
-                session.refresh_token,
-                session.scope,
-                session.expires_at.to_rfc3339(),
-                session.created_at.to_rfc3339(),
-                if session.delegated_compute_active { 1 } else { 0 },
-            ],
-        )?;
+        )?
+        .execute(params![
+            session.session_id,
+            session.user.id,
+            user_json,
+            session.access_token,
+            session.refresh_token,
+            session.scope,
+            session.expires_at.to_rfc3339(),
+            session.created_at.to_rfc3339(),
+            if session.delegated_compute_active { 1 } else { 0 },
+        ])?;
 
         Ok(())
     }
@@ -208,7 +208,7 @@ impl Storage {
         let clean = token_or_id.trim_start_matches("Bearer ").trim();
         let lock = self.conn.lock().unwrap();
 
-        let mut stmt = lock.prepare(
+        let mut stmt = lock.prepare_cached(
             "SELECT session_id, user_json, access_token, refresh_token,
                     scope, expires_at, created_at, delegated_compute_active
              FROM sessions
@@ -253,10 +253,10 @@ impl Storage {
         let clean = token_or_id.trim_start_matches("Bearer ").trim();
         let lock = self.conn.lock().unwrap();
 
-        let rows_affected = lock.execute(
-            "DELETE FROM sessions WHERE session_id = ?1 OR access_token = ?1;",
-            params![clean],
-        ).unwrap_or(0);
+        let rows_affected = lock
+            .prepare_cached("DELETE FROM sessions WHERE session_id = ?1 OR access_token = ?1;")
+            .and_then(|mut stmt| stmt.execute(params![clean]))
+            .unwrap_or(0);
 
         rows_affected > 0
     }
@@ -266,7 +266,7 @@ impl Storage {
     pub fn save_pending_auth(&self, auth: &PendingAuth) -> Result<()> {
         let lock = self.conn.lock().unwrap();
 
-        lock.execute(
+        lock.prepare_cached(
             "INSERT INTO pending_auths (state, code_verifier, redirect_uri, return_to, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(state) DO UPDATE SET
@@ -274,14 +274,14 @@ impl Storage {
                 redirect_uri = excluded.redirect_uri,
                 return_to = excluded.return_to,
                 created_at = excluded.created_at;",
-            params![
-                auth.state,
-                auth.code_verifier,
-                auth.redirect_uri,
-                auth.return_to,
-                auth.created_at.to_rfc3339(),
-            ],
-        )?;
+        )?
+        .execute(params![
+            auth.state,
+            auth.code_verifier,
+            auth.redirect_uri,
+            auth.return_to,
+            auth.created_at.to_rfc3339(),
+        ])?;
 
         Ok(())
     }
@@ -290,7 +290,7 @@ impl Storage {
     pub fn take_pending_auth(&self, state: &str) -> Option<PendingAuth> {
         let lock = self.conn.lock().unwrap();
 
-        let mut stmt = lock.prepare(
+        let mut stmt = lock.prepare_cached(
             "DELETE FROM pending_auths
              WHERE state = ?1
              RETURNING state, code_verifier, redirect_uri, return_to, created_at;",
@@ -323,24 +323,23 @@ impl Storage {
 
     pub fn is_stripe_event_processed(&self, event_id: &str) -> bool {
         let lock = self.conn.lock().unwrap();
-        let mut stmt = match lock.prepare("SELECT 1 FROM processed_stripe_events WHERE event_id = ?1 LIMIT 1;") {
+        let mut stmt = match lock.prepare_cached("SELECT 1 FROM processed_stripe_events WHERE event_id = ?1 LIMIT 1;") {
             Ok(s) => s,
             Err(_) => return false,
         };
 
-        let exists = stmt.exists(params![event_id]).unwrap_or(false);
-        exists
+        stmt.exists(params![event_id]).unwrap_or(false)
     }
 
     pub fn record_stripe_event(&self, event_id: &str) -> Result<()> {
         let lock = self.conn.lock().unwrap();
         let now = Utc::now().to_rfc3339();
 
-        lock.execute(
+        lock.prepare_cached(
             "INSERT INTO processed_stripe_events (event_id, processed_at) VALUES (?1, ?2)
              ON CONFLICT(event_id) DO NOTHING;",
-            params![event_id, now],
-        )?;
+        )?
+        .execute(params![event_id, now])?;
 
         Ok(())
     }
@@ -356,7 +355,7 @@ impl Storage {
         let lock = self.conn.lock().unwrap();
         let now = Utc::now().to_rfc3339();
 
-        lock.execute(
+        lock.prepare_cached(
             "INSERT INTO customer_entitlements (email, plan, stripe_session_id, amount_cents, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(email) DO UPDATE SET
@@ -364,8 +363,8 @@ impl Storage {
                 stripe_session_id = COALESCE(excluded.stripe_session_id, customer_entitlements.stripe_session_id),
                 amount_cents = excluded.amount_cents,
                 updated_at = excluded.updated_at;",
-            params![clean_email, plan, stripe_session_id, amount_cents as i64, now],
-        )?;
+        )?
+        .execute(params![clean_email, plan, stripe_session_id, amount_cents as i64, now])?;
 
         Ok(())
     }
@@ -374,7 +373,7 @@ impl Storage {
         let clean_email = email.trim().to_lowercase();
         let lock = self.conn.lock().unwrap();
         let mut stmt = lock
-            .prepare("SELECT plan FROM customer_entitlements WHERE email = ?1 LIMIT 1;")
+            .prepare_cached("SELECT plan FROM customer_entitlements WHERE email = ?1 LIMIT 1;")
             .ok()?;
         let mut rows = stmt.query(params![clean_email]).ok()?;
         if let Ok(Some(row)) = rows.next() {
@@ -386,23 +385,25 @@ impl Storage {
     pub fn revoke_customer_entitlement(&self, email: &str) -> Result<bool> {
         let clean_email = email.trim().to_lowercase();
         let lock = self.conn.lock().unwrap();
-        let rows = lock.execute(
-            "DELETE FROM customer_entitlements WHERE email = ?1;",
-            params![clean_email],
-        )?;
+        let rows = lock
+            .prepare_cached("DELETE FROM customer_entitlements WHERE email = ?1;")?
+            .execute(params![clean_email])?;
         Ok(rows > 0)
     }
 
     pub fn stats(&self) -> (usize, usize, usize) {
         let lock = self.conn.lock().unwrap();
         let sessions: i64 = lock
-            .query_row("SELECT count(*) FROM sessions;", [], |r| r.get(0))
+            .prepare_cached("SELECT count(*) FROM sessions;")
+            .and_then(|mut s| s.query_row([], |r| r.get(0)))
             .unwrap_or(0);
         let stripe_events: i64 = lock
-            .query_row("SELECT count(*) FROM processed_stripe_events;", [], |r| r.get(0))
+            .prepare_cached("SELECT count(*) FROM processed_stripe_events;")
+            .and_then(|mut s| s.query_row([], |r| r.get(0)))
             .unwrap_or(0);
         let entitlements: i64 = lock
-            .query_row("SELECT count(*) FROM customer_entitlements;", [], |r| r.get(0))
+            .prepare_cached("SELECT count(*) FROM customer_entitlements;")
+            .and_then(|mut s| s.query_row([], |r| r.get(0)))
             .unwrap_or(0);
         (sessions as usize, stripe_events as usize, entitlements as usize)
     }
@@ -499,9 +500,7 @@ impl Storage {
             "mcp-observatory",
             "referencesource-mcp",
             "stackduke-mcp-scanner",
-            "7maps",
-            "spanly",
-            "mcp-cloud",
+            "7maps-bot",
             "agora-probe",
             "capkeybot",
             "mcpcensus",
@@ -560,6 +559,9 @@ impl Storage {
             "402explorer",
             "factanker",
             "talaria",
+            "7maps",
+            "spanly",
+            "mcp-cloud",
         ];
         BOT_MARKERS.iter().any(|m| lower.contains(m))
     }
@@ -606,11 +608,10 @@ impl Storage {
         let mut lock = self.conn.lock().unwrap();
         let transaction = lock.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let existing: Option<String> = transaction
-            .query_row(
+            .prepare_cached(
                 "SELECT request_fingerprint FROM checkout_starts WHERE request_id = ?1",
-                [request_id],
-                |row| row.get(0),
-            )
+            )?
+            .query_row([request_id], |row| row.get(0))
             .optional()?;
         if let Some(existing) = existing {
             return Ok(if existing == request_fingerprint {
@@ -620,14 +621,16 @@ impl Storage {
             });
         }
         let now = Utc::now().to_rfc3339();
-        transaction.execute(
-            "INSERT INTO checkout_starts (request_id, request_fingerprint, created_at) VALUES (?1, ?2, ?3)",
-            params![request_id, request_fingerprint, now],
-        )?;
-        transaction.execute(
-            "INSERT INTO usage_events (event_type, channel, detail, created_at) VALUES ('checkout_init', ?1, ?2, ?3)",
-            params![channel, plan_id, now],
-        )?;
+        transaction
+            .prepare_cached(
+                "INSERT INTO checkout_starts (request_id, request_fingerprint, created_at) VALUES (?1, ?2, ?3)",
+            )?
+            .execute(params![request_id, request_fingerprint, now])?;
+        transaction
+            .prepare_cached(
+                "INSERT INTO usage_events (event_type, channel, detail, created_at) VALUES ('checkout_init', ?1, ?2, ?3)",
+            )?
+            .execute(params![channel, plan_id, now])?;
         transaction.commit()?;
         Ok(CheckoutStart::Created)
     }
@@ -651,18 +654,19 @@ impl Storage {
                 .unwrap_or_else(|| a.trim().to_lowercase().replace('-', "_"))
         });
         if let Ok(lock) = self.conn.lock() {
-            let _ = lock.execute(
+            if let Ok(mut stmt) = lock.prepare_cached(
                 "INSERT INTO usage_events (event_type, archetype, channel, detail, compile_ms, created_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6);",
-                params![
+            ) {
+                let _ = stmt.execute(params![
                     event_type,
                     normalized_archetype.as_deref(),
                     channel,
                     detail,
                     compile_ms.map(|v| v as i64),
                     now
-                ],
-            );
+                ]);
+            }
         }
     }
 
@@ -670,10 +674,11 @@ impl Storage {
     pub fn begin_mcp_tool_attempt(&self, archetype: Option<&str>, channel: &str, tool: Option<&str>) -> Option<i64> {
         let tool = crate::mcp::McpHandler::measurement_tool_name(tool);
         let result = self.conn.lock().map_err(|_| "storage lock poisoned".to_string()).and_then(|lock| {
-            lock.execute(
+            lock.prepare_cached(
                 "INSERT INTO usage_events (event_type, archetype, channel, detail, created_at, outcome) VALUES ('mcp_tool_call', ?1, ?2, ?3, ?4, 'pending')",
-                params![archetype, channel, tool, Utc::now().to_rfc3339()],
-            ).map_err(|error| error.to_string())?;
+            )
+            .and_then(|mut s| s.execute(params![archetype, channel, tool, Utc::now().to_rfc3339()]))
+            .map_err(|error| error.to_string())?;
             Ok(lock.last_insert_rowid())
         });
         match result {
@@ -688,10 +693,11 @@ impl Storage {
 
     pub fn finish_mcp_tool_attempt(&self, id: i64, success: bool, error_code: Option<i64>, compile_ms: Option<u64>) {
         let result = self.conn.lock().map_err(|_| "storage lock poisoned".to_string()).and_then(|lock| {
-            lock.execute(
+            lock.prepare_cached(
                 "UPDATE usage_events SET outcome = ?1, completed_at = ?2, error_code = ?3, compile_ms = ?4 WHERE id = ?5 AND event_type = 'mcp_tool_call' AND outcome = 'pending'",
-                params![if success { "success" } else { "failure" }, Utc::now().to_rfc3339(), error_code, compile_ms.map(|v| v as i64), id],
-            ).map_err(|error| error.to_string())
+            )
+            .and_then(|mut s| s.execute(params![if success { "success" } else { "failure" }, Utc::now().to_rfc3339(), error_code, compile_ms.map(|v| v as i64), id]))
+            .map_err(|error| error.to_string())
         });
         if !matches!(result, Ok(1)) {
             self.mcp_outcome_write_failures.fetch_add(1, Ordering::Relaxed);
@@ -702,7 +708,8 @@ impl Storage {
     pub fn analytics_summary(&self) -> serde_json::Value {
         let lock = self.conn.lock().unwrap();
         let total_events: i64 = lock
-            .query_row("SELECT count(*) FROM usage_events;", [], |r| r.get(0))
+            .prepare_cached("SELECT count(*) FROM usage_events;")
+            .and_then(|mut s| s.query_row([], |r| r.get(0)))
             .unwrap_or(0);
 
         let mut unclassified_events: i64 = 0;
@@ -734,11 +741,10 @@ impl Storage {
         }
 
         let distinct_mcp_channels: i64 = lock
-            .query_row(
+            .prepare_cached(
                 "SELECT count(DISTINCT channel) FROM usage_events WHERE event_type IN ('mcp_protocol', 'mcp_tool_call');",
-                [],
-                |r| r.get(0),
             )
+            .and_then(|mut s| s.query_row([], |r| r.get(0)))
             .unwrap_or(0);
 
         let mut by_type = serde_json::Map::new();
@@ -813,26 +819,41 @@ impl Storage {
                 }
             }
         }
-        let retained_window: Option<(Option<String>, Option<String>)> = lock.query_row(
-            "SELECT MIN(created_at), MAX(created_at) FROM usage_events", [], |row| Ok((row.get(0)?, row.get(1)?)),
-        ).ok();
-        let outcomes_started_at: Option<String> = lock.query_row(
-            "SELECT value FROM usage_measurement_metadata WHERE key = 'mcp_outcomes_started_at'", [], |row| row.get(0),
-        ).ok();
+        let retained_window: Option<(Option<String>, Option<String>)> = lock
+            .prepare_cached("SELECT MIN(created_at), MAX(created_at) FROM usage_events")
+            .and_then(|mut s| s.query_row([], |row| Ok((row.get(0)?, row.get(1)?))))
+            .ok();
+        let outcomes_started_at: Option<String> = lock
+            .prepare_cached(
+                "SELECT value FROM usage_measurement_metadata WHERE key = 'mcp_outcomes_started_at'",
+            )
+            .and_then(|mut s| s.query_row([], |row| row.get(0)))
+            .ok();
 
         let avg_compile_ms: f64 = lock
-            .query_row(
+            .prepare_cached(
                 "SELECT COALESCE(AVG(compile_ms), 0.0) FROM usage_events WHERE compile_ms IS NOT NULL;",
-                [],
-                |r| r.get(0),
             )
+            .and_then(|mut s| s.query_row([], |r| r.get(0)))
             .unwrap_or(0.0);
 
         let (sessions_count, stripe_events_count, entitlements_count, paid_entitlements_count) = {
-            let s: i64 = lock.query_row("SELECT count(*) FROM sessions;", [], |r| r.get(0)).unwrap_or(0);
-            let st: i64 = lock.query_row("SELECT count(*) FROM processed_stripe_events;", [], |r| r.get(0)).unwrap_or(0);
-            let e: i64 = lock.query_row("SELECT count(*) FROM customer_entitlements;", [], |r| r.get(0)).unwrap_or(0);
-            let paid: i64 = lock.query_row("SELECT count(*) FROM customer_entitlements WHERE amount_cents > 0;", [], |r| r.get(0)).unwrap_or(0);
+            let s: i64 = lock
+                .prepare_cached("SELECT count(*) FROM sessions;")
+                .and_then(|mut st| st.query_row([], |r| r.get(0)))
+                .unwrap_or(0);
+            let st: i64 = lock
+                .prepare_cached("SELECT count(*) FROM processed_stripe_events;")
+                .and_then(|mut st| st.query_row([], |r| r.get(0)))
+                .unwrap_or(0);
+            let e: i64 = lock
+                .prepare_cached("SELECT count(*) FROM customer_entitlements;")
+                .and_then(|mut st| st.query_row([], |r| r.get(0)))
+                .unwrap_or(0);
+            let paid: i64 = lock
+                .prepare_cached("SELECT count(*) FROM customer_entitlements WHERE amount_cents > 0;")
+                .and_then(|mut st| st.query_row([], |r| r.get(0)))
+                .unwrap_or(0);
             (s, st, e, paid)
         };
 
@@ -894,25 +915,21 @@ impl Storage {
         let stripe_cutoff = (now - chrono::Duration::days(max_stripe_event_age_days as i64)).to_rfc3339();
         let usage_cutoff = (now - chrono::Duration::days(90)).to_rfc3339();
 
-        let expired_sessions = lock.execute(
-            "DELETE FROM sessions WHERE expires_at < ?1;",
-            params![now_rfc3339],
-        )?;
+        let expired_sessions = lock
+            .prepare_cached("DELETE FROM sessions WHERE expires_at < ?1;")?
+            .execute(params![now_rfc3339])?;
 
-        let stale_auths = lock.execute(
-            "DELETE FROM pending_auths WHERE created_at < ?1;",
-            params![one_hour_ago],
-        )?;
+        let stale_auths = lock
+            .prepare_cached("DELETE FROM pending_auths WHERE created_at < ?1;")?
+            .execute(params![one_hour_ago])?;
 
-        let old_events = lock.execute(
-            "DELETE FROM processed_stripe_events WHERE processed_at < ?1;",
-            params![stripe_cutoff],
-        )?;
+        let old_events = lock
+            .prepare_cached("DELETE FROM processed_stripe_events WHERE processed_at < ?1;")?
+            .execute(params![stripe_cutoff])?;
 
-        let old_usage = lock.execute(
-            "DELETE FROM usage_events WHERE created_at < ?1;",
-            params![usage_cutoff],
-        )?;
+        let old_usage = lock
+            .prepare_cached("DELETE FROM usage_events WHERE created_at < ?1;")?
+            .execute(params![usage_cutoff])?;
 
         let total = expired_sessions + stale_auths + old_events + old_usage;
         if total > 0 {
