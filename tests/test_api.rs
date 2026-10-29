@@ -678,7 +678,7 @@ fn test_deliverables_pro_review_fixes_and_lifecycle_enhancements() {
     assert!(text_content.contains("CREDIT NOTE"));
     assert!(text_content.contains("CRD-2026-0819"));
     assert!(text_content.contains("| Description | Qty | Rate | Amount |"));
-    assert!(text_content.contains("Click Here to Pay Online"));
+    assert!(text_content.contains("[Pay online](https://buy.stripe.com/refund_claim)"));
     assert!(res_obj["pdf_base64"].is_string());
 
     // Test MCP record_payment with amount_paid

@@ -589,7 +589,7 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
     // 1. Paid in full attestation watermark stamp (if marked as paid, placed alongside Totals box for zero vertical collision)
     if req.is_paid_state() {
         let method = req.payment_method.as_deref().unwrap_or("Stripe / Apple Pay");
-        let paid_date = req.paid_at.as_deref().unwrap_or(req.issue_date.as_deref().unwrap_or("2026-10-02"));
+        let paid_date = req.paid_at.as_deref().unwrap_or(req.issue_date.as_deref().unwrap_or_default());
         let tx_ref = req.transaction_reference.as_deref().unwrap_or("STRIPE-PAID-001");
         markup.push_str(&format!(
             "#v(4pt)\n#block(breakable: false, width: 100%)[\n  #grid(\n    columns: (1fr, auto),\n    gutter: 16pt,\n    align: (center + horizon, right + horizon),\n    [#paid-watermark-stamp(tx-ref: \"{}\", paid-date: \"{}\", method: \"{}\")],\n    [\n{}\n    ]\n  )\n]\n#v(4pt)\n\n",
@@ -707,15 +707,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         _ => ""
     };
 
-    let footer_text = if let Some(ref ft) = req.footer_text {
-        if !ft.trim().is_empty() {
-            escape_typst_text(ft)
-        } else {
-            "Pressmark Vector Engine · Certified Record".to_string()
-        }
-    } else {
-        "Pressmark Vector Engine · Certified Commercial Record".to_string()
-    };
+    let footer_text = req.footer_text.as_deref().map(escape_typst_text).unwrap_or_default();
 
     let page_numbers_snippet = if req.show_page_numbers.unwrap_or(true) {
         "align(right, text(size: 7.5pt, fill: rgb(\"#94a3b8\"))[\n        Page #counter(page).display() of #counter(page).final().first()\n      ])"
@@ -729,7 +721,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         ""
     };
 
-    let issue_date = req.issue_date.as_deref().unwrap_or("2026-10-01");
+    let issue_date = req.issue_date.as_deref().unwrap_or_default();
     let doc_num = req.effective_doc_number();
     let doc_title = req.effective_title();
 
@@ -893,7 +885,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         escape_typst_string_literal(&req.effective_title()),
         subtitle_typst_arg,
         escape_typst_string_literal(&req.effective_doc_number()),
-        escape_typst_string_literal(&req.format_date(req.issue_date.as_deref().unwrap_or("2026-10-01"))),
+        escape_typst_string_literal(&req.format_date(req.issue_date.as_deref().unwrap_or_default())),
         due_date_typst_arg,
         logo_typst_arg,
         escape_typst_string_literal(company_name),
@@ -1288,7 +1280,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             markup.push_str(&format!(
                 "#v(6pt)\n#certificate-of-service(\n  server-name: \"{}\",\n  service-date: \"{}\",\n  recipient-name: \"{}\",\n  premises-address: \"{}\",\n  state-name: \"{}\",\n  service-method: \"{}\"\n)\n#v(4pt)\n",
                 escape_typst_string_literal(&req.from.name),
-                escape_typst_string_literal(req.issue_date.as_deref().unwrap_or("2026-10-01")),
+                escape_typst_string_literal(req.issue_date.as_deref().unwrap_or_default()),
                 escape_typst_string_literal(&req.to.name),
                 escape_typst_string_literal(&premises_addr.replace('\n', ", ")),
                 escape_typst_string_literal(state_name),
@@ -1992,7 +1984,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     Some(ref p) => format!("\"{}\"", escape_typst_string_literal(p)),
                     None => "none".to_string(),
                 };
-                let date_str = sig.date.as_deref().unwrap_or(req.issue_date.as_deref().unwrap_or("2026-10-01"));
+                let date_str = sig.date.as_deref().unwrap_or(req.issue_date.as_deref().unwrap_or_default());
                 let formatted_date = req.format_date(date_str);
                 let title_str = sig.signer_title.as_deref().unwrap_or("Authorized Signatory");
 
@@ -2022,7 +2014,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         let first_sig = signatures.first();
         let signer_name = first_sig.map(|s| s.signer_name.as_str()).unwrap_or(req.from.name.as_str());
         let signer_title = first_sig.and_then(|s| s.signer_title.as_deref()).unwrap_or("Authorized Signatory");
-        let date_str = first_sig.and_then(|s| s.date.as_deref()).unwrap_or(req.issue_date.as_deref().unwrap_or("2026-10-01"));
+        let date_str = first_sig.and_then(|s| s.date.as_deref()).unwrap_or(req.issue_date.as_deref().unwrap_or_default());
         let sig_img = first_sig.and_then(|s| s.signature_data.as_deref())
             .and_then(|data| stage_image_asset("jurat_sig", data));
         let sig_img_str = match sig_img {
@@ -2089,16 +2081,6 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             }
         }
     }
-
-    // 11. Tamper-Evident Cryptographic Audit Slug (real SHA-256 hex digest)
-    let audit_hash = req.compute_audit_sha256();
-    let issue_date = req.issue_date.as_deref().unwrap_or("2026-10-01");
-    markup.push_str(&format!(
-        "\n#v(4pt)\n#audit-slug(parcel-id: \"{}\", hash: \"{}\", engine-version: \"Pressmark Vector Engine v1.0.0\", timestamp: \"{}T00:00:00Z\")\n",
-        escape_typst_string_literal(&req.effective_doc_number()),
-        escape_typst_string_literal(&audit_hash),
-        escape_typst_string_literal(issue_date)
-    ));
 
     markup
 }

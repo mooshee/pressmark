@@ -9,6 +9,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 pub const MCP_SERVER_VERSION: &str = "1.2.1";
 pub const SUPPORTED_MCP_PROTOCOLS: &[&str] = &[
@@ -75,6 +76,9 @@ impl McpHandler {
     fn document_input_properties() -> Value {
         json!({
             "doc_type": { "type": "string", "description": "Archetype slug (invoice, receipt, residential_lease, nda, etc.)." },
+            "doc_number": { "type": "string", "description": "Document number supplied by the user. Left blank when omitted." },
+            "issue_date": { "type": "string", "description": "Issue date (YYYY-MM-DD). Left blank when omitted." },
+            "due_date": { "type": "string", "description": "Payment due date (YYYY-MM-DD). Left blank when omitted." },
             "state_code": { "type": "string", "description": "2-letter US state or DC code." },
             "municipality": { "type": "string", "description": "Municipal profile (Chicago, Cook County, NYC, SF, Seattle, Portland)." },
             "county": { "type": "string", "description": "County name for jurats and headers." },
@@ -133,6 +137,9 @@ impl McpHandler {
     fn preview_input_properties() -> Value {
         json!({
             "doc_type": { "type": "string", "description": "Archetype slug (invoice, receipt, residential_lease, nda)." },
+            "doc_number": { "type": "string", "description": "Document number supplied by the user. Left blank when omitted." },
+            "issue_date": { "type": "string", "description": "Issue date (YYYY-MM-DD). Left blank when omitted." },
+            "due_date": { "type": "string", "description": "Payment due date (YYYY-MM-DD). Left blank when omitted." },
             "state_code": { "type": "string", "description": "2-letter US state or DC code." },
             "from": {
                 "type": "object",
@@ -162,14 +169,14 @@ impl McpHandler {
         json!([
             {
                 "name": "generate_document",
-                "title": "Generate Vector PDF Document",
-                "description": "Statelessly synthesize a vector PDF document (invoice, receipt, contract, NDA, or lease) in <25ms without mutating server records. Example: doc_type='invoice', generate_document({\"doc_type\":\"invoice\",\"from\":{\"name\":\"Acme\"},\"to\":{\"name\":\"Client\"}})",
+                "title": "Generate PDF Document",
+                "description": "Create a PDF invoice, receipt, contract, NDA, or lease from the supplied details. Returns the PDF as an embedded resource. If customer sync is configured and an email is available, generation can update customer records and start configured follow-up workflows.",
                 "annotations": {
-                    "title": "Generate Vector PDF Document",
-                    "readOnlyHint": true,
+                    "title": "Generate PDF Document",
+                    "readOnlyHint": false,
                     "destructiveHint": false,
-                    "idempotentHint": true,
-                    "openWorldHint": false
+                    "idempotentHint": false,
+                    "openWorldHint": true
                 },
                 "inputSchema": {
                     "type": "object",
@@ -188,7 +195,7 @@ impl McpHandler {
                     "type": "object",
                     "properties": {
                         "pdf_base64": { "type": "string", "description": "Base64 vector PDF." },
-                        "doc_number": { "type": "string", "description": "Document number." },
+                        "doc_number": { "type": "string", "description": "User-supplied document number, or an empty string when omitted." },
                         "grand_total": { "type": "number", "description": "Computed grand total." },
                         "compile_time_ms": { "type": "integer", "description": "Compile time in ms." }
                     },
@@ -198,7 +205,7 @@ impl McpHandler {
             {
                 "name": "preview_document",
                 "title": "Preview Document as PNG",
-                "description": "Statelessly render a 144-PPI PNG preview of a document as a Base64 data URI without mutating server records. Example: doc_type='invoice' or preview_document({\"doc_type\":\"invoice\",\"from\":{\"name\":\"Acme\"},\"to\":{\"name\":\"Client\"}})",
+                "description": "Render a PNG preview from the supplied document details. This does not save or send the document.",
                 "annotations": {
                     "title": "Preview Document as PNG",
                     "readOnlyHint": true,
@@ -384,7 +391,8 @@ impl McpHandler {
         is_paid_session: bool,
         session_email: Option<&str>,
     ) -> JsonRpcResponse {
-        match req.method.as_str() {
+        let is_tool_call = req.method == "tools/call";
+        let mut response = match req.method.as_str() {
             "initialize" => {
                 let requested = req
                     .params
@@ -632,7 +640,8 @@ impl McpHandler {
                                                     {
                                                         "type": "text",
                                                         "text": format_document_markdown(&doc_req, "Generated", ms)
-                                                    }
+                                                    },
+                                                    pdf_resource(&pdf_bytes, &b64)
                                                 ],
                                                 "pdf_base64": b64,
                                                 "doc_number": doc_req.effective_doc_number(),
@@ -797,7 +806,8 @@ impl McpHandler {
                                                     {
                                                         "type": "text",
                                                         "text": format_document_markdown(&converted, "Document Converted to", ms)
-                                                    }
+                                                    },
+                                                    pdf_resource(&pdf_bytes, &b64)
                                                 ],
                                                 "document": converted,
                                                 "pdf_base64": b64,
@@ -951,7 +961,8 @@ impl McpHandler {
                                                     {
                                                         "type": "text",
                                                         "text": format_document_markdown(&payment_doc, action_label, ms)
-                                                    }
+                                                    },
+                                                    pdf_resource(&pdf_bytes, &b64)
                                                 ],
                                                 "document": payment_doc,
                                                 "pdf_base64": b64,
@@ -998,11 +1009,32 @@ impl McpHandler {
                 result: None,
                 error: Some(json!({ "code": -32601, "message": "Method not found" })),
             },
+        };
+        if is_tool_call {
+            if let Some(result) = response.result.as_mut().and_then(Value::as_object_mut) {
+                let mut structured = result.clone();
+                structured.remove("content");
+                structured.remove("isError");
+                result.insert("structuredContent".to_string(), Value::Object(structured));
+            }
         }
+        response
     }
 }
 
-fn format_document_markdown(doc: &DocumentRequest, action_title: &str, compile_ms: u128) -> String {
+fn pdf_resource(pdf_bytes: &[u8], base64_pdf: &str) -> Value {
+    let digest = hex::encode(Sha256::digest(pdf_bytes));
+    json!({
+        "type": "resource",
+        "resource": {
+            "uri": format!("pressmark://documents/{digest}.pdf"),
+            "mimeType": "application/pdf",
+            "blob": base64_pdf
+        }
+    })
+}
+
+fn format_document_markdown(doc: &DocumentRequest, action_title: &str, _compile_ms: u128) -> String {
     let status_badge = match doc.effective_payment_status() {
         "paid" => "**PAID IN FULL** ✅",
         "partial" => "**PARTIALLY PAID** 💳",
@@ -1014,13 +1046,15 @@ fn format_document_markdown(doc: &DocumentRequest, action_title: &str, compile_m
         .issue_date
         .as_deref()
         .map(|d| doc.format_date(d))
-        .unwrap_or_else(|| "Current".to_string());
+        .unwrap_or_else(|| "Not provided".to_string());
+    let doc_number = doc.doc_number.as_deref().filter(|value| !value.trim().is_empty())
+        .unwrap_or("Not provided");
 
     let mut md = format!(
         "### {} {}\n\n**Document #:** `{}` | **Date:** `{}` | **Status:** {}\n\n",
         action_title,
         doc.effective_title(),
-        doc.effective_doc_number(),
+        doc_number,
         issue_date_str,
         status_badge
     );
@@ -1054,14 +1088,11 @@ fn format_document_markdown(doc: &DocumentRequest, action_title: &str, compile_m
     }
 
     if let Some(link) = &doc.payment_link {
-        md.push_str(&format!("\n👉 [💳 Click Here to Pay Online]({})\n", link));
+        md.push_str(&format!("\n[Pay online]({})\n", link));
         if doc.payment_qr_code.unwrap_or(false) {
-            md.push_str("\n*Vector SVG QR code embedded in document for 1-scan mobile checkout.*\n");
+            md.push_str("\nThe document includes a QR code for this payment link.\n");
         }
     }
-    md.push_str(&format!(
-        "\n*Rendered in {}ms via Pressmark Vector Engine.* | [Unlock Single Export ($2.99)](https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true) · [Solo Pro ($15/mo)](https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true)",
-        compile_ms
-    ));
+    md.push_str("\n[Single Document Pass ($2.99 one-time)](https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true) · [Solo Pro ($15/month)](https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true)");
     md
 }

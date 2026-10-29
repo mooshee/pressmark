@@ -1161,7 +1161,7 @@ impl DocumentRequest {
         hasher.update(b"|");
         hasher.update(self.effective_doc_number().as_bytes());
         hasher.update(b"|");
-        hasher.update(self.issue_date.as_deref().unwrap_or("2026-10-01").as_bytes());
+        hasher.update(self.issue_date.as_deref().unwrap_or_default().as_bytes());
         hasher.update(b"|");
         hasher.update(self.from.name.as_bytes());
         hasher.update(b"|");
@@ -1389,9 +1389,7 @@ impl DocumentRequest {
     }
 
     pub fn effective_doc_number(&self) -> String {
-        self.doc_number.clone().unwrap_or_else(|| {
-            format!("{}2026-0042", self.doc_type.default_number_prefix())
-        })
+        self.doc_number.clone().unwrap_or_default()
     }
 
     pub fn effective_paper_size(&self) -> &str {
