@@ -16,8 +16,8 @@ pub fn get_ai_plugin_manifest(server_url: &str) -> Value {
         "schema_version": "v1",
         "name_for_human": "Pressmark Document & Invoice Generator",
         "name_for_model": "pressmark_doc_engine",
-        "description_for_human": "Generate instant, publication-grade invoices, estimates, receipts, contracts, NDAs, and purchase orders with custom branding, themes, compliance seals, and signatures.",
-        "description_for_model": "Assistant for generating high-performance, publication-grade PDF documents and invoices using the Pressmark Vector Engine. Supports customizable themes, colors, logos, signatures, line items, compliance notices, and terms. Use this tool whenever a user asks to create, design, or download an invoice, estimate, quote, receipt, agreement, or contract.",
+        "description_for_human": "Create PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and purchase orders. Add your branding, chosen notices, and signatures.",
+        "description_for_model": "Creates and previews PDF documents with the supplied parties, line items, terms, logos, signatures, and notices. Use for requests to create, design, or download invoices, estimates, quotes, receipts, agreements, or contracts. Check the preview and required details before returning the document.",
         "auth": {
             "type": "oauth",
             "client_url": "https://auth.openai.com/api/accounts/authorize",
@@ -44,8 +44,8 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
         "openapi": "3.1.0",
         "info": {
             "title": "Pressmark Vector Document Engine API",
-            "description": "Sub-millisecond document and invoice generation API powered by the Pressmark Vector Engine. Provides interactive preview and vector PDF synthesis for invoices, estimates, receipts, contracts, NDAs, and certificates.",
-            "version": "1.2.1"
+            "description": "Creates PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and certificates, with PNG previews.",
+            "version": crate::mcp::MCP_SERVER_VERSION
         },
         "servers": [
             {
@@ -62,7 +62,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                 "post": {
                     "operationId": "generateDocument",
                     "summary": "Generate a PDF document",
-                    "description": "Compiles a complete vector PDF document from structured JSON data in under 25ms. Returns Base64 PDF data and direct download link.",
+                    "description": "Creates a PDF from the supplied JSON document and returns Base64 PDF data and a download link.",
                     "security": [],
                     "requestBody": {
                         "required": true,
@@ -76,7 +76,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                     },
                     "responses": {
                         "200": {
-                            "description": "Successfully synthesized PDF document",
+                            "description": "Generated PDF document",
                             "content": {
                                 "application/json": {
                                     "schema": {
@@ -92,7 +92,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                 "post": {
                     "operationId": "previewDocument",
                     "summary": "Preview a document as PNG image",
-                    "description": "Generates a high-resolution PNG preview image of the document for immediate in-chat rendering.",
+                    "description": "Returns a PNG preview that can be displayed in chat.",
                     "security": [],
                     "requestBody": {
                         "required": true,
@@ -122,11 +122,11 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                 "get": {
                     "operationId": "getPricing",
                     "summary": "Get subscription tiers and single pass prices",
-                    "description": "Retrieves the current product catalog, feature comparison, and Stripe checkout links.",
+                    "description": "Returns plans, prices, document limits, and checkout links.",
                     "security": [],
                     "responses": {
                         "200": {
-                            "description": "Pricing catalog and SKUs"
+                            "description": "Plans and prices"
                         }
                     }
                 }
@@ -193,7 +193,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                 "post": {
                     "operationId": "runCopilot",
                     "summary": "AI Copilot document editing",
-                    "description": "Natural language document modification powered by the user's active ChatGPT Plus/Pro subscription compute delegation.",
+                    "description": "Edits a document from written instructions using the user's connected ChatGPT Plus or Pro account.",
                     "responses": {
                         "200": {
                             "description": "Modified document state and AI explanation"
@@ -210,7 +210,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                         "doc_type": {
                             "type": "string",
                             "enum": crate::mcp::McpHandler::document_type_enum(),
-                            "description": "The category of document to synthesize"
+                            "description": "The type of document to create"
                         },
                         "title": { "type": "string", "description": "Custom document title (e.g. 'INVOICE')" },
                         "doc_number": { "type": "string", "description": "Unique document or invoice number" },
@@ -342,7 +342,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                         "due_days": { "type": "integer", "description": "Number of days until payment is due (for invoice conversion)" },
                         "valid_days": { "type": "integer", "description": "Number of days proposal is valid (for estimate conversion)" },
                         "payment_link": { "type": "string", "description": "Stripe checkout URL for online payments" },
-                        "payment_qr_code": { "type": "boolean", "description": "Whether to render vector QR code for 1-scan mobile checkout" },
+                        "payment_qr_code": { "type": "boolean", "description": "Whether to include a QR code for the payment link" },
                         "credit_reason": { "type": "string", "description": "Reason for issuing credit note or refund" },
                         "document": { "$ref": "#/components/schemas/DocumentRequest" }
                     }

@@ -1,7 +1,7 @@
 # Pressmark
 
 [![Rust](https://img.shields.io/badge/Rust-orange.svg)](https://www.rust-lang.org/)
-[![Pressmark Engine](https://img.shields.io/badge/Pressmark%20Engine-v1.2.1-blue.svg)](https://pressmark.dev)
+[![Pressmark Engine](https://img.shields.io/badge/Pressmark%20Engine-v1.2.4-blue.svg)](https://pressmark.dev)
 [![Pressmark MCP server quality and maintenance on Glama](https://glama.ai/mcp/servers/mooshee/pressmark/badges/score.svg)](https://glama.ai/mcp/servers/mooshee/pressmark)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 

@@ -21,7 +21,9 @@ fn test_chatgpt_ai_plugin_manifest() {
     let manifest = get_ai_plugin_manifest("http://localhost:3842");
     assert_eq!(manifest["schema_version"], "v1");
     assert_eq!(manifest["name_for_model"], "pressmark_doc_engine");
-    assert!(manifest["description_for_model"].as_str().unwrap().contains("Pressmark Vector Engine"));
+    assert!(manifest["description_for_model"]
+        .as_str()
+        .is_some_and(|description| !description.trim().is_empty()));
 }
 
 #[test]
@@ -121,7 +123,7 @@ fn test_mcp_lifecycle_handshake_and_negative_validation() {
     let init_res = init_resp.result.expect("initialize should return result");
     assert_eq!(init_res["protocolVersion"], "2026-07-28");
     assert_eq!(init_res["serverInfo"]["name"], "pressmark");
-    assert_eq!(init_res["serverInfo"]["version"], "1.2.1");
+    assert_eq!(init_res["serverInfo"]["version"], "1.2.4");
 
     // 2. server/discover handshake
     let disc_req = JsonRpcRequest {
