@@ -214,9 +214,9 @@ impl McpHandler {
                 "description": "Render a PNG preview from the supplied document details. HTTP calls can return a temporary image link. Use the returned image to show the actual document; do not substitute an illustration. This does not send the document.",
                 "annotations": {
                     "title": "Preview Document as PNG",
-                    "readOnlyHint": true,
+                    "readOnlyHint": false,
                     "destructiveHint": false,
-                    "idempotentHint": true,
+                    "idempotentHint": false,
                     "openWorldHint": false
                 },
                 "inputSchema": {
@@ -312,9 +312,9 @@ impl McpHandler {
                 "description": "Convert document details to an invoice, estimate, receipt, credit note, or refund PDF. This does not update saved records. HTTP calls can return a temporary download link.",
                 "annotations": {
                     "title": "Convert Document",
-                    "readOnlyHint": true,
+                    "readOnlyHint": false,
                     "destructiveHint": false,
-                    "idempotentHint": true,
+                    "idempotentHint": false,
                     "openWorldHint": false
                 },
                 "inputSchema": {
@@ -350,9 +350,9 @@ impl McpHandler {
                 "description": "Create a receipt or updated invoice from supplied payment details. This does not charge a payment method or verify payment. HTTP calls can return a temporary PDF download link.",
                 "annotations": {
                     "title": "Create Payment Record",
-                    "readOnlyHint": true,
+                    "readOnlyHint": false,
                     "destructiveHint": false,
-                    "idempotentHint": true,
+                    "idempotentHint": false,
                     "openWorldHint": false
                 },
                 "inputSchema": {

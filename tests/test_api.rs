@@ -57,6 +57,18 @@ fn test_mcp_tools_list_and_call() {
     assert!(tools.iter().any(|t| t["name"] == "get_pricing"));
     assert!(tools.iter().any(|t| t["name"] == "calculate_totals"));
 
+    // File tools can create a fresh temporary file on each HTTP call. Clients
+    // must be able to distinguish them from pure calculations and catalog reads.
+    for name in ["generate_document", "preview_document", "convert_document", "record_payment"] {
+        let tool = tools.iter().find(|tool| tool["name"] == name).unwrap();
+        assert_eq!(tool["annotations"]["readOnlyHint"], false, "{name}");
+        assert_eq!(tool["annotations"]["idempotentHint"], false, "{name}");
+    }
+    for name in ["calculate_totals", "get_pricing"] {
+        let tool = tools.iter().find(|tool| tool["name"] == name).unwrap();
+        assert_eq!(tool["annotations"]["readOnlyHint"], true, "{name}");
+    }
+
     // Test call calculate_totals
     let calc_req = JsonRpcRequest {
         jsonrpc: "2.0".to_string(),
@@ -123,7 +135,7 @@ fn test_mcp_lifecycle_handshake_and_negative_validation() {
     let init_res = init_resp.result.expect("initialize should return result");
     assert_eq!(init_res["protocolVersion"], "2026-07-28");
     assert_eq!(init_res["serverInfo"]["name"], "pressmark");
-    assert_eq!(init_res["serverInfo"]["version"], "1.2.4");
+    assert_eq!(init_res["serverInfo"]["version"], env!("CARGO_PKG_VERSION"));
 
     // 2. server/discover handshake
     let disc_req = JsonRpcRequest {
