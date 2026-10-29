@@ -150,6 +150,19 @@ impl McpHandler {
         Self::document_input_properties()
     }
 
+    fn download_output_schema() -> Value {
+        json!({
+            "type": "object", "description": "Temporary PDF download when this tool is called over HTTP. Anyone with the URL can download the PDF until expiry or a service restart.",
+            "properties": {
+                "url": { "type": "string", "format": "uri" },
+                "filename": { "type": "string" },
+                "expires_at": { "type": "string", "format": "date-time" },
+                "expires_in_seconds": { "type": "integer" }
+            },
+            "required": ["url", "filename", "expires_at", "expires_in_seconds"]
+        })
+    }
+
     pub fn tools_list() -> Value {
         Self::get_tools()
     }
@@ -161,7 +174,7 @@ impl McpHandler {
             {
                 "name": "generate_document",
                 "title": "Generate PDF Document",
-                "description": "Creates a PDF from the supplied document details and returns it as an embedded resource. When customer sync is enabled, it also updates Pressmark's customer records with contact details and a document summary, and may start automated follow-up. It uses the signed-in email when available, otherwise the sender email, then the recipient email. See https://pressmark.dev/privacy for the fields shared.",
+                "description": "Creates a PDF. HTTP calls can return a temporary download link. Configured customer sync can save contact details and a document summary and start follow-up. See https://pressmark.dev/privacy.",
                 "annotations": {
                     "title": "Generate PDF Document",
                     "readOnlyHint": false,
@@ -186,6 +199,8 @@ impl McpHandler {
                     "type": "object",
                     "properties": {
                         "pdf_base64": { "type": "string", "description": "Base64 vector PDF." },
+                        "download": Self::download_output_schema(),
+                        "download_error": { "type": "string", "description": "Why a temporary download link could not be created. The embedded PDF is still available." },
                         "doc_number": { "type": "string", "description": "User-supplied document number, or an empty string when omitted." },
                         "grand_total": { "type": "number", "description": "Computed grand total." },
                         "compile_time_ms": { "type": "integer", "description": "Compile time in ms." }
@@ -291,10 +306,10 @@ impl McpHandler {
             },
             {
                 "name": "convert_document",
-                "title": "Stateless Document Lifecycle Conversion",
-                "description": "Stateless in-memory conversion and PDF synthesis from Estimate/Quote JSON to Invoice, Receipt, or Credit Note without mutating server records. Example: target_type='invoice', convert_document({\"document\":{},\"target_type\":\"invoice\"})",
+                "title": "Convert Document",
+                "description": "Convert document details to an invoice, estimate, receipt, credit note, or refund PDF. This does not update saved records. HTTP calls can return a temporary download link.",
                 "annotations": {
-                    "title": "Stateless Document Lifecycle Conversion",
+                    "title": "Convert Document",
                     "readOnlyHint": true,
                     "destructiveHint": false,
                     "idempotentHint": true,
@@ -320,6 +335,8 @@ impl McpHandler {
                     "properties": {
                         "document": { "type": "object", "description": "Converted document JSON." },
                         "pdf_base64": { "type": "string", "description": "Base64 vector PDF." },
+                        "download": Self::download_output_schema(),
+                        "download_error": { "type": "string", "description": "Why a temporary download link could not be created. The embedded PDF is still available." },
                         "compile_time_ms": { "type": "integer", "description": "Compile time in ms." }
                     },
                     "required": ["document", "pdf_base64", "compile_time_ms"]
@@ -327,10 +344,10 @@ impl McpHandler {
             },
             {
                 "name": "record_payment",
-                "title": "Stateless Payment Receipt & Balance Synthesis",
-                "description": "Stateless in-memory payment calculation and PDF synthesis returning a Receipt or partial-payment Invoice without mutating server records. Example: amount_paid=100, record_payment({\"document\":{},\"amount_paid\":100})",
+                "title": "Create Payment Record",
+                "description": "Create a receipt or updated invoice from supplied payment details. This does not charge a payment method or verify payment. HTTP calls can return a temporary PDF download link.",
                 "annotations": {
-                    "title": "Stateless Payment Receipt & Balance Synthesis",
+                    "title": "Create Payment Record",
                     "readOnlyHint": true,
                     "destructiveHint": false,
                     "idempotentHint": true,
@@ -355,6 +372,8 @@ impl McpHandler {
                     "properties": {
                         "document": { "type": "object", "description": "Receipt or updated invoice JSON." },
                         "pdf_base64": { "type": "string", "description": "Base64 vector PDF." },
+                        "download": Self::download_output_schema(),
+                        "download_error": { "type": "string", "description": "Why a temporary download link could not be created. The embedded PDF is still available." },
                         "compile_time_ms": { "type": "integer", "description": "Compile time in ms." }
                     },
                     "required": ["document", "pdf_base64", "compile_time_ms"]
@@ -759,9 +778,9 @@ impl McpHandler {
                                 let mut converted = match target_type.trim().to_lowercase().as_str() {
                                     "credit_note" | "credit" | "refund" => doc_req.to_credit_note(credit_reason),
                                     "receipt" => doc_req.to_receipt(
-                                        "Stripe / Apple Pay",
-                                        "TX-PAID",
-                                        &chrono::Utc::now().format("%Y-%m-%d").to_string(),
+                                        doc_req.payment_method.as_deref().unwrap_or_default(),
+                                        doc_req.transaction_reference.as_deref().unwrap_or_default(),
+                                        doc_req.paid_at.as_deref().unwrap_or_default(),
                                     ),
                                     "estimate" | "quote" => doc_req.to_estimate(30),
                                     "invoice" => doc_req.to_invoice(due_days),
@@ -889,10 +908,9 @@ impl McpHandler {
                     }
                     "record_payment" => {
                         let doc_val = arguments.get("document").cloned().unwrap_or(Value::Null);
-                        let method = arguments.get("payment_method").and_then(|m| m.as_str()).unwrap_or("Stripe / Apple Pay");
-                        let tx_ref = arguments.get("transaction_reference").and_then(|r| r.as_str()).unwrap_or("STRIPE-AUTO-PAID");
-                        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-                        let paid_date = arguments.get("paid_date").and_then(|d| d.as_str()).unwrap_or(&today);
+                        let method = arguments.get("payment_method").and_then(|m| m.as_str()).unwrap_or_default();
+                        let tx_ref = arguments.get("transaction_reference").and_then(|r| r.as_str()).unwrap_or_default();
+                        let paid_date = arguments.get("paid_date").and_then(|d| d.as_str()).unwrap_or_default();
                         let amount_paid = arguments.get("amount_paid").and_then(|a| a.as_f64());
 
                         if let Some(paid) = amount_paid {
@@ -903,7 +921,7 @@ impl McpHandler {
                                     result: None,
                                     error: Some(json!({
                                         "code": -32602,
-                                        "message": "Validation error: amount_paid cannot be negative. Use convert_document with target_type='credit_note' to issue a refund."
+                                        "message": "Validation error: amount_paid cannot be negative. Use convert_document with target_type='credit_note' to prepare a credit note; this does not send a refund."
                                     })),
                                 };
                             }
@@ -928,9 +946,9 @@ impl McpHandler {
                                         partial_doc.amount_paid = Some(paid);
                                         partial_doc.is_paid = Some(false);
                                         partial_doc.payment_status = Some("partial".to_string());
-                                        partial_doc.payment_method = Some(method.to_string());
-                                        partial_doc.transaction_reference = Some(tx_ref.to_string());
-                                        partial_doc.paid_at = Some(paid_date.to_string());
+                                        partial_doc.payment_method = (!method.trim().is_empty()).then(|| method.to_string());
+                                        partial_doc.transaction_reference = (!tx_ref.trim().is_empty()).then(|| tx_ref.to_string());
+                                        partial_doc.paid_at = (!paid_date.trim().is_empty()).then(|| paid_date.to_string());
                                         (partial_doc, "Partial Payment Recorded & Invoice Updated")
                                     } else {
                                         let mut receipt = doc_req.to_receipt(method, tx_ref, paid_date);

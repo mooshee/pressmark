@@ -120,6 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     pressmark::engine::start_cache_pruner_task(1800, 3600);
 
     let app_state = Arc::new(AppState::new(base_url.clone()));
+    app_state.downloads.start_cleanup_task();
     app_state.rate_limiter.start_cleanup_task(300);
     pressmark::storage::start_db_pruner_task(Arc::clone(&app_state.storage), 3600, 3);
 

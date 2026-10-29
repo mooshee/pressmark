@@ -30,6 +30,7 @@ pub struct AppState {
     pub rate_limiter: RateLimiter,
     pub stripe_idempotency: crate::stripe::StripeIdempotencyStore,
     pub storage: Arc<crate::storage::Storage>,
+    pub downloads: crate::downloads::PdfDownloadCache,
 }
 
 impl AppState {
@@ -49,6 +50,7 @@ impl AppState {
 
         Self {
             base_url,
+            downloads: crate::downloads::PdfDownloadCache::default(),
             auth_mgr,
             rate_limiter: RateLimiter::new(max_req, window_secs),
             stripe_idempotency,
@@ -117,6 +119,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/openapi.json", get(handle_openapi))
         // API v1
         .route("/api/v1/generate", post(handle_generate))
+        .route("/api/v1/downloads/:token", get(handle_pdf_download))
         .route("/api/v1/preview", post(handle_preview))
         .route("/api/v1/render-raw", post(handle_render_raw))
         .route("/api/v1/render-vector", post(handle_render_raw))
@@ -199,6 +202,36 @@ async fn handle_health() -> impl IntoResponse {
         "engine": "pressmark-vector-v1",
         "version": "1.2.1"
     })))
+}
+
+async fn handle_pdf_download(
+    State(state): State<Arc<AppState>>,
+    Path(token): Path<String>,
+) -> Response {
+    let mut response = match state.downloads.get(&token) {
+        Some(pdf) => {
+            let length = pdf.bytes.len();
+            let mut response = (StatusCode::OK, pdf.bytes).into_response();
+            let headers = response.headers_mut();
+            headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/pdf"));
+            headers.insert(header::CONTENT_LENGTH, header::HeaderValue::from(length));
+            // The cache only emits ASCII letters, digits, hyphens, and underscores in filenames.
+            headers.insert(header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{}\"", pdf.filename).parse().expect("safe PDF filename"));
+            response
+        }
+        None => (StatusCode::NOT_FOUND,
+            "This download link is unavailable or has expired. Generate the PDF again.").into_response(),
+    };
+    let headers = response.headers_mut();
+    headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("private, no-store, max-age=0"));
+    headers.insert("cdn-cache-control", header::HeaderValue::from_static("no-store"));
+    headers.insert("cloudflare-cdn-cache-control", header::HeaderValue::from_static("no-store"));
+    headers.insert("x-robots-tag", header::HeaderValue::from_static("noindex, nofollow, noarchive"));
+    headers.insert("referrer-policy", header::HeaderValue::from_static("no-referrer"));
+    headers.insert("x-content-type-options", header::HeaderValue::from_static("nosniff"));
+    headers.insert(header::CONTENT_SECURITY_POLICY, header::HeaderValue::from_static("default-src 'none'; sandbox"));
+    response
 }
 
 async fn handle_ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -1422,6 +1455,13 @@ async fn handle_mcp(
         is_paid_session,
         session_email,
     );
+    if resp.tool_succeeded()
+        && matches!(tool_name.as_deref(), Some("generate_document" | "convert_document" | "record_payment"))
+    {
+        if let Some(result) = resp.result.as_mut() {
+            attach_pdf_download(&state, result, doc_type.as_deref().unwrap_or("document"));
+        }
+    }
     let compile_ms = resp
         .result
         .as_ref()
@@ -1465,6 +1505,9 @@ async fn handle_mcp(
     }
 
     let mut resp_headers = HeaderMap::new();
+    if mcp_method == "tools/call" {
+        resp_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("private, no-store"));
+    }
     let negotiated_proto = resp
         .result
         .as_ref()
@@ -1490,6 +1533,44 @@ async fn handle_mcp(
     }
 
     (StatusCode::OK, resp_headers, Json(resp)).into_response()
+}
+
+fn attach_pdf_download(state: &AppState, result: &mut serde_json::Value, fallback_type: &str) {
+    use crate::downloads::{DownloadError, MAX_DOWNLOAD_BYTES};
+    let Some(encoded) = result.get("pdf_base64").and_then(|v| v.as_str()) else { return; };
+    let stored = if encoded.len() > ((MAX_DOWNLOAD_BYTES + 2) / 3) * 4 {
+        Err(DownloadError::TooLarge)
+    } else {
+        BASE64.decode(encoded).map_err(|_| DownloadError::InvalidPdf).and_then(|pdf| {
+            let doc = &result["document"];
+            let kind = doc.get("doc_type").and_then(|v| v.as_str()).unwrap_or(fallback_type);
+            let number = doc.get("doc_number").or_else(|| result.get("doc_number"))
+                .and_then(|v| v.as_str()).unwrap_or_default();
+            state.downloads.insert(pdf, kind, number, &state.base_url)
+        })
+    };
+    match stored {
+        Ok(link) => {
+            let message = format!("[Download PDF]({})\n\nThis link expires in 15 minutes and may stop working sooner if the service restarts. Anyone with the link can download the PDF while it is valid.", link.url);
+            let metadata = serde_json::to_value(&link).expect("serializable download metadata");
+            result["download"] = metadata.clone();
+            result["structuredContent"]["download"] = metadata;
+            if let Some(content) = result["content"].as_array_mut() {
+                content.insert(0, serde_json::json!({"type": "text", "text": message}));
+                content.push(serde_json::json!({
+                    "type": "resource_link", "uri": link.url, "name": link.filename,
+                    "mimeType": "application/pdf", "description": "Generated PDF. Download link expires in 15 minutes."
+                }));
+            }
+        }
+        Err(error) => {
+            result["download_error"] = serde_json::json!(error.message());
+            result["structuredContent"]["download_error"] = serde_json::json!(error.message());
+            if let Some(content) = result["content"].as_array_mut() {
+                content.push(serde_json::json!({"type": "text", "text": error.message()}));
+            }
+        }
+    }
 }
 
 async fn handle_copilot(
@@ -2249,9 +2330,9 @@ async fn handle_lifecycle_convert(
     let mut converted = match payload.target_type.trim().to_lowercase().as_str() {
         "invoice" => payload.document.to_invoice(payload.due_days.unwrap_or(15)),
         "receipt" | "payment_receipt" | "paid_receipt" => payload.document.to_receipt(
-            "Stripe / Apple Pay",
-            &format!("TX-{}", chrono::Utc::now().timestamp()),
-            &chrono::Utc::now().format("%Y-%m-%d").to_string(),
+            payload.document.payment_method.as_deref().unwrap_or_default(),
+            payload.document.transaction_reference.as_deref().unwrap_or_default(),
+            payload.document.paid_at.as_deref().unwrap_or_default(),
         ),
         "estimate" | "quote" | "proposal" => payload.document.to_estimate(payload.valid_days.unwrap_or(30)),
         "credit_note" | "credit-note" | "credit" | "refund" | "credit_memo" => {
@@ -2308,10 +2389,9 @@ async fn handle_lifecycle_pay(
         }
     }
 
-    let method = payload.payment_method.as_deref().unwrap_or("Stripe / Apple Pay");
-    let tx_ref = payload.transaction_reference.as_deref().unwrap_or("STRIPE-AUTO-PAID");
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let paid_date = payload.paid_date.as_deref().unwrap_or(&today);
+    let method = payload.payment_method.as_deref().unwrap_or_default();
+    let tx_ref = payload.transaction_reference.as_deref().unwrap_or_default();
+    let paid_date = payload.paid_date.as_deref().unwrap_or_default();
 
     let total = payload.document.grand_total();
     let amt = payload.amount_paid.unwrap_or(total);
@@ -2322,9 +2402,9 @@ async fn handle_lifecycle_pay(
         partial_doc.amount_paid = Some(amt);
         partial_doc.is_paid = Some(false);
         partial_doc.payment_status = Some("partial".to_string());
-        partial_doc.payment_method = Some(method.to_string());
-        partial_doc.transaction_reference = Some(tx_ref.to_string());
-        partial_doc.paid_at = Some(paid_date.to_string());
+        partial_doc.payment_method = (!method.trim().is_empty()).then(|| method.to_string());
+        partial_doc.transaction_reference = (!tx_ref.trim().is_empty()).then(|| tx_ref.to_string());
+        partial_doc.paid_at = (!paid_date.trim().is_empty()).then(|| paid_date.to_string());
         let bal = (total - amt).max(0.0);
 
         (StatusCode::OK, Json(serde_json::json!({
@@ -2335,7 +2415,7 @@ async fn handle_lifecycle_pay(
             "document": partial_doc
         })))
     } else {
-        // Full Payment: Convert to official payment receipt
+        // Full payment: create a receipt from the supplied details.
         let mut receipt = payload.document.to_receipt(method, tx_ref, paid_date);
         receipt.amount_paid = Some(amt);
 
@@ -2797,7 +2877,7 @@ mod tests {
             .unwrap()
             .contains(&serde_json::json!("2026-07-28")));
 
-        // 6. Verify every property description in tools_list() is < 250 characters and tools include Example:
+        // 6. Keep descriptions concise and examples in the machine-readable input schema.
         let tools = McpHandler::tools_list();
         for tool in tools.as_array().unwrap() {
             let tool_name = tool["name"].as_str().unwrap();
@@ -2809,10 +2889,9 @@ mod tests {
                 tool_desc.len()
             );
             assert!(
-                tool_desc.contains("Example:"),
-                "Tool {} description missing inline Example: {}",
-                tool_name,
-                tool_desc
+                tool["inputSchema"]["examples"].as_array().is_some_and(|examples| !examples.is_empty()),
+                "Tool {} is missing input schema examples",
+                tool_name
             );
             let mut props = Vec::new();
             collect_property_descriptions(&tool["inputSchema"], &mut props, tool_name);

@@ -557,7 +557,7 @@ fn test_invoicing_lifecycle_and_stripe_qr_elements() {
         "2026-10-02"
     );
     assert_eq!(receipt.doc_type, DocumentType::Receipt);
-    assert_eq!(receipt.title.as_deref(), Some("OFFICIAL PAYMENT RECEIPT"));
+    assert_eq!(receipt.title.as_deref(), Some("PAYMENT RECEIPT"));
     assert_eq!(receipt.doc_number.as_deref(), Some("REC-2026-0099"));
     assert_eq!(receipt.effective_payment_status(), "paid");
     assert!(receipt.is_paid_state());
@@ -1544,17 +1544,20 @@ async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
         "Custom watermark DRAFT on paid doc must never be overwritten"
     );
 
-    // Verify all 3 SKILL.md files use canonical DocumentType slugs, state_code, and REC- prefix
+    // Verify the skills and their linked references cover canonical fields and document types.
     let re_skill = std::fs::read_to_string("skills/real-estate-agreements/SKILL.md").unwrap();
     let inv_skill = std::fs::read_to_string("skills/invoice-generation/SKILL.md").unwrap();
     let lc_skill = std::fs::read_to_string("skills/document-lifecycle/SKILL.md").unwrap();
+    let lc_reference = std::fs::read_to_string("skills/document-lifecycle/references/state-machine.md").unwrap();
     assert!(re_skill.contains("state_code") && !re_skill.contains("governing_state"));
     assert!(inv_skill.contains("state_code") && !inv_skill.contains("governing_state"));
-    assert!(lc_skill.contains("REC-") && !lc_skill.contains("RCT-"));
+    assert!(lc_skill.contains("references/state-machine.md"));
+    assert!(lc_reference.contains("REC-") && !lc_reference.contains("RCT-"));
+    let document_skills = format!("{inv_skill}\n{re_skill}");
     for dt in pressmark::models::DocumentType::all() {
         assert!(
-            inv_skill.contains(&format!("`{}`", dt.as_str())),
-            "skills/invoice-generation/SKILL.md missing canonical archetype `{}`",
+            document_skills.contains(&format!("`{}`", dt.as_str())),
+            "Document skills missing canonical archetype `{}`",
             dt.as_str()
         );
     }
@@ -1784,6 +1787,7 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     let stripe_idempotency = StripeIdempotencyStore::new().with_storage(Arc::clone(&storage));
     let state = Arc::new(AppState {
         base_url: "https://pressmark.dev".to_string(),
+        downloads: Default::default(),
         auth_mgr: auth_mgr.clone(),
         rate_limiter: RateLimiter::new(1000, 60),
         stripe_idempotency,
