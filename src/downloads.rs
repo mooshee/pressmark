@@ -1,4 +1,4 @@
-//! Short-lived PDF downloads for HTTP MCP results.
+//! Short-lived PDF and PNG downloads for HTTP MCP results.
 //!
 //! Author: Daniel Hallman
 
@@ -15,7 +15,7 @@ const MAX_CACHE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_CACHE_DOCUMENTS: usize = 64;
 
 #[derive(Clone)]
-pub struct PdfDownloadCache {
+pub struct DocumentDownloadCache {
     inner: Arc<Mutex<Cache>>,
     ttl: Duration,
     max_file_bytes: usize,
@@ -29,14 +29,15 @@ struct Cache {
 }
 
 struct Entry {
-    document: DownloadedPdf,
+    document: DownloadedDocument,
     expires: Instant,
 }
 
 #[derive(Clone)]
-pub struct DownloadedPdf {
+pub struct DownloadedDocument {
     pub bytes: Bytes,
     pub filename: String,
+    pub mime_type: &'static str,
 }
 
 #[derive(Serialize)]
@@ -50,6 +51,7 @@ pub struct DownloadLink {
 #[derive(Debug, PartialEq, Eq)]
 pub enum DownloadError {
     InvalidPdf,
+    InvalidPng,
     TooLarge,
     Capacity,
     InvalidOrigin,
@@ -59,14 +61,14 @@ pub enum DownloadError {
 impl DownloadError {
     pub fn message(&self) -> &'static str {
         match self {
-            Self::TooLarge => "This PDF exceeds the 8 MiB temporary-download limit. The PDF remains embedded in the tool result.",
-            Self::Capacity => "Temporary download storage is full. Try generating the PDF again later. The PDF remains embedded in the tool result.",
-            _ => "A temporary download link is unavailable. The PDF remains embedded in the tool result.",
+            Self::TooLarge => "This file exceeds the 8 MiB temporary-download limit. The file remains embedded in the tool result.",
+            Self::Capacity => "Temporary download storage is full. Try generating the file again later. The file remains embedded in the tool result.",
+            _ => "A temporary download link is unavailable. The file remains embedded in the tool result.",
         }
     }
 }
 
-impl Default for PdfDownloadCache {
+impl Default for DocumentDownloadCache {
     fn default() -> Self {
         Self {
             inner: Arc::new(Mutex::new(Cache {
@@ -92,7 +94,7 @@ impl Cache {
     }
 }
 
-impl PdfDownloadCache {
+impl DocumentDownloadCache {
     pub fn insert(
         &self,
         bytes: Vec<u8>,
@@ -101,6 +103,23 @@ impl PdfDownloadCache {
         base_url: &str,
     ) -> Result<DownloadLink, DownloadError> {
         self.insert_at(bytes, doc_type, doc_number, base_url, Instant::now())
+    }
+
+    pub fn insert_png(
+        &self,
+        bytes: Vec<u8>,
+        doc_type: &str,
+        doc_number: &str,
+        base_url: &str,
+    ) -> Result<DownloadLink, DownloadError> {
+        if bytes.len() > self.max_file_bytes {
+            return Err(DownloadError::TooLarge);
+        }
+        if !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+            return Err(DownloadError::InvalidPng);
+        }
+        let filename = pdf_filename(doc_type, doc_number).trim_end_matches(".pdf").to_owned() + ".png";
+        self.store_at(bytes, filename, "image/png", base_url, Instant::now())
     }
 
     fn insert_at(
@@ -116,6 +135,20 @@ impl PdfDownloadCache {
         }
         if !bytes.starts_with(b"%PDF-") {
             return Err(DownloadError::InvalidPdf);
+        }
+        self.store_at(bytes, pdf_filename(doc_type, doc_number), "application/pdf", base_url, now)
+    }
+
+    fn store_at(
+        &self,
+        bytes: Vec<u8>,
+        filename: String,
+        mime_type: &'static str,
+        base_url: &str,
+        now: Instant,
+    ) -> Result<DownloadLink, DownloadError> {
+        if bytes.len() > self.max_file_bytes {
+            return Err(DownloadError::TooLarge);
         }
         let mut origin = reqwest::Url::parse(base_url).map_err(|_| DownloadError::InvalidOrigin)?;
         let loopback = matches!(origin.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
@@ -142,15 +175,15 @@ impl PdfDownloadCache {
                 break candidate;
             }
         };
-        let filename = pdf_filename(doc_type, doc_number);
         origin.set_path(&format!("/api/v1/downloads/{token}"));
         cache.total_bytes += bytes.len();
         cache.entries.insert(
             token,
             Entry {
-                document: DownloadedPdf {
+                document: DownloadedDocument {
                     bytes: Bytes::from(bytes),
                     filename: filename.clone(),
+                    mime_type,
                 },
                 expires: now + self.ttl,
             },
@@ -164,11 +197,11 @@ impl PdfDownloadCache {
         })
     }
 
-    pub fn get(&self, token: &str) -> Option<DownloadedPdf> {
+    pub fn get(&self, token: &str) -> Option<DownloadedDocument> {
         self.get_at(token, Instant::now())
     }
 
-    fn get_at(&self, token: &str, now: Instant) -> Option<DownloadedPdf> {
+    fn get_at(&self, token: &str, now: Instant) -> Option<DownloadedDocument> {
         if token.len() != 64
             || !token
                 .bytes()
@@ -229,7 +262,7 @@ mod tests {
 
     #[test]
     fn expiration_invalid_tokens_and_restart_remove_access() {
-        let cache = PdfDownloadCache::default();
+        let cache = DocumentDownloadCache::default();
         let now = Instant::now();
         let link = cache
             .insert_at(pdf(), "invoice", "INV-42", "https://pressmark.dev", now)
@@ -247,12 +280,12 @@ mod tests {
         assert_eq!(cache.inner.lock().unwrap().total_bytes, 0);
         assert!(cache.get("../private").is_none());
         assert!(cache.get(&"0".repeat(64)).is_none());
-        assert!(PdfDownloadCache::default().get(token(&link)).is_none());
+        assert!(DocumentDownloadCache::default().get(token(&link)).is_none());
     }
 
     #[test]
     fn capacity_and_size_limits_reject_without_evicting_valid_links() {
-        let cache = PdfDownloadCache {
+        let cache = DocumentDownloadCache {
             max_documents: 1,
             max_total_bytes: 20,
             max_file_bytes: 20,
@@ -280,7 +313,7 @@ mod tests {
                 now + Duration::from_secs(DOWNLOAD_TTL_SECONDS)
             )
             .is_ok());
-        let byte_limited = PdfDownloadCache {
+        let byte_limited = DocumentDownloadCache {
             max_total_bytes: 20,
             ..Default::default()
         };
@@ -295,7 +328,7 @@ mod tests {
 
     #[test]
     fn links_are_unique_and_filenames_and_origins_are_safe() {
-        let cache = PdfDownloadCache::default();
+        let cache = DocumentDownloadCache::default();
         let first = cache
             .insert(
                 pdf(),

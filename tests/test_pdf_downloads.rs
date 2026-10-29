@@ -101,6 +101,11 @@ async fn all_http_pdf_tools_return_working_links_to_the_exact_generated_bytes() 
         let expected_pdf = BASE64
             .decode(result["pdf_base64"].as_str().unwrap())
             .unwrap();
+        let reread = read_resource(&router, url).await;
+        assert!(reread["error"].is_null(), "{reread}");
+        assert_eq!(reread["result"]["contents"][0]["mimeType"], "application/pdf");
+        assert_eq!(BASE64.decode(reread["result"]["contents"][0]["blob"].as_str().unwrap()).unwrap(), expected_pdf);
+        assert_eq!(result["content"].as_array().unwrap().iter().filter(|item| item["type"] == "resource" || item["type"] == "resource_link").count(), 1);
 
         let download = router
             .clone()
@@ -220,13 +225,97 @@ async fn download_content_matches_the_negotiated_mcp_version() {
                 .as_str()
                 .unwrap_or_default()
                 .contains("[Download PDF]")));
-        assert!(content
+        assert_eq!(content
             .iter()
             .any(|item| item["type"] == "resource"
-                && item["resource"]["mimeType"] == "application/pdf"));
+                && item["resource"]["mimeType"] == "application/pdf"), !has_resource_link);
+        let uri = if has_resource_link {
+            content.iter().find(|item| item["type"] == "resource_link").unwrap()["uri"].as_str().unwrap()
+        } else {
+            content.iter().find(|item| item["type"] == "resource").unwrap()["resource"]["uri"].as_str().unwrap()
+        };
+        let reread = read_resource(&router, uri).await;
+        assert!(reread["error"].is_null(), "{reread}");
+        assert_eq!(reread["result"]["contents"][0]["mimeType"], "application/pdf");
+        assert_eq!(reread["result"]["contents"][0]["blob"], result["pdf_base64"]);
         if protocol == "2026-07-28" {
             assert_eq!(result["_meta"]["cacheTtlMs"], 0);
         }
+    }
+}
+
+async fn read_resource(router: &axum::Router, uri: &str) -> Value {
+    let response = router.clone().oneshot(Request::builder().uri("/mcp").method("POST")
+        .header("content-type", "application/json")
+        .header("mcp-protocol-version", "2026-07-28")
+        .header("user-agent", "Pressmark-Measurement-QA/1.0")
+        .body(Body::from(json!({"jsonrpc":"2.0","id":12,"method":"resources/read","params":{"uri":uri}}).to_string())).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["cache-control"], "private, no-store");
+    let body = axum::body::to_bytes(response.into_body(), 12 * 1024 * 1024).await.unwrap();
+    let result: Value = serde_json::from_slice(&body).unwrap();
+    if result["error"].is_null() {
+        assert_eq!(result["result"]["ttlMs"], 0);
+        assert_eq!(result["result"]["cacheScope"], "private");
+        assert_eq!(result["result"]["_meta"]["cacheTtlMs"], 0);
+    }
+    result
+}
+
+#[tokio::test]
+async fn previews_are_exact_png_resources_and_invalid_or_expired_uris_never_return_catalogs() {
+    let router = app();
+    let response = router.clone().oneshot(Request::builder().uri("/mcp").method("POST")
+        .header("content-type", "application/json")
+        .header("user-agent", "Pressmark-Measurement-QA/1.0")
+        .body(Body::from(json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"preview_document","arguments":document()}}).to_string())).unwrap()).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 12 * 1024 * 1024).await.unwrap();
+    let response: Value = serde_json::from_slice(&body).unwrap();
+    let result = &response["result"];
+    assert_eq!(result["preview"], result["structuredContent"]["preview"]);
+    assert_eq!(result["preview"]["expires_in_seconds"], 900);
+    let uri = result["preview"]["url"].as_str().expect("preview link");
+    let content = result["content"].as_array().unwrap();
+    let image = content.iter().find(|item| item["type"] == "image").unwrap();
+    let expected_png = BASE64.decode(image["data"].as_str().unwrap()).unwrap();
+    assert!(expected_png.starts_with(b"\x89PNG\r\n\x1a\n"));
+    assert!(content.iter().any(|item| item["type"] == "text" && item["text"].as_str().unwrap_or_default().contains(uri)));
+    let reread = read_resource(&router, uri).await;
+    assert!(reread["error"].is_null(), "{reread}");
+    assert_eq!(reread["result"]["contents"][0]["mimeType"], "image/png");
+    assert_eq!(BASE64.decode(reread["result"]["contents"][0]["blob"].as_str().unwrap()).unwrap(), expected_png);
+    let parsed = reqwest::Url::parse(uri).unwrap();
+    let download = router.clone().oneshot(request(parsed.path(), "GET")).await.unwrap();
+    assert_eq!(download.status(), StatusCode::OK);
+    assert_private_headers(download.headers());
+    assert_eq!(download.headers()["content-type"], "image/png");
+    assert_eq!(download.headers()["content-disposition"], "inline; filename=\"invoice-preview.png\"");
+    assert_eq!(axum::body::to_bytes(download.into_body(), 8 * 1024 * 1024).await.unwrap().as_ref(), expected_png);
+    let restarted = read_resource(&app(), uri).await;
+    assert_eq!(restarted["error"]["code"], -32002);
+    for invalid in [
+        "pressmark://documents/unknown.pdf".to_owned(),
+        "pressmark://catalog/missing".to_owned(),
+        "https://example.com/api/v1/downloads/unknown".to_owned(),
+        "http://127.0.0.1/private".to_owned(),
+        format!("{uri}?other=1"),
+        format!("{uri}#fragment"),
+        uri.replace("https://", "https://other@"),
+        "https://pressmark.dev/api/v1/downloads/../private".to_owned(),
+    ] {
+        let missing = read_resource(&router, &invalid).await;
+        assert_eq!(missing["error"]["code"], -32002, "{missing}");
+        assert!(missing["result"].is_null());
+    }
+    let catalog = read_resource(&router, "pressmark://catalog/archetypes").await;
+    assert_eq!(catalog["result"]["contents"][0]["mimeType"], "application/json");
+    assert!(catalog["result"]["contents"][0]["blob"].is_null());
+    for name in ["states", "pricing", "themes", "compliance", "execution"] {
+        let resource = read_resource(&router, &format!("pressmark://catalog/{name}")).await;
+        assert!(resource["error"].is_null(), "{name}: {resource}");
+        let text = resource["result"]["contents"][0]["text"].as_str().unwrap();
+        assert_ne!(text, catalog["result"]["contents"][0]["text"].as_str().unwrap());
+        assert!(serde_json::from_str::<Value>(text).is_ok());
     }
 }
 
