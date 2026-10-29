@@ -1558,7 +1558,7 @@ async fn handle_mcp(
         && matches!(tool_name.as_deref(), Some("generate_document" | "convert_document" | "record_payment"))
     {
         if let Some(result) = resp.result.as_mut() {
-            attach_pdf_download(&state, result, doc_type.as_deref().unwrap_or("document"));
+            attach_pdf_download(&state, result, doc_type.as_deref().unwrap_or("document"), &client_proto);
         }
     }
     let compile_ms = resp
@@ -1596,7 +1596,7 @@ async fn handle_mcp(
                         },
                         "protocolVersion": "2026-07-28",
                         "streamingSupported": true,
-                        "cacheTtlMs": 300_000
+                        "cacheTtlMs": if mcp_method == "tools/call" { 0 } else { 300_000 }
                     })
                 });
             }
@@ -1634,7 +1634,7 @@ async fn handle_mcp(
     (StatusCode::OK, resp_headers, Json(resp)).into_response()
 }
 
-fn attach_pdf_download(state: &AppState, result: &mut serde_json::Value, fallback_type: &str) {
+fn attach_pdf_download(state: &AppState, result: &mut serde_json::Value, fallback_type: &str, protocol: &str) {
     use crate::downloads::{DownloadError, MAX_DOWNLOAD_BYTES};
     let Some(encoded) = result.get("pdf_base64").and_then(|v| v.as_str()) else { return; };
     let stored = if encoded.len() > ((MAX_DOWNLOAD_BYTES + 2) / 3) * 4 {
@@ -1656,10 +1656,12 @@ fn attach_pdf_download(state: &AppState, result: &mut serde_json::Value, fallbac
             result["structuredContent"]["download"] = metadata;
             if let Some(content) = result["content"].as_array_mut() {
                 content.insert(0, serde_json::json!({"type": "text", "text": message}));
-                content.push(serde_json::json!({
-                    "type": "resource_link", "uri": link.url, "name": link.filename,
-                    "mimeType": "application/pdf", "description": "Generated PDF. Download link expires in 15 minutes."
-                }));
+                if matches!(protocol, "2025-06-18" | "2025-11-25" | "2026-07-28") {
+                    content.push(serde_json::json!({
+                        "type": "resource_link", "uri": link.url, "name": link.filename,
+                        "mimeType": "application/pdf", "description": "Generated PDF. Download link expires in 15 minutes."
+                    }));
+                }
             }
         }
         Err(error) => {

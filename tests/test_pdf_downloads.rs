@@ -188,6 +188,48 @@ async fn downloads_have_no_listing_and_unknown_links_do_not_leak_details() {
     assert!(String::from_utf8_lossy(&robots).contains("Disallow: /api/v1/downloads/"));
 }
 
+#[tokio::test]
+async fn download_content_matches_the_negotiated_mcp_version() {
+    let router = app();
+    for (protocol, has_resource_link) in [
+        ("2024-11-05", false),
+        ("2025-03-26", false),
+        ("2025-06-18", true),
+        ("2025-11-25", true),
+        ("2026-07-28", true),
+    ] {
+        let response = router.clone().oneshot(Request::builder().uri("/mcp").method("POST")
+            .header("content-type", "application/json")
+            .header("mcp-protocol-version", protocol)
+            .header("user-agent", "Pressmark-Measurement-QA/1.0")
+            .body(Body::from(json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"generate_document","arguments":document()}}).to_string())).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["mcp-protocol-version"], protocol);
+        let body = axum::body::to_bytes(response.into_body(), 10 * 1024 * 1024)
+            .await
+            .unwrap();
+        let response: Value = serde_json::from_slice(&body).unwrap();
+        let result = &response["result"];
+        let content = result["content"].as_array().unwrap();
+        assert_eq!(
+            content.iter().any(|item| item["type"] == "resource_link"),
+            has_resource_link
+        );
+        assert!(content.iter().any(|item| item["type"] == "text"
+            && item["text"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("[Download PDF]")));
+        assert!(content
+            .iter()
+            .any(|item| item["type"] == "resource"
+                && item["resource"]["mimeType"] == "application/pdf"));
+        if protocol == "2026-07-28" {
+            assert_eq!(result["_meta"]["cacheTtlMs"], 0);
+        }
+    }
+}
+
 async fn lifecycle_document(
     router: &axum::Router,
     tool: &str,

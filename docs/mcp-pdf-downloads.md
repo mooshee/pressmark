@@ -2,7 +2,7 @@
 
 Author: Daniel Hallman
 
-HTTP calls to `generate_document`, `convert_document`, and `record_payment` can return a temporary PDF download URL. The result includes a Markdown link, an MCP `resource_link`, and matching `download` metadata in `structuredContent`. The embedded PDF and `pdf_base64` remain available. Standard input/output MCP calls return the embedded PDF without a hosted link.
+HTTP calls to `generate_document`, `convert_document`, and `record_payment` can return a temporary PDF download URL. The result includes a Markdown link and matching `download` metadata in `structuredContent`. Clients using MCP 2025-06-18 or later also receive a `resource_link`. Older clients receive the text link and embedded PDF. The embedded PDF and `pdf_base64` remain available. Standard input/output MCP calls return the embedded PDF without a hosted link.
 
 Anyone with the download URL can retrieve the PDF. Each URL contains 244 random bits and expires after 15 minutes. A process restart also removes access. The filename contains only ASCII letters, digits, hyphens, underscores, and the `.pdf` suffix.
 
