@@ -154,6 +154,17 @@ fn private_outputs_are_never_overwritten() {
 }
 
 #[test]
+fn readable_backup_parent_is_allowed_but_release_directories_remain_private() {
+    assert!(directory_mode_admitted(0o755, false));
+    assert!(!directory_mode_admitted(0o755, true));
+    assert!(directory_mode_admitted(0o700, true));
+    for mode in [0o777, 0o775, 0o702, 0o720] {
+        assert!(!directory_mode_admitted(mode, false));
+        assert!(!directory_mode_admitted(mode, true));
+    }
+}
+
+#[test]
 fn elf_validation_rejects_foreign_platform_and_architecture() {
     let mut native = vec![0; 32];
     native[..4].copy_from_slice(b"\x7fELF");

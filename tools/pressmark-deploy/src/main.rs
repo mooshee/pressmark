@@ -548,7 +548,11 @@ fn plan_digest(plan: &Plan) -> Result<String> {
     ))
 }
 
-fn private_directory(path: &Path, create_new: bool) -> Result<()> {
+fn directory_mode_admitted(mode: u32, private: bool) -> bool {
+    mode & if private { 0o077 } else { 0o022 } == 0
+}
+
+fn private_directory(path: &Path, create_new: bool, private: bool) -> Result<()> {
     if create_new {
         fs::create_dir(path)
             .map_err(|_| "Private release directory already exists or cannot be created")?;
@@ -558,12 +562,14 @@ fn private_directory(path: &Path, create_new: bool) -> Result<()> {
             .and_then(|parent| parent.sync_all())
             .map_err(|_| "Cannot sync private directory entry")?;
     } else if !path.exists() {
-        private_directory(path, true)?;
+        private_directory(path, true, private)?;
     }
     let metadata = fs::symlink_metadata(path).map_err(|_| "Cannot inspect private directory")?;
     require(
-        metadata.is_dir() && metadata.uid() == 0 && metadata.mode() & 0o077 == 0,
-        "Backup directory must be private and root-owned",
+        metadata.is_dir()
+            && metadata.uid() == 0
+            && directory_mode_admitted(metadata.mode(), private),
+        "Backup directory ownership or access permissions are unsafe",
     )
 }
 
@@ -704,9 +710,9 @@ fn apply(loaded: Loaded, expected_plan: &str) -> Result<serde_json::Value> {
         source_revision(&plan.candidate_source)? == plan.revision,
         "Candidate source changed after plan validation",
     )?;
-    private_directory(Path::new("/var/backups/pressmark"), false)?;
-    private_directory(Path::new(BACKUPS), false)?;
-    private_directory(&plan.backup_directory, true)?;
+    private_directory(Path::new("/var/backups/pressmark"), false, false)?;
+    private_directory(Path::new(BACKUPS), false, true)?;
+    private_directory(&plan.backup_directory, true, true)?;
     write_new(
         &plan.backup_directory.join("previous-pressmark"),
         &loaded.old_binary,
