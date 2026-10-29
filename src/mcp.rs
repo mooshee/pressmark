@@ -83,9 +83,9 @@ impl McpHandler {
             "municipality": { "type": "string", "description": "Municipal profile (Chicago, Cook County, NYC, SF, Seattle, Portland)." },
             "county": { "type": "string", "description": "County name for jurats and headers." },
             "recordable": { "type": "boolean", "description": "Enable County Recorder 3-inch top margin." },
-            "notary_required": { "type": "boolean", "description": "Render state notarial jurat block." },
-            "execution_mode": { "type": "string", "description": "Signature mode (esign, wet_ink, notarized_wet, ron)." },
-            "compliance_mode": { "type": "string", "description": "Compliance banner (none, eu_vat, peppol_bis, hipaa_baa)." },
+            "notary_required": { "type": "boolean", "description": "Add a blank section for a notary to complete. Does not notarize the document." },
+            "execution_mode": { "type": "string", "description": "Signature layout (esign, wet_ink, notarized_wet, ron). Does not sign or notarize the document." },
+            "compliance_mode": { "type": "string", "description": "Add a note for a selected compliance topic (none, eu_vat, peppol_bis, hipaa_baa). Does not certify compliance." },
             "date_format": { "type": "string", "description": "Date format (iso, us_slash, euro, formal_prose)." },
             "currency_symbol_mode": { "type": "string", "description": "Display currency symbol or ISO code." },
             "currency_placement": { "type": "string", "description": "Currency prefix or suffix placement." },
@@ -130,33 +130,24 @@ impl McpHandler {
             "payment_qr_code": { "type": "boolean", "description": "Embed vector SVG QR code." },
             "custom_fields": { "type": "array", "description": "Custom key-value metadata fields." },
             "sections": { "type": "array", "description": "Structured legal clause sections." },
-            "signatures": { "type": "array", "description": "Multi-party signature blocks." }
+            "signatures": {
+                "type": "array", "description": "Signature fields using supplied names, dates, and optional signature images. A name alone leaves the signature line blank.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "signer_name": { "type": "string" },
+                        "signer_title": { "type": "string" },
+                        "date": { "type": "string", "description": "Signing date supplied by the user. Left blank when omitted." },
+                        "signature_data": { "type": "string", "description": "Optional supplied signature image as a Base64 data URI." }
+                    },
+                    "required": ["signer_name"]
+                }
+            }
         })
     }
 
     fn preview_input_properties() -> Value {
-        json!({
-            "doc_type": { "type": "string", "description": "Archetype slug (invoice, receipt, residential_lease, nda)." },
-            "doc_number": { "type": "string", "description": "Document number supplied by the user. Left blank when omitted." },
-            "issue_date": { "type": "string", "description": "Issue date (YYYY-MM-DD). Left blank when omitted." },
-            "due_date": { "type": "string", "description": "Payment due date (YYYY-MM-DD). Left blank when omitted." },
-            "state_code": { "type": "string", "description": "2-letter US state or DC code." },
-            "from": {
-                "type": "object",
-                "description": "Issuer or landlord details.",
-                "properties": { "name": { "type": "string", "description": "Issuer name." } },
-                "required": ["name"]
-            },
-            "to": {
-                "type": "object",
-                "description": "Recipient or tenant details.",
-                "properties": { "name": { "type": "string", "description": "Recipient name." } },
-                "required": ["name"]
-            },
-            "items": { "type": "array", "description": "Line items array ({description, quantity, unit_price})." },
-            "currency": { "type": "string", "default": "USD", "description": "ISO 4217 currency code." },
-            "payment_link": { "type": "string", "description": "HTTPS checkout URL for QR code." }
-        })
+        Self::document_input_properties()
     }
 
     pub fn tools_list() -> Value {

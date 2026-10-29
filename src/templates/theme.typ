@@ -92,8 +92,8 @@
         gutter: 8pt,
         text(size: 9pt)[🏛️],
         [
-          #text(size: 8pt, weight: "bold", fill: color-slate-900)[EU VAT DIRECTIVE 2006/112/EC & EN 16931 FACTUR-X COMPLIANT] \
-          #text(size: 7pt, fill: color-slate-500)[Intra-community supply of services. Reverse charge applies where customer VAT ID is verified.]
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[EU VAT / FACTUR-X NOTE] \
+          #text(size: 7pt, fill: color-slate-500)[Selected by the document preparer. Pressmark has not validated tax treatment or Factur-X compliance.]
         ]
       ),
       bg: rgb("#f0fdf4"),
@@ -106,8 +106,8 @@
         gutter: 8pt,
         text(size: 9pt)[🌐],
         [
-          #text(size: 8pt, weight: "bold", fill: color-slate-900)[PEPPOL BIS BILLING 3.0 · UBL 2.1 E-INVOICING STANDARD] \
-          #text(size: 7pt, fill: color-slate-500)[Structured electronic billing payload aligned with Pan-European Public Procurement On-Line (EN 16931) specifications.]
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[PEPPOL BILLING NOTE] \
+          #text(size: 7pt, fill: color-slate-500)[Selected by the document preparer. This PDF does not establish Peppol validation or delivery.]
         ]
       ),
       bg: rgb("#eff6ff"),
@@ -120,8 +120,8 @@
         gutter: 8pt,
         text(size: 9pt)[⚕️],
         [
-          #text(size: 8pt, weight: "bold", fill: color-slate-900)[HIPAA 45 CFR § 164.504(e) PROTECTED HEALTH INFORMATION NOTICE] \
-          #text(size: 7pt, fill: color-slate-500)[Confidential clinical billing record subject to HIPAA Privacy & Security Rules. Minimum necessary disclosure safeguard active.]
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[HIPAA NOTE] \
+          #text(size: 7pt, fill: color-slate-500)[Selected by the document preparer. Pressmark has not verified a business associate agreement or HIPAA safeguards.]
         ]
       ),
       bg: rgb("#f0fdfa"),
@@ -134,8 +134,8 @@
         gutter: 8pt,
         text(size: 9pt)[🧾],
         [
-          #text(size: 8pt, weight: "bold", fill: color-slate-900)[ZATCA PHASE 2 (FATOORA) KSA E-INVOICING COMPLIANT] \
-          #text(size: 7pt, fill: color-slate-500)[Issued in accordance with Zakat, Tax and Customs Authority e-invoicing integration and cryptographic stamp regulations.]
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[ZATCA E-INVOICING NOTE] \
+          #text(size: 7pt, fill: color-slate-500)[Selected by the document preparer. This PDF does not establish ZATCA clearance, reporting, or compliance.]
         ]
       ),
       bg: rgb("#f0fdf4"),
@@ -148,8 +148,8 @@
         gutter: 8pt,
         text(size: 9pt)[⚖️],
         [
-          #text(size: 8pt, weight: "bold", fill: color-slate-900)[IRS W-9 TAXPAYER ATTESTATION] \
-          #text(size: 7pt, fill: color-slate-500)[Under penalties of perjury, the issuer certifies that the Taxpayer Identification Number (TIN) provided is correct and the entity is not subject to backup withholding.]
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[W-9 NOTE] \
+          #text(size: 7pt, fill: color-slate-500)[Selected by the document preparer. This note is not a signed taxpayer certification.]
         ]
       ),
       bg: rgb("#eff6ff"),
@@ -162,8 +162,8 @@
         gutter: 8pt,
         text(size: 9pt)[🔒],
         [
-          #text(size: 8pt, weight: "bold", fill: color-slate-900)[PCI-DSS LEVEL 1 TOKENIZED CLEARING] \
-          #text(size: 7pt, fill: color-slate-500)[Zero raw cardholder data storage. Cryptographic settlement executed via end-to-end tokenized processing.]
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[PCI DSS NOTE] \
+          #text(size: 7pt, fill: color-slate-500)[Selected by the document preparer. Pressmark has not verified PCI DSS certification or payment settlement.]
         ]
       ),
       bg: rgb("#faf5ff"),
@@ -176,8 +176,8 @@
         gutter: 8pt,
         text(size: 9pt)[🛡️],
         [
-          #text(size: 8pt, weight: "bold", fill: color-slate-900)[SOC-2 TYPE II AUDITED & ISO/IEC 27001 VERIFIED] \
-          #text(size: 7pt, fill: color-slate-500)[Enterprise controls, security auditing, and continuous compliance telemetry active.]
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[SECURITY ASSURANCE NOTE] \
+          #text(size: 7pt, fill: color-slate-500)[Selected by the document preparer. Pressmark has not verified a SOC 2 report or ISO/IEC 27001 certification.]
         ]
       ),
       bg: color-slate-50,
@@ -190,8 +190,8 @@
         gutter: 8pt,
         text(size: 9pt)[📜],
         [
-          #text(size: 8pt, weight: "bold", fill: color-slate-900)[STATUTORY SWORN DECLARATION] \
-          #text(size: 7pt, fill: color-slate-500)[I declare under penalty of perjury under the laws of the applicable jurisdiction that the foregoing statements, amounts, and deliverables are true and correct.]
+          #text(size: 8pt, weight: "bold", fill: color-slate-900)[DECLARATION NOTE] \
+          #text(size: 7pt, fill: color-slate-500)[Add the required declaration and complete any signing or witnessing steps. This label does not record an oath.]
         ]
       ),
       bg: rgb("#fef2f2"),
@@ -318,9 +318,9 @@
 // =============================================================================
 
 #let paid-watermark-stamp(
-  tx-ref: "STRIPE-PAID",
-  paid-date: "2026-10-02",
-  method: "Stripe / Apple Pay"
+  tx-ref: "",
+  paid-date: "",
+  method: ""
 ) = {
   rotate(-14deg, box(
     stroke: 2pt + rgb("#059669"),
@@ -355,14 +355,15 @@
             fill: primary-color,
             radius: 2pt,
             align(center + horizon)[
-              #text(size: 6pt, font: font-mono, fill: white)[PRESS\ MARK\ SECURE]
+              #text(size: 6pt, font: font-mono, fill: white)[DOC\ REF]
             ]
           )
         ],
         [
-          #text(size: 7pt, weight: "bold", fill: primary-color)[DIGITALLY VERIFIED DOCUMENT] \
+          #text(size: 7pt, weight: "bold", fill: primary-color)[DOCUMENT REFERENCE] \
           #text(size: 6pt, font: font-mono, fill: color-slate-500)[ID: #doc-number] \
-          #text(size: 5.5pt, font: font-mono, fill: color-slate-400)[SHA-256: #effective-hash · Pressmark Audit Node]
+          #text(size: 5.5pt, font: font-mono, fill: color-slate-400)[Reference hash: #effective-hash] \
+          #text(size: 5.5pt, fill: color-slate-400)[This reference does not certify the document.]
         ]
       )
     ]
@@ -374,11 +375,11 @@
 // =============================================================================
 
 #let remittance-stub(
-  doc-number: "INV-2026-0042",
-  client-name: "Acme Corp",
-  amount-due: "$1,500.00",
-  due-date: "2026-10-15",
-  issuer-name: "Pressmark Technologies"
+  doc-number: "",
+  client-name: "",
+  amount-due: "",
+  due-date: "",
+  issuer-name: ""
 ) = {
   block(breakable: false, width: 100%, above: 10pt, below: 8pt)[
     #grid(
@@ -437,11 +438,11 @@
 #let document-header(
   title: "INVOICE",
   subtitle: none,
-  doc-number: "INV-2026-001",
-  date: "2026-10-01",
+  doc-number: "",
+  date: "",
   due-date: none,
   logo-path: none,
-  company-name: "Pressmark Technologies",
+  company-name: "",
   primary-color: color-indigo-600,
   is-paid: false,
   status: "DUE UPON RECEIPT",
@@ -879,9 +880,9 @@
 
 #let signature-item(
   signature-path: none,
-  signer-name: "Daniel Hallman",
+  signer-name: "",
   signer-title: "Authorized Representative",
-  date: "2026-10-01",
+  date: "",
   primary-color: color-indigo-600
 ) = {
   box(width: 100%)[
@@ -935,9 +936,9 @@
 
 #let signature-block(
   signature-path: none,
-  signer-name: "Daniel Hallman",
+  signer-name: "",
   signer-title: "Authorized Representative",
-  date: "2026-10-01",
+  date: "",
   primary-color: color-indigo-600
 ) = {
   block(breakable: false, width: 100%, above: 10pt, below: 6pt)[
@@ -1028,10 +1029,10 @@
 #let document-layout(
   title: "COMMERCIAL INSTRUMENT",
   subtitle: "",
-  jurisdiction: "OFFICIAL JURISDICTION",
+  jurisdiction: "",
   docket: "",
   parcel-id: "",
-  tax-year: "2026",
+  tax-year: "",
   branding: none,
   recordable: false,
   body
@@ -1044,17 +1045,17 @@
   let header-left-text = if branding != none and branding.header-left != "" {
     branding.header-left
   } else {
-    upper(org-name) + " · OFFICIAL VECTOR INSTRUMENT"
+    upper(org-name)
   }
   let footer-left-text = if branding != none and branding.footer-left != "" {
     branding.footer-left
   } else {
-    org-name + " · Pressmark Vector Engine"
+    ""
   }
   let footer-center-text = if branding != none and branding.footer-center != "" {
     branding.footer-center
   } else {
-    "Certified Verifiable Document"
+    ""
   }
   let primary-color = if branding != none { branding.accent-primary } else { navy-judicial }
 
@@ -1111,9 +1112,9 @@
 
 /// Official legal, institutional or corporate masthead
 #let masthead(
-  jurisdiction: "COMMERCIAL & REGULATORY DOCUMENTATION DIVISION",
-  document-title: "OFFICIAL INSTRUMENT & DECLARATION",
-  subtitle: "Binding Record & Certified Vector Filing",
+  jurisdiction: "",
+  document-title: "DOCUMENT",
+  subtitle: "",
   docket: none,
   parcel-id: "",
   tax-year: "",
@@ -1122,7 +1123,7 @@
   let org-name = if branding != none and "org-name" in branding and branding.org-name != "" {
     branding.org-name
   } else {
-    "PRESSMARK VECTOR INSTRUMENT"
+    "PRESSMARK"
   }
   let primary-color = if branding != none and "accent-primary" in branding {
     branding.accent-primary
@@ -1143,8 +1144,6 @@
       align(right)[
         #if docket != none and docket != "" [
           #badge(upper(docket), bg: color-indigo-50, fg: primary-color)
-        ] else [
-          #badge("CERTIFIED RECORD", bg: color-slate-100, fg: color-slate-700)
         ]
       ]
     )
@@ -1182,7 +1181,7 @@
           ],
           align(right)[
             #text(font: font-sans, size: 7pt, weight: "bold", fill: ink-subtle)[INSTRUMENT STATUS] \
-            #text(font: font-sans, size: 8.5pt, weight: "bold", fill: ink-primary)[Executed & Verified]
+            #text(font: font-sans, size: 8.5pt, weight: "bold", fill: ink-primary)[Prepared]
           ]
         )
       ]
@@ -1297,11 +1296,11 @@
 
 /// Sworn affidavit jurat, penalty of perjury statement, and 3-way execution block
 #let jurat-box(
-  heading: "EXECUTION & SWORN ATTESTATION",
+  heading: "SIGNATURE",
   attestation: "",
   notary-required: false,
   pro-se: true,
-  signer-title: "Authorized Representative / Managing Principal",
+  signer-title: "Signer",
   signer-capacity: "",
   seal-box: false,
   cross-reference: "",
@@ -1312,14 +1311,12 @@
   esign-audit-id: "",
   esign-timestamp: "",
   esign-ip: "",
-  ron-statute-citation: "T.C.A. § 8-16-301 et seq.",
+  ron-statute-citation: "",
   ron-session-id: "",
   include-clerk-stamp: false,
-  state: "Tennessee",
-  county: "Hamilton",
+  state: "",
+  county: "",
 ) = {
-  let default-attestation = "I declare under penalty of perjury that I am authorized to execute this instrument, and that the statements, figures, and attached schedules herein are true, correct, and complete."
-  let body-text = if attestation != "" { attestation } else { default-attestation }
   let effective-title = if signer-capacity != "" {
     signer-title + " (" + signer-capacity + ")"
   } else {
@@ -1349,8 +1346,10 @@
         ]
 
         #text(font: font-sans, size: 7.5pt, weight: "bold", fill: ink-primary)[#upper(heading)]
-        #v(2pt)
-        #text(font: font-sans, size: 7pt, fill: ink-secondary)[#body-text]
+        #if attestation != "" [
+          #v(2pt)
+          #text(font: font-sans, size: 7pt, fill: ink-secondary)[#attestation]
+        ]
         #v(8pt)
 
         #let is-wet = signature-type == "wet-ink" or signature-type == "wet_ink" or signature-type == "notarized_wet"
@@ -1365,37 +1364,31 @@
           },
           column-gutter: if include-clerk-stamp and is-wet { 14pt } else { 24pt },
           [
-            #if is-esign [
-              #if signature-img != none [
-                #image(signature-img, height: 20pt)
-              ] else if signer-name != "" [
-                #text(font: font-serif, style: "italic", size: 12pt, fill: navy-judicial)[#signer-name]
-              ] else [
-                #text(font: font-serif, style: "italic", size: 12pt, fill: navy-judicial)[#signer-title]
-              ]
+            #if signature-img != none [
+              #image(signature-img, height: 20pt)
             ] else [
               #v(14pt)
             ]
             #line(length: 100%, stroke: 1pt + border-dark)
             #v(2pt)
-            #text(font: font-sans, size: 6.5pt, fill: ink-subtle)[#effective-title]
+            #text(font: font-sans, size: 6.5pt, fill: ink-subtle)[#if signer-name != "" [#signer-name · ]#effective-title]
           ],
           [
-            #if is-esign and execution-date != "" [
+            #if execution-date != "" [
               #text(font: font-mono, size: 8.5pt, weight: "bold", fill: navy-judicial)[#execution-date]
             ] else [
               #v(14pt)
             ]
             #line(length: 100%, stroke: 1pt + border-dark)
             #v(2pt)
-            #text(font: font-sans, size: 6.5pt, fill: ink-subtle)[Execution Date (YYYY-MM-DD)]
+            #text(font: font-sans, size: 6.5pt, fill: ink-subtle)[Signing date]
           ],
           if include-clerk-stamp and is-wet [
             #date-stamp-zone(width: 1.8in, height: 0.75in)
           ]
         )
 
-        #if is-esign and esign-audit-id != "" [
+        #if is-esign and (esign-audit-id != "" or esign-timestamp != "" or esign-ip != "") [
           #v(5pt)
           #rect(
             width: 100%,
@@ -1408,10 +1401,10 @@
                 columns: (1fr, auto),
                 [
                   #text(font: font-mono, size: 5.5pt, weight: "bold", fill: green-savings)[
-                    CERTIFIED ELECTRONIC EXECUTION (15 U.S.C. § 7001 / UETA) · AUDIT ID: #esign-audit-id
+                    SUPPLIED SIGNING RECORD #if esign-audit-id != "" [· ID: #esign-audit-id]
                   ] \
                   #text(font: font-mono, size: 5pt, fill: ink-secondary)[
-                    DIGITALLY ATTESTED BY #upper(if signer-name != "" { signer-name } else { effective-title }) · IP: #if esign-ip != "" { esign-ip } else { "VERIFIED" }
+                    #if esign-ip != "" [IP: #esign-ip · ]Details supplied by the document preparer.
                   ]
                 ],
                 align(right + horizon)[
@@ -1426,11 +1419,14 @@
           #v(6pt)
           #line(length: 100%, stroke: 0.5pt + rgb("#e2e8f0"))
           #v(4pt)
-          #text(font: font-sans, size: 6.5pt, weight: "bold", fill: navy-judicial)[NOTARIAL ACKNOWLEDGMENT (STATE OF #upper(state), COUNTY OF #upper(county))] \
+          #text(font: font-sans, size: 6.5pt, weight: "bold", fill: navy-judicial)[NOTARY SECTION · TO BE COMPLETED BY A NOTARY] \
           #text(font: font-sans, size: 6pt, fill: ink-secondary)[
-            Subscribed, acknowledged, and sworn to before me this #if execution-date != "" { execution-date } else { "____ day of _________, 20____" }, by the subscriber proved to me through satisfactory evidence of identification.
+            State: #if state != "" { state } else { "________________" } · County: #if county != "" { county } else { "________________" } \
+            Notarization date: #text("________________") \
+            The notary must complete or attach the required notarial certificate.
             #if is-ron [
-              Executed via two-way audio-video Remote Online Notarization (RON) pursuant to #ron-statute-citation #if ron-session-id != "" [ · Session ID: #ron-session-id].
+              \ Remote online notarization requested. #if ron-statute-citation != "" [Reference: #ron-statute-citation.]
+              #if ron-session-id != "" [Supplied session ID: #ron-session-id.]
             ]
           ]
           #v(6pt)
@@ -1469,7 +1465,7 @@
 #let audit-slug(
   parcel-id: "",
   hash: "",
-  engine-version: "Pressmark Vector Engine v1.0.0",
+  engine-version: "",
   timestamp: ""
 ) = {
   let display-hash = if hash.len() > 28 { hash.slice(0, 28) + "…" } else { hash }
@@ -1484,7 +1480,7 @@
         columns: (auto, 1fr, auto),
         gutter: 8pt,
         align: (left + horizon, left + horizon, right + horizon),
-        text(font: font-mono, size: 6pt, weight: "bold", fill: ink-primary)[VERIFICATION SLUG:],
+        text(font: font-mono, size: 6pt, weight: "bold", fill: ink-primary)[SUPPLIED RECORD DETAILS:],
         text(font: font-mono, size: 6pt, fill: ink-secondary)[
           REF: #parcel-id · SHA-256: #display-hash
         ],
@@ -1589,12 +1585,12 @@
 
 /// Court-Ready Proof / Certificate of Service Block for Statutory Landlord-Tenant Notices
 #let certificate-of-service(
-  server-name: "Authorized Landlord / Property Manager",
+  server-name: "",
   service-date: "",
-  recipient-name: "Tenant(s) and All Occupants",
+  recipient-name: "",
   premises-address: "",
-  state-name: "Tennessee",
-  service-method: "personal",
+  state-name: "",
+  service-method: "",
 ) = {
   let chk-personal = if service-method == "personal" or service-method == "personal_and_mail" { "[X]" } else { "[ ]" }
   let chk-substitute = if service-method == "substitute" { "[X]" } else { "[ ]" }
@@ -1612,13 +1608,13 @@
         #grid(
           columns: (1fr, auto),
           text(font: font-sans, size: 7.5pt, weight: "bold", fill: navy-judicial)[
-            CERTIFICATE & PROOF OF STATUTORY SERVICE (STATE OF #upper(state-name))
+            CERTIFICATE OF SERVICE #if state-name != "" [(STATE OF #upper(state-name))]
           ],
-          badge("EVIDENTIARY PROOF OF SERVICE", bg: rgb("#dbeafe"), fg: navy-judicial)
+          badge("FOR SERVER TO COMPLETE", bg: rgb("#dbeafe"), fg: navy-judicial)
         )
         #v(3pt)
         #text(font: font-sans, size: 7pt, fill: ink-secondary)[
-          I, *#server-name*, hereby certify under penalty of perjury that on *#if service-date != "" { service-date } else { "____/____/20____" }*, I served a true and correct copy of the foregoing statutory notice upon *#recipient-name* at *#if premises-address != "" { premises-address } else { "the Premises" }* by the following statutorily authorized method(s):
+          I, *#if server-name != "" { server-name } else { "________________" }*, state that on *#if service-date != "" { service-date } else { "____/____/20____" }*, I delivered a copy of the foregoing notice to *#if recipient-name != "" { recipient-name } else { "________________" }* at *#if premises-address != "" { premises-address } else { "________________" }* using the method(s) indicated below:
         ]
         #v(4pt)
         #grid(
@@ -1654,8 +1650,8 @@
   prepared-by: "",
   return-to: "",
   parcel-id: "",
-  state-name: "Tennessee",
-  county-name: "Hamilton",
+  state-name: "",
+  county-name: "",
 ) = {
   rect(
     width: 100%,

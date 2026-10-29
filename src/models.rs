@@ -143,7 +143,7 @@ impl DocumentType {
             Self::NoticeOfEntry => "STATUTORY NOTICE OF INTENT TO ENTER PREMISES",
             Self::RentIncreaseNotice => "STATUTORY NOTICE OF RENT ADJUSTMENT",
             Self::MutualLeaseTermination => "MUTUAL LEASE TERMINATION & SURRENDER AGREEMENT",
-            Self::TenantRentLedger => "CERTIFIED TENANT RENT & CHARGE LEDGER",
+            Self::TenantRentLedger => "TENANT RENT & CHARGE LEDGER",
             Self::ScheduleOfRealEstateOwned => "SCHEDULE OF REAL ESTATE OWNED (SREO)",
             Self::ScheduleETaxWorksheet => "IRS SCHEDULE E RENTAL TAX & T12 OPERATING WORKSHEET",
             Self::RealEstateDealAnalysis => "REAL ESTATE INVESTMENT & DEAL UNDERWRITING REPORT",
@@ -1577,7 +1577,7 @@ impl DocumentRequest {
                 vec![SignatureBlock {
                     signer_name: name.clone(),
                     signer_title: self.signer_title.clone(),
-                    date: self.issue_date.clone(),
+                    date: None,
                     signature_data: self.signature_data.clone(),
                 }]
             } else {
@@ -1857,7 +1857,7 @@ impl DocumentRequest {
                 }
             }
         }
-        "Hamilton".to_string()
+        String::new()
     }
 
     pub fn effective_year_built(&self) -> Option<u32> {

@@ -1316,25 +1316,26 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">Statutory Compliance Regime</label>
+              <label class="form-label">Compliance note</label>
               <select id="complianceSelect" class="form-select">
-                <option value="none" selected>Standard Commercial (None)</option>
-                <option value="eu_vat">EU VAT Reverse Charge (Art. 196 Directive 2006/112/EC)</option>
-                <option value="peppol">PEPPOL BIS Billing 3.0 (EN 16931)</option>
-                <option value="factur-x">Factur-X / ZUGFeRD 2.2 (EN 16931)</option>
-                <option value="irs_w9">IRS W-9 Certification & Taxpayer TIN Attestation</option>
-                <option value="pci_dss">PCI-DSS Tokenized Settlement Attestation</option>
-                <option value="soc2">SOC-2 Type II Confidentiality & Trust Seal</option>
-                <option value="hipaa">HIPAA 45 CFR § 164.504(e) Business Associate Compliance</option>
-                <option value="zatca">ZATCA Phase 2 Fatoora E-Invoicing</option>
-                <option value="statutory_sworn">Statutory Sworn Legal Affidavit & Jurisdiction</option>
+                <option value="none" selected>None</option>
+                <option value="eu_vat">EU VAT</option>
+                <option value="peppol">Peppol billing</option>
+                <option value="factur-x">Factur-X</option>
+                <option value="irs_w9">W-9</option>
+                <option value="pci_dss">PCI DSS</option>
+                <option value="soc2">SOC 2 / ISO 27001</option>
+                <option value="hipaa">HIPAA</option>
+                <option value="zatca">ZATCA e-invoicing</option>
+                <option value="statutory_sworn">Declaration</option>
               </select>
+              <div class="toggle-hint">Adds a topic note. Pressmark does not certify compliance.</div>
             </div>
 
             <div class="toggle-item">
               <div class="toggle-label">
-                <span>Cryptographic QR Verification Seal</span>
-                <span class="toggle-hint">Embeds tamper-evident SHA-256 audit stamp</span>
+                <span>Document reference hash</span>
+                <span class="toggle-hint">Adds a reference for selected details. Does not certify the document.</span>
               </div>
               <label class="switch">
                 <input type="checkbox" id="toggleQrSeal" checked>
