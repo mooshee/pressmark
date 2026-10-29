@@ -170,11 +170,11 @@ impl McpHandler {
             {
                 "name": "generate_document",
                 "title": "Generate PDF Document",
-                "description": "Create a PDF invoice, receipt, contract, NDA, or lease from the supplied details. Returns the PDF as an embedded resource. If customer sync is configured and an email is available, generation can update customer records and start configured follow-up workflows.",
+                "description": "Creates a PDF from the supplied document details and returns it as an embedded resource. When customer sync is enabled, it also updates Pressmark's customer records with contact details and a document summary, and may start automated follow-up. It uses the signed-in email when available, otherwise the sender email, then the recipient email. See https://pressmark.dev/privacy for the fields shared.",
                 "annotations": {
                     "title": "Generate PDF Document",
                     "readOnlyHint": false,
-                    "destructiveHint": false,
+                    "destructiveHint": true,
                     "idempotentHint": false,
                     "openWorldHint": true
                 },

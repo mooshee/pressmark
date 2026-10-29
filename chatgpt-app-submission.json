@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "Pressmark",
     "subtitle": "PDF Invoices & Contracts",
-    "description": "Vector document synthesis engine for generating PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links.",
+    "description": "Create PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and real estate documents. Preview each document and add a payment link or QR code.",
     "category": "PRODUCTIVITY",
     "homepage": "https://pressmark.dev",
     "privacy_policy_url": "https://pressmark.dev/privacy",
@@ -17,20 +17,21 @@
     "authentication": {
       "type": "none",
       "supports_guest": true,
-      "instructions": "Pressmark executes statelessly and does not require credentials for document compilation."
+      "instructions": "Document generation is available without credentials. When customer sync is enabled, generation can update customer records and start automated follow-up as described in the privacy policy."
     }
   },
   "tools": {
     "generate_document": {
       "annotations": {
-        "readOnlyHint": true,
-        "destructiveHint": false,
-        "openWorldHint": false
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       },
       "justifications": {
-        "read_only_justification": "Generates a vector PDF in memory; creates no external state mutations.",
-        "destructive_justification": "Non-destructive. Document generation produces an ephemeral artifact.",
-        "open_world_justification": "Does not access external web resources."
+        "read_only_justification": "Creates a PDF and, when customer sync is enabled, sends contact details and a document summary to Pressmark's customer records. It can update an opportunity and enroll the contact in follow-up workflows.",
+        "destructive_justification": "Customer sync can replace existing contact fields and update an existing opportunity's stage.",
+        "open_world_justification": "Configured customer sync sends records to Pressmark's external HighLevel account. Repeated calls can repeat updates and workflow enrollment attempts."
       }
     },
     "preview_document": {
@@ -40,8 +41,8 @@
         "openWorldHint": false
       },
       "justifications": {
-        "read_only_justification": "Renders an inline Base64 PNG preview for visual inspection in chat without side effects.",
-        "destructive_justification": "Purely visual rendering.",
+        "read_only_justification": "Returns a PNG preview for display in chat without changing the document.",
+        "destructive_justification": "Returns a preview without deleting or overwriting documents.",
         "open_world_justification": "Does not access external web resources."
       }
     },
@@ -52,8 +53,8 @@
         "openWorldHint": false
       },
       "justifications": {
-        "read_only_justification": "Performs deterministic arithmetic calculations for subtotals, tax rates, and discounts.",
-        "destructive_justification": "Pure mathematical calculation.",
+        "read_only_justification": "Calculates subtotals, tax, and discounts from the supplied values.",
+        "destructive_justification": "Calculates totals without changing stored records.",
         "open_world_justification": "Does not access external web resources."
       }
     },
@@ -65,7 +66,7 @@
       },
       "justifications": {
         "read_only_justification": "Reads static pricing tiers and checkout URLs.",
-        "destructive_justification": "Read-only catalog query.",
+        "destructive_justification": "Returns pricing without changing a plan or making a purchase.",
         "open_world_justification": "Does not access external web resources."
       }
     },
@@ -76,8 +77,8 @@
         "openWorldHint": false
       },
       "justifications": {
-        "read_only_justification": "Performs stateless document lifecycle transformation in memory without mutating external records.",
-        "destructive_justification": "Non-destructive transformation of in-memory document structures.",
+        "read_only_justification": "Converts the supplied document to another type without changing stored records.",
+        "destructive_justification": "Returns the converted document without deleting or overwriting the original.",
         "open_world_justification": "Does not access external web resources."
       }
     },
@@ -88,8 +89,8 @@
         "openWorldHint": false
       },
       "justifications": {
-        "read_only_justification": "Statelessly computes paid balance and synthesizes an official receipt PDF without mutating external records.",
-        "destructive_justification": "Non-destructive financial record rendering.",
+        "read_only_justification": "Calculates the remaining balance from the supplied payment details and returns a receipt PDF without changing stored records.",
+        "destructive_justification": "Creates a receipt without moving money or changing bank records.",
         "open_world_justification": "Does not access external web resources."
       }
     }
@@ -97,58 +98,70 @@
   "positive_test_cases": [
     {
       "description": "Freelance consulting invoice with Stripe checkout link and mobile QR code",
-      "user_prompt": "Generate a freelance consulting invoice from Daniel Hallman at Moosh Works (daniel@mooshworks.com) to Acme Corp (billing@acme.com) for 15 hours of Systems Architecture at $250/hr, due in 14 days, with payment link https://buy.stripe.com/test_inv_123 and a mobile QR code.",
-      "tools_triggered": ["generate_document", "preview_document"],
-      "expected_output": "A publication-grade vector PDF invoice totaling $3,750.00 with inline high-res PNG preview and embedded vector SVG QR code."
+      "user_prompt": "Generate a freelance consulting invoice from Sample Studio (sender@example.com) to Sample Client (recipient@example.com) for 15 hours of Systems Architecture at $250/hr, due in 14 days, with payment link https://example.com/pay/invoice and a mobile QR code.",
+      "tools_triggered": [
+        "generate_document",
+        "preview_document"
+      ],
+      "expected_output": "A PDF invoice totaling $3,750.00, a PNG preview displayed in chat, and a QR code for the supplied payment link."
     },
     {
-      "description": "Estimate-to-Invoice lifecycle conversion",
-      "user_prompt": "Convert my project estimate EST-2026-0042 ($5,000 for Mobile App Design) into an official Tax Invoice due in 30 days with payment link https://buy.stripe.com/test_app_456.",
-      "tools_triggered": ["convert_document"],
+      "description": "Convert an estimate to an invoice",
+      "user_prompt": "Convert my project estimate EST-2026-0042 ($5,000 for Mobile App Design) into an official Tax Invoice due in 30 days with payment link https://example.com/pay/project.",
+      "tools_triggered": [
+        "convert_document"
+      ],
       "expected_output": "Document re-sequenced to INV-2026-0042, issue date updated to today, due date set to +30 days, status marked pending with payment link."
     },
     {
-      "description": "Commercial Triple-Net (NNN) lease summary with CAM allocation",
+      "description": "Commercial lease summary with base rent and common area maintenance charges",
       "user_prompt": "Draft a commercial triple-net (NNN) lease summary for Suite 400 at 100 Innovation Way between Hallman Properties LLC (Landlord) and TechVentures Inc (Tenant), 3,500 sq ft at $38/sqft/yr base rent, plus $8.50/sqft/yr estimated CAM charges, starting November 1, 2026.",
-      "tools_triggered": ["generate_document"],
-      "expected_output": "A multi-page commercial lease instrument with itemized monthly base rent ($11,083.33) and CAM ($2,479.17) totaling $13,562.50/mo, operating expense pass-throughs, and mutual signature lines."
+      "tools_triggered": [
+        "generate_document"
+      ],
+      "expected_output": "A multi-page commercial lease document with monthly base rent of $11,083.33 and common area maintenance charges of $2,479.17, totaling $13,562.50 per month, plus operating expense terms and signature lines."
     },
     {
-      "description": "Invoice payment settlement and official receipt generation",
-      "user_prompt": "Record full payment of $3,750 for invoice INV-2026-001 received via Stripe Card on October 7, 2026 (transaction ID: ch_3N82jK4v15aw) and generate an official paid receipt.",
-      "tools_triggered": ["record_payment"],
-      "expected_output": "Official payment receipt document stamped 'PAID IN FULL', balance due updated to $0.00, and transaction audit trail recorded."
+      "description": "Record a payment and create a receipt",
+      "user_prompt": "Record full payment of $3,750 for invoice INV-2026-001 received via Stripe Card on October 7, 2026 (transaction ID: sample-payment-001) and generate an official paid receipt.",
+      "tools_triggered": [
+        "record_payment"
+      ],
+      "expected_output": "A receipt marked 'PAID IN FULL', a $0.00 balance due, and the supplied transaction reference."
     },
     {
-      "description": "Real-time totals calculation with sales tax and discount inquiry",
+      "description": "Calculate totals and show pricing",
       "user_prompt": "Calculate line-item totals with 9.25% sales tax and a $150 early-payment discount for 3 laptops at $1,200 each, and tell me the subscription cost to remove watermarks on future exports.",
-      "tools_triggered": ["calculate_totals", "get_pricing"],
+      "tools_triggered": [
+        "calculate_totals",
+        "get_pricing"
+      ],
       "expected_output": "Calculates subtotal $3,600.00, tax $333.00, discount $150.00, grand total $3,783.00, and returns the Solo Pro subscription and single-pass pricing."
     }
   ],
   "negative_test_cases": [
     {
-      "description": "Scope gating: do not trigger for unrelated geography and weather inquiries",
+      "description": "Geography and weather questions are outside Pressmark's scope",
       "user_prompt": "What is the capital of France and what will the weather be like there tomorrow?",
       "tools_triggered": [],
-      "expected_output": "The model should answer directly using general knowledge without invoking Pressmark tools, as geography and weather are out of scope."
+      "expected_output": "Do not invoke Pressmark tools; geography and weather are outside Pressmark's scope."
     },
     {
-      "description": "Scope gating: do not trigger for airline travel or hotel reservations",
+      "description": "Travel reservations are outside Pressmark's scope",
       "user_prompt": "Book a direct roundtrip flight from New York to London departing next Friday.",
       "tools_triggered": [],
-      "expected_output": "Do not invoke Pressmark tools; flight and travel reservations are outside Pressmark's document synthesis domain."
+      "expected_output": "Do not invoke Pressmark tools; Pressmark does not book flights or other travel."
     },
     {
-      "description": "Scope gating: do not trigger for personal bank account transfers",
+      "description": "Bank transfers are outside Pressmark's scope",
       "user_prompt": "Transfer $500 from my checking account to my savings account right now.",
       "tools_triggered": [],
-      "expected_output": "Do not invoke Pressmark tools; Pressmark synthesizes billing documents and receipts but does not access bank accounts or initiate wire transfers."
+      "expected_output": "Do not invoke Pressmark tools; Pressmark creates billing documents and receipts but does not access bank accounts or transfer money."
     }
   ],
   "review_instructions": {
-    "test_account_credentials": "No credentials required. Pressmark operates statelessly and provides full compilation capability to guest users.",
-    "video_walkthrough_url": "https://pressmark.dev/demo",
-    "data_safety_attestation": "Pressmark adheres to zero-retention ephemeral processing: no user documents, line items, or client details are stored or used for AI model training."
+    "test_account_credentials": "Document generation is available without credentials. Use a guest session and synthetic sender and recipient details for review. A configured customer sync can use the signed-in email, otherwise the sender email, then the recipient email.",
+    "video_walkthrough_url": "REQUIRED: Add a public recording that shows the review steps before submission.",
+    "data_safety_attestation": "Pressmark processes document details to render PDFs and previews. It retains account, billing, and usage records. When customer sync is enabled, it sends contact details, document summaries, and activity records to HighLevel and can start follow-up workflows. The document-generation sync does not send the PDF or line-item descriptions. See https://pressmark.dev/privacy."
   }
 }

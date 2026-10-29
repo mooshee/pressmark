@@ -1,26 +1,28 @@
-# Real Estate Statutory Clauses & Formulations Reference
+# Real estate calculations and disclosure fields
 
 Author: Daniel Hallman
 
-This reference documents the financial formulas and statutory disclosures embedded in Pressmark real estate agreements.
+Use these formulas to check the supplied amounts. Check legal wording against the applicable jurisdiction and source; a template does not establish that every required disclosure is present.
 
-## Commercial Triple-Net (NNN) Calculations
-In a standard commercial NNN lease:
-- **Base Rent:** `(Square Footage * Annual Base Rate per Sq Ft) / 12`
-- **Estimated CAM (Common Area Maintenance) Charges:** `(Square Footage * Annual CAM Rate per Sq Ft) / 12`
-- **Total Initial Monthly Payment:** `Monthly Base Rent + Monthly CAM`
-- **Security Deposit:** Typically equal to 1 to 2 months of Initial Base Rent.
+## Commercial lease calculations
 
-## Residential Lease Mandatory Statutory Disclosures
-- **Lead-Based Paint Disclosure:** Mandatory for residential dwellings constructed prior to 1978 under 42 U.S.C. 4852d.
-- **Security Deposit Escrow:** Identification of financial institution holding escrow funds and annual statutory interest accrual rules where required by state/municipal law.
-- **Landlord Right of Entry:** Standard 24- to 48-hour advance notice requirement for non-emergency inspection, repair, or prospective tenant showings.
-- **Default & Notice Periods:** Explicit cure periods (e.g. 3-day notice to pay or quit, 10-day notice for covenant violations).
+- **Monthly base rent:** `(Square Footage * Annual Base Rate per Sq Ft) / 12`
+- **Estimated monthly common area maintenance (CAM):** `(Square Footage * Annual CAM Rate per Sq Ft) / 12`
+- **Initial monthly payment:** `Monthly Base Rent + Monthly CAM`
+- **Security deposit:** Use the agreed amount, subject to the applicable requirements. Do not infer it from rent.
 
-## Property Management Owner Statement Ledgers
-- **Gross Collected Revenue:** Scheduled base rents + late fees + parking/pet rents collected.
-- **Operating Deductions:**
-  - Property management percentage fee (e.g. 7% - 10% of gross rents).
-  - Repair and maintenance work orders.
-  - Utilities and vendor service contracts.
-- **Net Owner Disbursement:** `Gross Revenue - Operating Deductions - Reserve Escrow Replenishment`.
+## Lease fields to review
+
+- **Lead-based paint:** Check the building date and whether the disclosure under 42 U.S.C. 4852d applies.
+- **Security deposit:** Check the amount, where it is held, interest requirements, and return deadline.
+- **Landlord entry:** Check the notice period and any exceptions for the jurisdiction and purpose of entry.
+- **Default notices:** Check the type of breach, required notice, and time allowed to respond.
+
+Read the supported state profiles at `GET https://pressmark.dev/api/v1/states`. Preserve any missing or uncertain jurisdiction details.
+
+## Property management statements
+
+1. Add collected rent, late fees, parking charges, and pet rent to calculate gross collected revenue.
+2. List the agreed management fee, repairs, utilities, and vendor charges separately.
+3. Calculate the amount due to the owner as `Gross Revenue - Operating Deductions - Reserve Escrow Replenishment`.
+4. Compare the statement with the supplied payment records before returning it.

@@ -1,7 +1,7 @@
 name: io.github.mooshee/pressmark
 displayName: Pressmark
-description: Vector PDF synthesis for invoices, estimates, contracts, and real estate forms.
-version: 1.2.2
+description: Create PDF invoices, estimates, contracts, and real estate documents.
+version: 1.2.4
 homepage: https://pressmark.dev
 repository: https://github.com/mooshee/pressmark
 license: MIT

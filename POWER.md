@@ -1,9 +1,9 @@
 ---
 name: pressmark
 displayName: Pressmark
-version: 1.2.2
+version: 1.2.4
 author: Daniel Hallman
-description: Vector PDF synthesis for invoices, estimates, contracts, and real estate forms.
+description: Create PDF invoices, estimates, contracts, and real estate documents.
 keywords:
   - invoicing
   - document-generation
@@ -22,12 +22,17 @@ mcpServers:
 
 Author: Daniel Hallman ([Moosh Works](https://mooshworks.com))
 
-Vector PDF synthesis for invoices, estimates, contracts, and real estate forms. Generate PDF invoices, estimates, receipts, contracts, NDAs, and real estate agreements with optional QR code payment links. Built by Moosh Works (https://mooshworks.com).
+Create PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and real estate documents. Preview each document and add a payment link or QR code. Built by Moosh Works (https://mooshworks.com).
 
 ## Quick start
 
-1. Visit [Pressmark](https://pressmark.dev) or connect Kiro to `https://pressmark.dev/mcp`.
-2. Built and maintained by [Moosh Works](https://mooshworks.com).
+1. Open [Pressmark](https://pressmark.dev) to edit a document in your browser.
+2. For Kiro, connect `https://pressmark.dev/mcp` using the configuration below.
+3. Confirm that Kiro lists `preview_document` and `generate_document`, then ask for a sample invoice and check its preview.
+
+When customer sync is enabled, generating a PDF can record contact details and a document summary and start automated follow-up. It uses the signed-in email when available, otherwise the sender email, then the recipient email. Read the [privacy policy](https://pressmark.dev/privacy) before sending document details. Use a guest session and synthetic contact details for a demo.
+
+Built and maintained by [Moosh Works](https://mooshworks.com).
 
 ## MCP Server Configuration
 
