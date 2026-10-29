@@ -37,8 +37,9 @@ Use the type accepted by the connected server. The [document type reference](ref
 - **Invoices:** `invoice`, `invoice_standard`, `invoice_freelance`, `invoice_construction`, `invoice_medical`, `invoice_saas`, `invoice_minimal`, `proforma_invoice`.
 - **Estimates and orders:** `estimate`, `quotation_tender`, `receipt`, `purchase_order`, `packing_slip`, `credit_note`, `work_order`, `expense_report`, `delivery_receipt`.
 - **Contracts and certificates:** `commercial_lease`, `agreement`, `agreement_sow`, `contractor_agreement`, `retainer_agreement`, `nda`, `bill_of_sale`, `certificate`, `certificate_insurance`, `certificate_completion`, `inspection_report`.
+- **Real estate and leases:** `residential_lease`, `room_rental_lease`, `sublease_agreement`, `rent_to_own_agreement`, `lease_renewal_agreement`, `lease_amendment`, `mutual_lease_termination`, `commercial_nnn_lease`, `rental_application`, `adverse_action_notice`, `notice_to_vacate`, `notice_of_entry`, `rent_increase_notice`, `tenant_estoppel`, `property_inspection_checklist`, `security_deposit_disposition`, `property_management_statement`, `property_management_agreement`, `rent_roll`, `tenant_rent_ledger`, `schedule_e_tax_worksheet`, `real_estate_deal_analysis`, `schedule_of_real_estate_owned`, `letter_of_intent_cre`, `real_estate_purchase_agreement`, `closing_settlement_statement`, `property_deed`, `real_estate_commission`, `mechanics_lien_waiver`.
 
-For leases, property notices, and other real estate documents, use [real-estate-agreements](../real-estate-agreements/SKILL.md).
+For leases, property notices, and statutory engine details, see [real-estate-agreements](../real-estate-agreements/SKILL.md).
 
 ## Export options
 

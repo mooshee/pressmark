@@ -2424,5 +2424,114 @@ async fn test_pressmark_normalization_audit_all_9_items() {
     );
 }
 
+#[tokio::test]
+async fn test_production_error_audit_regressions() {
+    use axum::body::Body;
+    use axum::http::{header, Request, StatusCode};
+    use pressmark::mcp::McpHandler;
+    use pressmark::server::{create_router, AppState};
+    use pressmark::storage::Storage;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    // 1. Verify generate_document is non-destructive with concise description and Example:
+    let tools = McpHandler::tools_list();
+    let gen_tool = tools
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["name"] == "generate_document")
+        .expect("generate_document tool must exist");
+    assert_eq!(
+        gen_tool["annotations"]["destructiveHint"],
+        serde_json::json!(false),
+        "generate_document must be non-destructive to prevent VerifyMCP auth regression"
+    );
+    let desc = gen_tool["description"].as_str().unwrap();
+    assert!(desc.len() < 250, "generate_document description must be < 250 chars");
+    assert!(desc.contains("Example:"), "generate_document description must contain Example:");
+
+    // 2. Storage crawler bot classification
+    assert_eq!(Storage::classify_usage_actor("7Maps-resolver/0.2", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("spanly-enrich/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("MCP-Cloud-AboutBot/1.0", None), "crawler_bot");
+
+    // 3. Router tests
+    let storage = Arc::new(Storage::new(":memory:").unwrap());
+    let state = Arc::new(AppState::new("https://pressmark.dev".to_string()).with_storage(storage));
+    let router = create_router(state);
+
+    // Trailing punctuation on template landing redirects permanently (308)
+    let req = Request::builder()
+        .uri("/templates/tenant-estoppel):")
+        .body(Body::empty())
+        .unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        resp.headers().get(header::LOCATION).unwrap().to_str().unwrap(),
+        "/templates/tenant-estoppel"
+    );
+
+    // RFC 9116 security.txt
+    let req = Request::builder()
+        .uri("/.well-known/security.txt")
+        .body(Body::empty())
+        .unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers().get(header::CONTENT_TYPE).unwrap().to_str().unwrap(),
+        "text/plain; charset=utf-8"
+    );
+
+    // Agent discovery & standards routes
+    for uri in &[
+        "/.well-known/agents.json",
+        "/.well-known/capabilities.txt",
+        "/.well-known/did.json",
+        "/.well-known/brick-blue.json",
+        "/discovery/resources",
+    ] {
+        let req = Request::builder().uri(*uri).body(Body::empty()).unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "Failed for URI: {}", uri);
+    }
+
+    // MCP DELETE method returns 204 No Content
+    let req = Request::builder()
+        .method("DELETE")
+        .uri("/mcp")
+        .body(Body::empty())
+        .unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    // POST support on readiness and telemetry probes
+    for uri in &["/ready", "/api/v1/setup-check", "/api/v1/analytics"] {
+        let req = Request::builder()
+            .method("POST")
+            .uri(*uri)
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "Failed POST for URI: {}", uri);
+    }
+
+    // Informational redirects
+    let req = Request::builder().uri("/about").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+
+    let req = Request::builder().uri("/documentation").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        resp.headers().get(header::LOCATION).unwrap().to_str().unwrap(),
+        "/docs"
+    );
+}
+
+
 
 

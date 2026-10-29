@@ -12,7 +12,7 @@ use crate::openapi::{get_ai_plugin_manifest, get_openapi_spec};
 use crate::pricing::get_pricing_catalog;
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Form, Json, Router};
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -113,8 +113,22 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/llms-full.txt", get(handle_llms_full_txt))
         .route("/health", get(handle_health))
         .route("/healthz", get(handle_health))
-        .route("/ready", get(handle_ready))
+        .route("/ready", get(handle_ready).post(handle_ready))
         .route("/openapi.json", get(handle_openapi))
+        // Informational, Company & Docs Redirects
+        .route("/about", get(|| async { Redirect::permanent("/") }))
+        .route("/about-us", get(|| async { Redirect::permanent("/") }))
+        .route("/company", get(|| async { Redirect::permanent("/") }))
+        .route("/contact", get(|| async { Redirect::permanent("/") }))
+        .route("/support", get(|| async { Redirect::permanent("/") }))
+        .route("/help", get(|| async { Redirect::permanent("/") }))
+        .route("/faq", get(|| async { Redirect::permanent("/") }))
+        .route("/features", get(|| async { Redirect::permanent("/#pricing") }))
+        .route("/product", get(|| async { Redirect::permanent("/#pricing") }))
+        .route("/documentation", get(|| async { Redirect::permanent("/docs") }))
+        .route("/security", get(|| async { Redirect::permanent("/.well-known/security.txt") }))
+        .route("/security.txt", get(handle_security_txt))
+        .route("/.well-known/security.txt", get(handle_security_txt))
         // API v1
         .route("/api/v1/generate", post(handle_generate))
         .route("/api/v1/preview", post(handle_preview))
@@ -125,8 +139,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/pricing", get(handle_pricing))
         .route("/api/v1/checkout", get(handle_checkout_get).post(handle_checkout_post))
         .route("/api/v1/checkout/continue", post(handle_checkout_continue))
-        .route("/api/v1/setup-check", get(handle_setup_check))
-        .route("/api/v1/analytics", get(handle_analytics))
+        .route("/api/v1/setup-check", get(handle_setup_check).post(handle_setup_check))
+        .route("/api/v1/analytics", get(handle_analytics).post(handle_analytics))
         .route("/api/v1/openapi.json", get(handle_openapi))
         .route("/api/v1/copilot", post(handle_copilot))
         .route("/api/v1/vision-extract", post(handle_vision_extract))
@@ -152,10 +166,15 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/.cursor/mcp.json", get(handle_mcp_server_card))
         .route("/.well-known/agent-card.json", get(handle_agent_card))
         .route("/.well-known/agent.json", get(handle_agent_card))
+        .route("/.well-known/agents.json", get(handle_agent_card))
         .route("/.well-known/ard.json", get(handle_agent_card))
         .route("/.well-known/ai-catalog.json", get(handle_agent_card))
         .route("/mcp/.well-known/agent.json", get(handle_agent_card))
         .route("/mcp/.well-known/agent-card.json", get(handle_agent_card))
+        .route("/.well-known/capabilities.txt", get(handle_capabilities_txt))
+        .route("/.well-known/did.json", get(handle_did_json))
+        .route("/.well-known/brick-blue.json", get(handle_brick_blue_json))
+        .route("/discovery/resources", get(handle_discovery_resources))
         .route("/.well-known/x402", get(handle_x402_discovery))
         .route("/.well-known/x402.json", get(handle_x402_discovery))
         .route("/a2a", get(handle_agent_card).post(handle_mcp))
@@ -171,12 +190,16 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/auth/chatgpt/session", get(handle_chatgpt_session))
         .route("/api/v1/auth/chatgpt/logout", post(handle_chatgpt_logout))
         // MCP Endpoints & Tool Discovery
-        .route("/mcp", get(handle_mcp_get).post(handle_mcp))
-        .route("/mcp/", get(handle_mcp_get).post(handle_mcp))
-        .route("/mcp/mcp", get(handle_mcp_get).post(handle_mcp))
+        .route("/mcp", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
+        .route("/mcp/", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
+        .route("/mcp/mcp", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
+        .route("/mcp/v1", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
+        .route("/api/mcp", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
+        .route("/mcp.", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp\"", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
         .route("/mcp/sse", get(handle_mcp_get).post(handle_mcp))
         .route("/sse", get(handle_mcp_get).post(handle_mcp))
-        .route("/api/v1/mcp", get(handle_mcp_get).post(handle_mcp))
+        .route("/api/v1/mcp", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
         .route("/api/v1/mcp/tools.json", get(handle_mcp_tools))
         // Static assets
         .nest_service("/static", ServeDir::new("static"))
@@ -242,6 +265,12 @@ async fn handle_template_landing(
     headers: HeaderMap,
     Path(slug): Path<String>,
 ) -> Response {
+    let clean_slug = slug.trim_end_matches([':', ')', ']', '}', '"', '\'', '.', ',', ';', '>']);
+    if clean_slug != slug {
+        if DocumentType::from_slug(clean_slug).is_some() || DocumentType::parse_state_prefixed_slug(clean_slug).is_some() {
+            return Redirect::permanent(&format!("/templates/{}", clean_slug)).into_response();
+        }
+    }
     let (doc_type, maybe_state_profile) = if let Some(dt) = DocumentType::from_slug(&slug) {
         (dt, None)
     } else if let Some((sp, dt)) = DocumentType::parse_state_prefixed_slug(&slug) {
@@ -483,7 +512,7 @@ async fn handle_llms_txt() -> impl IntoResponse {
     for dt in DocumentType::all() {
         let (_, desc) = dt.seo_metadata();
         lines.push(format!(
-            "- [{}](https://pressmark.dev/templates/{}): {}",
+            "- [{}](https://pressmark.dev/templates/{}) — {}",
             dt.display_title(),
             dt.url_slug(),
             desc
@@ -1116,6 +1145,77 @@ async fn handle_agent_card() -> impl IntoResponse {
                     "name": "Real Estate & Statutory Leases",
                     "description": "Typeset 29 leasing, property management, investor analysis, and deed archetypes with a 50-state + DC + 6 municipal 4-layer statutory lease engine.",
                     "tags": ["real-estate", "lease", "deed", "property-management", "statutory"]
+                }
+            ]
+        })),
+    )
+}
+
+async fn handle_mcp_delete() -> impl IntoResponse {
+    StatusCode::NO_CONTENT
+}
+
+async fn handle_security_txt() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        "Contact: mailto:daniel@mooshworks.com\nExpires: 2027-12-31T23:59:59.000Z\nPreferred-Languages: en\nCanonical: https://pressmark.dev/.well-known/security.txt\nPolicy: https://pressmark.dev/privacy\n",
+    )
+}
+
+async fn handle_capabilities_txt() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        "name: Pressmark\nversion: 1.2.4\ncapabilities:\n  - vector_pdf_synthesis\n  - 57_document_archetypes\n  - 50_state_statutory_leases\n  - mcp_streamable_http\n  - png_preview_rendering\n  - zero_retention\nendpoints:\n  mcp: https://pressmark.dev/mcp\n  studio: https://pressmark.dev\n  openapi: https://pressmark.dev/openapi.json\n",
+    )
+}
+
+async fn handle_did_json() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "@context": ["https://www.w3.org/ns/did/v1"],
+            "id": "did:web:pressmark.dev",
+            "service": [{
+                "id": "did:web:pressmark.dev#mcp",
+                "type": "ModelContextProtocolService",
+                "serviceEndpoint": "https://pressmark.dev/mcp"
+            }]
+        })),
+    )
+}
+
+async fn handle_brick_blue_json() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "name": "Pressmark",
+            "domain": "pressmark.dev",
+            "agent_url": "https://pressmark.dev/mcp",
+            "protocol": "mcp",
+            "version": env!("CARGO_PKG_VERSION"),
+            "verified": true
+        })),
+    )
+}
+
+async fn handle_discovery_resources() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "resources": [
+                {
+                    "uri": "pressmark://templates/catalog",
+                    "name": "Document Archetypes Catalog",
+                    "mimeType": "application/json",
+                    "description": "Catalog of 57 business and real estate document templates"
+                },
+                {
+                    "uri": "pressmark://pricing/catalog",
+                    "name": "Pricing & Entitlements",
+                    "mimeType": "application/json",
+                    "description": "Pressmark subscription and single-pass export pricing"
                 }
             ]
         })),

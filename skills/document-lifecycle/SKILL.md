@@ -31,7 +31,7 @@ If you also call `generate_document`, explain that configured customer sync can 
 1. Use the payment details supplied by the user. Call `record_payment` with `amount_paid` set to the total paid so far, including the new payment. Include `payment_method` and the actual `transaction_reference`.
 2. Check the returned balance. A partial payment sets the status to `partial`; full payment sets it to `paid` with a `0.00` balance.
 3. For later payments, add the new payment to the previous paid amount before calling the tool. For example, if $40 was already paid and the customer pays another $60, pass `amount_paid: 100`. Omitting `amount_paid` records payment in full, so do that only when the user has confirmed full payment.
-4. Show the updated invoice or receipt and its payment details.
+4. Show the updated invoice or receipt (numbering prefix REC-) and its payment details.
 
 ## Create a credit note
 
