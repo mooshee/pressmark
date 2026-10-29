@@ -152,7 +152,7 @@ impl McpHandler {
 
     fn download_output_schema() -> Value {
         json!({
-            "type": "object", "description": "Temporary PDF download when this tool is called over HTTP. Anyone with the URL can download the PDF until expiry or a service restart.",
+            "type": "object", "description": "Temporary file link when this tool is called over HTTP. Anyone with the URL can access the file until expiry or a service restart.",
             "properties": {
                 "url": { "type": "string", "format": "uri" },
                 "filename": { "type": "string" },
@@ -211,7 +211,7 @@ impl McpHandler {
             {
                 "name": "preview_document",
                 "title": "Preview Document as PNG",
-                "description": "Render a PNG preview from the supplied document details. This does not save or send the document.",
+                "description": "Render a PNG preview from the supplied document details. HTTP calls can return a temporary image link. Use the returned image to show the actual document; do not substitute an illustration. This does not send the document.",
                 "annotations": {
                     "title": "Preview Document as PNG",
                     "readOnlyHint": true,
@@ -235,6 +235,8 @@ impl McpHandler {
                     "type": "object",
                     "properties": {
                         "image_data_uri": { "type": "string", "description": "Base64 PNG data URI." },
+                        "preview": Self::download_output_schema(),
+                        "preview_error": { "type": "string", "description": "Why a temporary preview link could not be created. The PNG remains in the tool result." },
                         "compile_time_ms": { "type": "integer", "description": "Compile time in ms." }
                     },
                     "required": ["image_data_uri", "compile_time_ms"]
@@ -512,19 +514,19 @@ impl McpHandler {
                         {
                             "uri": "pressmark://catalog/themes",
                             "name": "Visual Theme Presets",
-                            "description": "Six vector typography and color theme presets.",
+                            "description": "Where to choose appearance presets and preview document colors.",
                             "mimeType": "application/json"
                         },
                         {
                             "uri": "pressmark://catalog/compliance",
-                            "name": "Compliance & Regulatory Modes",
-                            "description": "Supported regulatory compliance banners (EU VAT, PEPPOL, HIPAA, ZATCA).",
+                            "name": "Compliance Notes",
+                            "description": "Available compliance-topic notes. These do not certify compliance.",
                             "mimeType": "application/json"
                         },
                         {
                             "uri": "pressmark://catalog/execution",
-                            "name": "Execution & Signature Modes",
-                            "description": "Electronic signature, wet-ink, and remote online notarization modes.",
+                            "name": "Signature Layouts",
+                            "description": "Available signature layouts. These do not sign or notarize a document.",
                             "mimeType": "application/json"
                         }
                     ]
@@ -537,7 +539,7 @@ impl McpHandler {
                     .as_ref()
                     .and_then(|p| p.get("uri"))
                     .and_then(|u| u.as_str())
-                    .unwrap_or("pressmark://catalog/archetypes");
+                    .unwrap_or("");
                 let text = match uri {
                     "pressmark://catalog/states" => {
                         serde_json::to_string(&crate::state_laws::all_state_lease_profiles())
@@ -546,7 +548,19 @@ impl McpHandler {
                     "pressmark://catalog/pricing" => {
                         serde_json::to_string(&get_pricing_catalog()).unwrap_or_default()
                     }
-                    _ => serde_json::to_string(&Self::document_type_enum()).unwrap_or_default(),
+                    "pressmark://catalog/themes" => json!({
+                        "studio_url": "https://pressmark.dev",
+                        "description": "Choose appearance presets in the Studio. Use the document preview to check colors before exporting."
+                    }).to_string(),
+                    "pressmark://catalog/compliance" => Self::document_input_properties()["compliance_mode"].to_string(),
+                    "pressmark://catalog/execution" => Self::document_input_properties()["execution_mode"].to_string(),
+                    "pressmark://catalog/archetypes" => serde_json::to_string(&Self::document_type_enum()).unwrap_or_default(),
+                    _ => return JsonRpcResponse {
+                        jsonrpc: "2.0",
+                        id: req.id,
+                        result: None,
+                        error: Some(json!({"code": -32002, "message": "Resource not found."})),
+                    },
                 };
                 JsonRpcResponse {
                     jsonrpc: "2.0",

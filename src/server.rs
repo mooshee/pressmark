@@ -6,7 +6,7 @@ use crate::auth::{
     self, ApiKeyLoginRequest, CallbackQuery, ChatGptAuthManager, EmailLoginRequest, LoginQuery,
 };
 use crate::engine::{compile_pdf_bytes, compile_png_bytes, generate_pdf, generate_preview_png, generate_all_preview_pngs};
-use crate::mcp::{JsonRpcRequest, McpHandler};
+use crate::mcp::{JsonRpcRequest, JsonRpcResponse, McpHandler};
 use crate::models::{DocumentRequest, DocumentType, GenerateResponse, PreviewResponse, CopilotRequest, CopilotResponse, VisionRequest, VisionResponse, LineItem, PartyDetails};
 use crate::openapi::{get_ai_plugin_manifest, get_openapi_spec};
 use crate::pricing::get_pricing_catalog;
@@ -30,7 +30,7 @@ pub struct AppState {
     pub rate_limiter: RateLimiter,
     pub stripe_idempotency: crate::stripe::StripeIdempotencyStore,
     pub storage: Arc<crate::storage::Storage>,
-    pub downloads: crate::downloads::PdfDownloadCache,
+    pub downloads: crate::downloads::DocumentDownloadCache,
 }
 
 impl AppState {
@@ -50,7 +50,7 @@ impl AppState {
 
         Self {
             base_url,
-            downloads: crate::downloads::PdfDownloadCache::default(),
+            downloads: crate::downloads::DocumentDownloadCache::default(),
             auth_mgr,
             rate_limiter: RateLimiter::new(max_req, window_secs),
             stripe_idempotency,
@@ -133,7 +133,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/.well-known/security.txt", get(handle_security_txt))
         // API v1
         .route("/api/v1/generate", post(handle_generate))
-        .route("/api/v1/downloads/:token", get(handle_pdf_download))
+        .route("/api/v1/downloads/:token", get(handle_document_download))
         .route("/api/v1/preview", post(handle_preview))
         .route("/api/v1/render-raw", post(handle_render_raw))
         .route("/api/v1/render-vector", post(handle_render_raw))
@@ -227,24 +227,24 @@ async fn handle_health() -> impl IntoResponse {
     })))
 }
 
-async fn handle_pdf_download(
+async fn handle_document_download(
     State(state): State<Arc<AppState>>,
     Path(token): Path<String>,
 ) -> Response {
     let mut response = match state.downloads.get(&token) {
-        Some(pdf) => {
-            let length = pdf.bytes.len();
-            let mut response = (StatusCode::OK, pdf.bytes).into_response();
+        Some(file) => {
+            let length = file.bytes.len();
+            let mut response = (StatusCode::OK, file.bytes).into_response();
             let headers = response.headers_mut();
-            headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/pdf"));
+            headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static(file.mime_type));
             headers.insert(header::CONTENT_LENGTH, header::HeaderValue::from(length));
             // The cache only emits ASCII letters, digits, hyphens, and underscores in filenames.
             headers.insert(header::CONTENT_DISPOSITION,
-                format!("attachment; filename=\"{}\"", pdf.filename).parse().expect("safe PDF filename"));
+                format!("{}; filename=\"{}\"", if file.mime_type == "image/png" { "inline" } else { "attachment" }, file.filename).parse().expect("safe document filename"));
             response
         }
         None => (StatusCode::NOT_FOUND,
-            "This download link is unavailable or has expired. Generate the PDF again.").into_response(),
+            "This download link is unavailable or has expired. Generate the PDF again, or request a new preview.").into_response(),
     };
     let headers = response.headers_mut();
     headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("private, no-store, max-age=0"));
@@ -1491,6 +1491,7 @@ async fn handle_mcp(
     let is_notif = McpHandler::is_notification(&req);
     let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
     let mcp_method = req.method.clone();
+    let private_result = matches!(mcp_method.as_str(), "tools/call" | "resources/read");
     let tool_name = req
         .params
         .as_ref()
@@ -1548,17 +1549,21 @@ async fn handle_mcp(
         None
     };
 
-    let mut resp = McpHandler::handle_request_with_context(
-        req,
-        Some(&state.storage),
-        is_paid_session,
-        session_email,
-    );
+    let mut resp = if let Some(response) = read_download_resource(&state, &req) {
+        response
+    } else {
+        McpHandler::handle_request_with_context(req, Some(&state.storage), is_paid_session, session_email)
+    };
     if resp.tool_succeeded()
         && matches!(tool_name.as_deref(), Some("generate_document" | "convert_document" | "record_payment"))
     {
         if let Some(result) = resp.result.as_mut() {
             attach_pdf_download(&state, result, doc_type.as_deref().unwrap_or("document"), &client_proto);
+        }
+    }
+    if resp.tool_succeeded() && tool_name.as_deref() == Some("preview_document") {
+        if let Some(result) = resp.result.as_mut() {
+            attach_preview_download(&state, result, doc_type.as_deref().unwrap_or("document"), &client_proto);
         }
     }
     let compile_ms = resp
@@ -1583,9 +1588,9 @@ async fn handle_mcp(
                     .or_insert_with(|| serde_json::json!("complete"));
                 if mcp_method != "tools/call" {
                     obj.entry("ttlMs".to_string())
-                        .or_insert_with(|| serde_json::json!(300_000));
+                        .or_insert_with(|| serde_json::json!(if private_result { 0 } else { 300_000 }));
                     obj.entry("cacheScope".to_string())
-                        .or_insert_with(|| serde_json::json!("public"));
+                        .or_insert_with(|| serde_json::json!(if private_result { "private" } else { "public" }));
                 }
                 obj.entry("_meta".to_string()).or_insert_with(|| {
                     serde_json::json!({
@@ -1596,7 +1601,7 @@ async fn handle_mcp(
                         },
                         "protocolVersion": "2026-07-28",
                         "streamingSupported": true,
-                        "cacheTtlMs": if mcp_method == "tools/call" { 0 } else { 300_000 }
+                        "cacheTtlMs": if private_result { 0 } else { 300_000 }
                     })
                 });
             }
@@ -1604,7 +1609,7 @@ async fn handle_mcp(
     }
 
     let mut resp_headers = HeaderMap::new();
-    if mcp_method == "tools/call" {
+    if private_result {
         resp_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("private, no-store"));
     }
     let negotiated_proto = resp
@@ -1635,6 +1640,63 @@ async fn handle_mcp(
 }
 
 
+fn read_download_resource(state: &AppState, request: &JsonRpcRequest) -> Option<JsonRpcResponse> {
+    if request.method != "resources/read" { return None; }
+    let uri = request.params.as_ref()?.get("uri")?.as_str()?;
+    // Catalogs are handled by the MCP dispatcher. Download resources are local cache lookups only.
+    if uri.starts_with("pressmark://catalog/") { return None; }
+    let file = reqwest::Url::parse(uri).ok().and_then(|url| {
+        let base = reqwest::Url::parse(&state.base_url).ok()?;
+        if url.origin() != base.origin() || !url.username().is_empty() || url.password().is_some()
+            || url.query().is_some() || url.fragment().is_some() {
+            return None;
+        }
+        let token = url.path().strip_prefix("/api/v1/downloads/")?;
+        state.downloads.get(token)
+    });
+    Some(match file {
+        Some(file) => JsonRpcResponse {
+            jsonrpc: "2.0", id: request.id.clone(), error: None,
+            result: Some(serde_json::json!({"contents": [{"uri": uri, "mimeType": file.mime_type, "blob": BASE64.encode(file.bytes)}]})),
+        },
+        None => JsonRpcResponse {
+            jsonrpc: "2.0", id: request.id.clone(), result: None,
+            error: Some(serde_json::json!({"code": -32002, "message": "Resource not found or expired. Generate a new document or preview."})),
+        },
+    })
+}
+
+fn attach_preview_download(state: &AppState, result: &mut serde_json::Value, doc_type: &str, protocol: &str) {
+    use crate::downloads::{DownloadError, MAX_DOWNLOAD_BYTES};
+    let Some(encoded) = result["content"].as_array().and_then(|items| items.iter()
+        .find(|item| item["type"] == "image" && item["mimeType"] == "image/png"))
+        .and_then(|image| image["data"].as_str()) else { return; };
+    let stored = if encoded.len() > ((MAX_DOWNLOAD_BYTES + 2) / 3) * 4 {
+        Err(DownloadError::TooLarge)
+    } else {
+        BASE64.decode(encoded).map_err(|_| DownloadError::InvalidPng)
+            .and_then(|bytes| state.downloads.insert_png(bytes, doc_type, "preview", &state.base_url))
+    };
+    match stored {
+        Ok(link) => {
+            let metadata = serde_json::to_value(&link).expect("serializable preview metadata");
+            result["preview"] = metadata.clone();
+            result["structuredContent"]["preview"] = metadata;
+            if let Some(content) = result["content"].as_array_mut() {
+                content.insert(0, serde_json::json!({"type": "text", "text": format!(
+                    "![Document preview]({})\n\nThis is the generated document preview. Use this image; do not substitute an illustration. The link expires in 15 minutes and may stop working sooner if the service restarts. Anyone with the link can view the preview while it is valid.", link.url)}));
+                if matches!(protocol, "2025-06-18" | "2025-11-25" | "2026-07-28") {
+                    content.push(serde_json::json!({"type": "resource_link", "uri": link.url,
+                        "name": link.filename, "mimeType": "image/png", "description": "Generated document preview. Link expires in 15 minutes."}));
+                }
+            }
+        },
+        Err(error) => {
+            result["preview_error"] = serde_json::json!(error.message());
+        },
+    }
+}
+
 fn attach_pdf_download(state: &AppState, result: &mut serde_json::Value, fallback_type: &str, protocol: &str) {
     use crate::downloads::{DownloadError, MAX_DOWNLOAD_BYTES};
     let Some(encoded) = result.get("pdf_base64").and_then(|v| v.as_str()) else { return; };
@@ -1656,8 +1718,16 @@ fn attach_pdf_download(state: &AppState, result: &mut serde_json::Value, fallbac
             result["download"] = metadata.clone();
             result["structuredContent"]["download"] = metadata;
             if let Some(content) = result["content"].as_array_mut() {
+                let resource_links = matches!(protocol, "2025-06-18" | "2025-11-25" | "2026-07-28");
+                if resource_links {
+                    content.retain(|item| !(item["type"] == "resource" && item["resource"]["mimeType"] == "application/pdf"));
+                } else {
+                    for item in content.iter_mut().filter(|item| item["type"] == "resource" && item["resource"]["mimeType"] == "application/pdf") {
+                        item["resource"]["uri"] = serde_json::json!(link.url);
+                    }
+                }
                 content.insert(0, serde_json::json!({"type": "text", "text": message}));
-                if matches!(protocol, "2025-06-18" | "2025-11-25" | "2026-07-28") {
+                if resource_links {
                     content.push(serde_json::json!({
                         "type": "resource_link", "uri": link.url, "name": link.filename,
                         "mimeType": "application/pdf", "description": "Generated PDF. Download link expires in 15 minutes."
