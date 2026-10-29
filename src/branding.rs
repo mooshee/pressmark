@@ -51,15 +51,15 @@ impl DocumentBrandingConfig {
         Self {
             mode: BrandingMode::PressmarkDefault,
             org_name: "PRESSMARK STUDIO".to_string(),
-            subtitle: Some("High-Performance Vector Document Synthesis".to_string()),
+            subtitle: None,
             accent_primary: "#4f46e5".to_string(),
             accent_secondary: Some("#818cf8".to_string()),
             primary_ink: Some("#0f172a".to_string()),
-            header_left: Some("PRESSMARK · OFFICIAL VECTOR INSTRUMENT".to_string()),
-            footer_left: Some("Pressmark Vector Engine · Sub-Millisecond Synthesis".to_string()),
-            footer_center: Some("Confidential & Certified Record".to_string()),
-            disclaimer: Some("Synthesized with Pressmark Vector Engine. Cryptographically verifiable record.".to_string()),
-            show_engine_badge: true,
+            header_left: Some("PRESSMARK".to_string()),
+            footer_left: None,
+            footer_center: None,
+            disclaimer: None,
+            show_engine_badge: false,
         }
     }
 
@@ -74,8 +74,8 @@ impl DocumentBrandingConfig {
             primary_ink: Some("#0f172a".to_string()),
             header_left: Some(format!("{} · COMMERCIAL DOCUMENT", org_name.to_uppercase())),
             footer_left: Some(org_name.to_string()),
-            footer_center: Some("Authorized Corporate Instrument".to_string()),
-            disclaimer: Some("All rights reserved. Proprietary and confidential commercial document.".to_string()),
+            footer_center: None,
+            disclaimer: None,
             show_engine_badge: false,
         }
     }
@@ -86,7 +86,7 @@ impl DocumentBrandingConfig {
             (Some(pg), Some(bar)) => format!("{} · {}", pg, bar),
             (Some(pg), None) => pg.to_string(),
             (None, Some(bar)) => bar.to_string(),
-            (None, None) => "Attorneys at Law".to_string(),
+            (None, None) => String::new(),
         };
         Self {
             mode: BrandingMode::LegalCounsel,
@@ -96,9 +96,9 @@ impl DocumentBrandingConfig {
             accent_secondary: Some("#64748b".to_string()),
             primary_ink: Some("#020617".to_string()),
             header_left: Some(format!("{} · LEGAL INSTRUMENT", firm_name.to_uppercase())),
-            footer_left: Some(format!("{} · Counsel of Record", firm_name)),
-            footer_center: Some("Privileged & Confidential Work Product".to_string()),
-            disclaimer: Some("Privileged & Confidential Legal Instrument. Prepared for submission to official tribunal or registry.".to_string()),
+            footer_left: Some(firm_name.to_string()),
+            footer_center: None,
+            disclaimer: None,
             show_engine_badge: false,
         }
     }
@@ -107,15 +107,15 @@ impl DocumentBrandingConfig {
     pub fn government_institutional() -> Self {
         Self {
             mode: BrandingMode::GovernmentInstitutional,
-            org_name: "OFFICIAL INSTRUMENT".to_string(),
-            subtitle: Some("Statutory Administrative Filing".to_string()),
+            org_name: "DOCUMENT".to_string(),
+            subtitle: None,
             accent_primary: "#000000".to_string(),
             accent_secondary: Some("#475569".to_string()),
             primary_ink: Some("#000000".to_string()),
-            header_left: Some("OFFICIAL STATUTORY SUBMISSION".to_string()),
-            footer_left: Some("Official Administrative Record".to_string()),
-            footer_center: Some("Statutory Authority".to_string()),
-            disclaimer: Some("OFFICIAL DOCUMENT PURSUANT TO APPLICABLE STATUTORY AND ADMINISTRATIVE REGULATIONS.".to_string()),
+            header_left: None,
+            footer_left: None,
+            footer_center: None,
+            disclaimer: None,
             show_engine_badge: false,
         }
     }

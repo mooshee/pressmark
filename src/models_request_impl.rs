@@ -178,7 +178,7 @@ impl DocumentRequest {
                 vec![SignatureBlock {
                     signer_name: name.clone(),
                     signer_title: self.signer_title.clone(),
-                    date: self.issue_date.clone(),
+                    date: None,
                     signature_data: self.signature_data.clone(),
                 }]
             } else {
@@ -458,7 +458,7 @@ impl DocumentRequest {
                 }
             }
         }
-        "Hamilton".to_string()
+        String::new()
     }
 
     pub fn effective_year_built(&self) -> Option<u32> {

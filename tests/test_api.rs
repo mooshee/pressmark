@@ -559,7 +559,7 @@ fn test_invoicing_lifecycle_and_stripe_qr_elements() {
         "2026-10-02"
     );
     assert_eq!(receipt.doc_type, DocumentType::Receipt);
-    assert_eq!(receipt.title.as_deref(), Some("OFFICIAL PAYMENT RECEIPT"));
+    assert_eq!(receipt.title.as_deref(), Some("PAYMENT RECEIPT"));
     assert_eq!(receipt.doc_number.as_deref(), Some("REC-2026-0099"));
     assert_eq!(receipt.effective_payment_status(), "paid");
     assert!(receipt.is_paid_state());
@@ -680,7 +680,7 @@ fn test_deliverables_pro_review_fixes_and_lifecycle_enhancements() {
     assert!(text_content.contains("CREDIT NOTE"));
     assert!(text_content.contains("CRD-2026-0819"));
     assert!(text_content.contains("| Description | Qty | Rate | Amount |"));
-    assert!(text_content.contains("Click Here to Pay Online"));
+    assert!(text_content.contains("[Pay online](https://buy.stripe.com/refund_claim)"));
     assert!(res_obj["pdf_base64"].is_string());
 
     // Test MCP record_payment with amount_paid
@@ -1546,17 +1546,20 @@ async fn test_usage_telemetry_analytics_copilot_and_mcp_aliases() {
         "Custom watermark DRAFT on paid doc must never be overwritten"
     );
 
-    // Verify all 3 SKILL.md files use canonical DocumentType slugs, state_code, and REC- prefix
+    // Verify the skills and their linked references cover canonical fields and document types.
     let re_skill = std::fs::read_to_string("skills/real-estate-agreements/SKILL.md").unwrap();
     let inv_skill = std::fs::read_to_string("skills/invoice-generation/SKILL.md").unwrap();
     let lc_skill = std::fs::read_to_string("skills/document-lifecycle/SKILL.md").unwrap();
+    let lc_reference = std::fs::read_to_string("skills/document-lifecycle/references/state-machine.md").unwrap();
     assert!(re_skill.contains("state_code") && !re_skill.contains("governing_state"));
     assert!(inv_skill.contains("state_code") && !inv_skill.contains("governing_state"));
-    assert!(lc_skill.contains("REC-") && !lc_skill.contains("RCT-"));
+    assert!(lc_skill.contains("references/state-machine.md"));
+    assert!(lc_reference.contains("REC-") && !lc_reference.contains("RCT-"));
+    let document_skills = format!("{inv_skill}\n{re_skill}");
     for dt in pressmark::models::DocumentType::all() {
         assert!(
-            inv_skill.contains(&format!("`{}`", dt.as_str())),
-            "skills/invoice-generation/SKILL.md missing canonical archetype `{}`",
+            document_skills.contains(&format!("`{}`", dt.as_str())),
+            "Document skills missing canonical archetype `{}`",
             dt.as_str()
         );
     }
@@ -1786,6 +1789,7 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     let stripe_idempotency = StripeIdempotencyStore::new().with_storage(Arc::clone(&storage));
     let state = Arc::new(AppState {
         base_url: "https://pressmark.dev".to_string(),
+        downloads: Default::default(),
         auth_mgr: auth_mgr.clone(),
         rate_limiter: RateLimiter::new(1000, 60),
         stripe_idempotency,
@@ -2436,7 +2440,7 @@ async fn test_production_error_audit_regressions() {
     use std::sync::Arc;
     use tower::ServiceExt;
 
-    // 1. Verify generate_document is non-destructive with concise description and Example:
+    // 1. Describe generation accurately, including configured customer-record updates.
     let tools = McpHandler::tools_list();
     let gen_tool = tools
         .as_array()
@@ -2446,12 +2450,14 @@ async fn test_production_error_audit_regressions() {
         .expect("generate_document tool must exist");
     assert_eq!(
         gen_tool["annotations"]["destructiveHint"],
-        serde_json::json!(false),
-        "generate_document must be non-destructive to prevent VerifyMCP auth regression"
+        serde_json::json!(true),
+        "generate_document can replace fields in existing customer records when sync is enabled"
     );
     let desc = gen_tool["description"].as_str().unwrap();
     assert!(desc.len() < 250, "generate_document description must be < 250 chars");
-    assert!(desc.contains("Example:"), "generate_document description must contain Example:");
+    assert!(desc.contains("customer sync"));
+    assert!(desc.contains("follow-up"));
+    assert!(gen_tool["inputSchema"]["examples"].as_array().is_some_and(|examples| !examples.is_empty()));
 
     // 2. Storage crawler bot classification
     assert_eq!(Storage::classify_usage_actor("7Maps-resolver/0.2", None), "crawler_bot");

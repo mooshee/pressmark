@@ -9,5 +9,6 @@ Allow: /.well-known/ai-plugin.json
 Allow: /api/v1/openapi.json
 Disallow: /api/v1/auth/
 Disallow: /api/v1/webhooks/
+Disallow: /api/v1/downloads/
 
 Sitemap: https://pressmark.dev/sitemap.xml

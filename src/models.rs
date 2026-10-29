@@ -106,7 +106,7 @@ impl DocumentType {
             Self::InvoiceMinimal => "COMMERCIAL INVOICE",
             Self::ProformaInvoice => "PROFORMA INVOICE",
             Self::Estimate => "FORMAL ESTIMATE & QUOTE",
-            Self::Receipt => "OFFICIAL PAYMENT RECEIPT",
+            Self::Receipt => "PAYMENT RECEIPT",
             Self::PurchaseOrder => "PURCHASE ORDER",
             Self::PackingSlip => "PACKING SLIP & BILL OF LADING",
             Self::CreditNote => "CREDIT NOTE",
@@ -143,7 +143,7 @@ impl DocumentType {
             Self::NoticeOfEntry => "STATUTORY NOTICE OF INTENT TO ENTER PREMISES",
             Self::RentIncreaseNotice => "STATUTORY NOTICE OF RENT ADJUSTMENT",
             Self::MutualLeaseTermination => "MUTUAL LEASE TERMINATION & SURRENDER AGREEMENT",
-            Self::TenantRentLedger => "CERTIFIED TENANT RENT & CHARGE LEDGER",
+            Self::TenantRentLedger => "TENANT RENT & CHARGE LEDGER",
             Self::ScheduleOfRealEstateOwned => "SCHEDULE OF REAL ESTATE OWNED (SREO)",
             Self::ScheduleETaxWorksheet => "IRS SCHEDULE E RENTAL TAX & T12 OPERATING WORKSHEET",
             Self::RealEstateDealAnalysis => "REAL ESTATE INVESTMENT & DEAL UNDERWRITING REPORT",
@@ -1161,7 +1161,7 @@ impl DocumentRequest {
         hasher.update(b"|");
         hasher.update(self.effective_doc_number().as_bytes());
         hasher.update(b"|");
-        hasher.update(self.issue_date.as_deref().unwrap_or("2026-10-01").as_bytes());
+        hasher.update(self.issue_date.as_deref().unwrap_or_default().as_bytes());
         hasher.update(b"|");
         hasher.update(self.from.name.as_bytes());
         hasher.update(b"|");
@@ -1306,7 +1306,7 @@ impl DocumentRequest {
     pub fn to_receipt(&self, payment_method: &str, tx_ref: &str, paid_date: &str) -> Self {
         let mut cloned = self.clone();
         cloned.doc_type = DocumentType::Receipt;
-        cloned.title = Some("OFFICIAL PAYMENT RECEIPT".to_string());
+        cloned.title = Some("PAYMENT RECEIPT".to_string());
         if let Some(ref num) = cloned.doc_number {
             let base = extract_doc_base_id(num);
             cloned.doc_number = Some(format!("REC-{}", base));
@@ -1316,19 +1316,9 @@ impl DocumentRequest {
         }
         cloned.is_paid = Some(true);
         cloned.payment_status = Some("paid".to_string());
-        cloned.payment_method = Some(payment_method.to_string());
-        cloned.transaction_reference = Some(tx_ref.to_string());
-        
-        let valid_paid_date = if let Some(ref issue) = cloned.issue_date {
-            if paid_date < issue.as_str() {
-                issue.clone()
-            } else {
-                paid_date.to_string()
-            }
-        } else {
-            paid_date.to_string()
-        };
-        cloned.paid_at = Some(valid_paid_date);
+        cloned.payment_method = (!payment_method.trim().is_empty()).then(|| payment_method.to_string());
+        cloned.transaction_reference = (!tx_ref.trim().is_empty()).then(|| tx_ref.to_string());
+        cloned.paid_at = (!paid_date.trim().is_empty()).then(|| paid_date.to_string());
         cloned.amount_paid = Some(self.grand_total());
         cloned
     }
@@ -1389,9 +1379,7 @@ impl DocumentRequest {
     }
 
     pub fn effective_doc_number(&self) -> String {
-        self.doc_number.clone().unwrap_or_else(|| {
-            format!("{}2026-0042", self.doc_type.default_number_prefix())
-        })
+        self.doc_number.clone().unwrap_or_default()
     }
 
     pub fn effective_paper_size(&self) -> &str {

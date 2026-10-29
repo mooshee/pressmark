@@ -761,9 +761,9 @@ pub(crate) async fn handle_lifecycle_convert(
     let mut converted = match payload.target_type.trim().to_lowercase().as_str() {
         "invoice" => payload.document.to_invoice(payload.due_days.unwrap_or(15)),
         "receipt" | "payment_receipt" | "paid_receipt" => payload.document.to_receipt(
-            "Stripe / Apple Pay",
-            &format!("TX-{}", chrono::Utc::now().timestamp()),
-            &chrono::Utc::now().format("%Y-%m-%d").to_string(),
+            payload.document.payment_method.as_deref().unwrap_or_default(),
+            payload.document.transaction_reference.as_deref().unwrap_or_default(),
+            payload.document.paid_at.as_deref().unwrap_or_default(),
         ),
         "estimate" | "quote" | "proposal" => payload.document.to_estimate(payload.valid_days.unwrap_or(30)),
         "credit_note" | "credit-note" | "credit" | "refund" | "credit_memo" => {
@@ -820,10 +820,9 @@ pub(crate) async fn handle_lifecycle_pay(
         }
     }
 
-    let method = payload.payment_method.as_deref().unwrap_or("Stripe / Apple Pay");
-    let tx_ref = payload.transaction_reference.as_deref().unwrap_or("STRIPE-AUTO-PAID");
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let paid_date = payload.paid_date.as_deref().unwrap_or(&today);
+    let method = payload.payment_method.as_deref().unwrap_or_default();
+    let tx_ref = payload.transaction_reference.as_deref().unwrap_or_default();
+    let paid_date = payload.paid_date.as_deref().unwrap_or_default();
 
     let total = payload.document.grand_total();
     let amt = payload.amount_paid.unwrap_or(total);
@@ -834,9 +833,9 @@ pub(crate) async fn handle_lifecycle_pay(
         partial_doc.amount_paid = Some(amt);
         partial_doc.is_paid = Some(false);
         partial_doc.payment_status = Some("partial".to_string());
-        partial_doc.payment_method = Some(method.to_string());
-        partial_doc.transaction_reference = Some(tx_ref.to_string());
-        partial_doc.paid_at = Some(paid_date.to_string());
+        partial_doc.payment_method = (!method.trim().is_empty()).then(|| method.to_string());
+        partial_doc.transaction_reference = (!tx_ref.trim().is_empty()).then(|| tx_ref.to_string());
+        partial_doc.paid_at = (!paid_date.trim().is_empty()).then(|| paid_date.to_string());
         let bal = (total - amt).max(0.0);
 
         (StatusCode::OK, Json(serde_json::json!({
@@ -847,7 +846,7 @@ pub(crate) async fn handle_lifecycle_pay(
             "document": partial_doc
         })))
     } else {
-        // Full Payment: Convert to official payment receipt
+        // Full payment: create a receipt from the supplied details.
         let mut receipt = payload.document.to_receipt(method, tx_ref, paid_date);
         receipt.amount_paid = Some(amt);
 
@@ -1309,7 +1308,7 @@ mod tests {
             .unwrap()
             .contains(&serde_json::json!("2026-07-28")));
 
-        // 6. Verify every property description in tools_list() is < 250 characters and tools include Example:
+        // 6. Keep descriptions concise and examples in the machine-readable input schema.
         let tools = McpHandler::tools_list();
         for tool in tools.as_array().unwrap() {
             let tool_name = tool["name"].as_str().unwrap();
@@ -1321,10 +1320,9 @@ mod tests {
                 tool_desc.len()
             );
             assert!(
-                tool_desc.contains("Example:"),
-                "Tool {} description missing inline Example: {}",
-                tool_name,
-                tool_desc
+                tool["inputSchema"]["examples"].as_array().is_some_and(|examples| !examples.is_empty()),
+                "Tool {} is missing input schema examples",
+                tool_name
             );
             let mut props = Vec::new();
             collect_property_descriptions(&tool["inputSchema"], &mut props, tool_name);

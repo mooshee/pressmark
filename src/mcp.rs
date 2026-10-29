@@ -9,6 +9,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 pub const MCP_SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const SUPPORTED_MCP_PROTOCOLS: &[&str] = &[
@@ -75,13 +76,16 @@ impl McpHandler {
     fn document_input_properties() -> Value {
         json!({
             "doc_type": { "type": "string", "description": "Archetype slug (invoice, receipt, residential_lease, nda, etc.)." },
+            "doc_number": { "type": "string", "description": "Document number supplied by the user. Left blank when omitted." },
+            "issue_date": { "type": "string", "description": "Issue date (YYYY-MM-DD). Left blank when omitted." },
+            "due_date": { "type": "string", "description": "Payment due date (YYYY-MM-DD). Left blank when omitted." },
             "state_code": { "type": "string", "description": "2-letter US state or DC code." },
             "municipality": { "type": "string", "description": "Municipal profile (Chicago, Cook County, NYC, SF, Seattle, Portland)." },
             "county": { "type": "string", "description": "County name for jurats and headers." },
             "recordable": { "type": "boolean", "description": "Enable County Recorder 3-inch top margin." },
-            "notary_required": { "type": "boolean", "description": "Render state notarial jurat block." },
-            "execution_mode": { "type": "string", "description": "Signature mode (esign, wet_ink, notarized_wet, ron)." },
-            "compliance_mode": { "type": "string", "description": "Compliance banner (none, eu_vat, peppol_bis, hipaa_baa)." },
+            "notary_required": { "type": "boolean", "description": "Add a blank section for a notary to complete. Does not notarize the document." },
+            "execution_mode": { "type": "string", "description": "Signature layout (esign, wet_ink, notarized_wet, ron). Does not sign or notarize the document." },
+            "compliance_mode": { "type": "string", "description": "Add a note for a selected compliance topic (none, eu_vat, peppol_bis, hipaa_baa). Does not certify compliance." },
             "date_format": { "type": "string", "description": "Date format (iso, us_slash, euro, formal_prose)." },
             "currency_symbol_mode": { "type": "string", "description": "Display currency symbol or ISO code." },
             "currency_placement": { "type": "string", "description": "Currency prefix or suffix placement." },
@@ -126,29 +130,36 @@ impl McpHandler {
             "payment_qr_code": { "type": "boolean", "description": "Embed vector SVG QR code." },
             "custom_fields": { "type": "array", "description": "Custom key-value metadata fields." },
             "sections": { "type": "array", "description": "Structured legal clause sections." },
-            "signatures": { "type": "array", "description": "Multi-party signature blocks." }
+            "signatures": {
+                "type": "array", "description": "Signature fields using supplied names, dates, and optional signature images. A name alone leaves the signature line blank.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "signer_name": { "type": "string" },
+                        "signer_title": { "type": "string" },
+                        "date": { "type": "string", "description": "Signing date supplied by the user. Left blank when omitted." },
+                        "signature_data": { "type": "string", "description": "Optional supplied signature image as a Base64 data URI." }
+                    },
+                    "required": ["signer_name"]
+                }
+            }
         })
     }
 
     fn preview_input_properties() -> Value {
+        Self::document_input_properties()
+    }
+
+    fn download_output_schema() -> Value {
         json!({
-            "doc_type": { "type": "string", "description": "Archetype slug (invoice, receipt, residential_lease, nda)." },
-            "state_code": { "type": "string", "description": "2-letter US state or DC code." },
-            "from": {
-                "type": "object",
-                "description": "Issuer or landlord details.",
-                "properties": { "name": { "type": "string", "description": "Issuer name." } },
-                "required": ["name"]
+            "type": "object", "description": "Temporary PDF download when this tool is called over HTTP. Anyone with the URL can download the PDF until expiry or a service restart.",
+            "properties": {
+                "url": { "type": "string", "format": "uri" },
+                "filename": { "type": "string" },
+                "expires_at": { "type": "string", "format": "date-time" },
+                "expires_in_seconds": { "type": "integer" }
             },
-            "to": {
-                "type": "object",
-                "description": "Recipient or tenant details.",
-                "properties": { "name": { "type": "string", "description": "Recipient name." } },
-                "required": ["name"]
-            },
-            "items": { "type": "array", "description": "Line items array ({description, quantity, unit_price})." },
-            "currency": { "type": "string", "default": "USD", "description": "ISO 4217 currency code." },
-            "payment_link": { "type": "string", "description": "HTTPS checkout URL for QR code." }
+            "required": ["url", "filename", "expires_at", "expires_in_seconds"]
         })
     }
 
@@ -162,12 +173,12 @@ impl McpHandler {
         json!([
             {
                 "name": "generate_document",
-                "title": "Generate Vector PDF Document",
-                "description": "Create a vector PDF from document details. Configured customer sync may log contact info (see /privacy). Example: generate_document({\"doc_type\":\"invoice\",\"from\":{\"name\":\"Acme\"},\"to\":{\"name\":\"Client\"}})",
+                "title": "Generate PDF Document",
+                "description": "Creates a PDF. HTTP calls can return a temporary download link. Configured customer sync can save contact details and a document summary and start follow-up. See https://pressmark.dev/privacy.",
                 "annotations": {
-                    "title": "Generate Vector PDF Document",
+                    "title": "Generate PDF Document",
                     "readOnlyHint": false,
-                    "destructiveHint": false,
+                    "destructiveHint": true,
                     "idempotentHint": false,
                     "openWorldHint": true
                 },
@@ -188,7 +199,9 @@ impl McpHandler {
                     "type": "object",
                     "properties": {
                         "pdf_base64": { "type": "string", "description": "Base64 vector PDF." },
-                        "doc_number": { "type": "string", "description": "Document number." },
+                        "download": Self::download_output_schema(),
+                        "download_error": { "type": "string", "description": "Why a temporary download link could not be created. The embedded PDF is still available." },
+                        "doc_number": { "type": "string", "description": "User-supplied document number, or an empty string when omitted." },
                         "grand_total": { "type": "number", "description": "Computed grand total." },
                         "compile_time_ms": { "type": "integer", "description": "Compile time in ms." }
                     },
@@ -198,7 +211,7 @@ impl McpHandler {
             {
                 "name": "preview_document",
                 "title": "Preview Document as PNG",
-                "description": "Statelessly render a 144-PPI PNG preview of a document as a Base64 data URI without mutating server records. Example: doc_type='invoice' or preview_document({\"doc_type\":\"invoice\",\"from\":{\"name\":\"Acme\"},\"to\":{\"name\":\"Client\"}})",
+                "description": "Render a PNG preview from the supplied document details. This does not save or send the document.",
                 "annotations": {
                     "title": "Preview Document as PNG",
                     "readOnlyHint": true,
@@ -293,10 +306,10 @@ impl McpHandler {
             },
             {
                 "name": "convert_document",
-                "title": "Stateless Document Lifecycle Conversion",
-                "description": "Stateless in-memory conversion and PDF synthesis from Estimate/Quote JSON to Invoice, Receipt, or Credit Note without mutating server records. Example: target_type='invoice', convert_document({\"document\":{},\"target_type\":\"invoice\"})",
+                "title": "Convert Document",
+                "description": "Convert document details to an invoice, estimate, receipt, credit note, or refund PDF. This does not update saved records. HTTP calls can return a temporary download link.",
                 "annotations": {
-                    "title": "Stateless Document Lifecycle Conversion",
+                    "title": "Convert Document",
                     "readOnlyHint": true,
                     "destructiveHint": false,
                     "idempotentHint": true,
@@ -322,6 +335,8 @@ impl McpHandler {
                     "properties": {
                         "document": { "type": "object", "description": "Converted document JSON." },
                         "pdf_base64": { "type": "string", "description": "Base64 vector PDF." },
+                        "download": Self::download_output_schema(),
+                        "download_error": { "type": "string", "description": "Why a temporary download link could not be created. The embedded PDF is still available." },
                         "compile_time_ms": { "type": "integer", "description": "Compile time in ms." }
                     },
                     "required": ["document", "pdf_base64", "compile_time_ms"]
@@ -329,10 +344,10 @@ impl McpHandler {
             },
             {
                 "name": "record_payment",
-                "title": "Stateless Payment Receipt & Balance Synthesis",
-                "description": "Stateless in-memory payment calculation and PDF synthesis returning a Receipt or partial-payment Invoice without mutating server records. Example: amount_paid=100, record_payment({\"document\":{},\"amount_paid\":100})",
+                "title": "Create Payment Record",
+                "description": "Create a receipt or updated invoice from supplied payment details. This does not charge a payment method or verify payment. HTTP calls can return a temporary PDF download link.",
                 "annotations": {
-                    "title": "Stateless Payment Receipt & Balance Synthesis",
+                    "title": "Create Payment Record",
                     "readOnlyHint": true,
                     "destructiveHint": false,
                     "idempotentHint": true,
@@ -357,6 +372,8 @@ impl McpHandler {
                     "properties": {
                         "document": { "type": "object", "description": "Receipt or updated invoice JSON." },
                         "pdf_base64": { "type": "string", "description": "Base64 vector PDF." },
+                        "download": Self::download_output_schema(),
+                        "download_error": { "type": "string", "description": "Why a temporary download link could not be created. The embedded PDF is still available." },
                         "compile_time_ms": { "type": "integer", "description": "Compile time in ms." }
                     },
                     "required": ["document", "pdf_base64", "compile_time_ms"]
@@ -384,7 +401,8 @@ impl McpHandler {
         is_paid_session: bool,
         session_email: Option<&str>,
     ) -> JsonRpcResponse {
-        match req.method.as_str() {
+        let is_tool_call = req.method == "tools/call";
+        let mut response = match req.method.as_str() {
             "initialize" => {
                 let requested = req
                     .params
@@ -632,7 +650,8 @@ impl McpHandler {
                                                     {
                                                         "type": "text",
                                                         "text": format_document_markdown(&doc_req, "Generated", ms)
-                                                    }
+                                                    },
+                                                    pdf_resource(&pdf_bytes, &b64)
                                                 ],
                                                 "pdf_base64": b64,
                                                 "doc_number": doc_req.effective_doc_number(),
@@ -759,9 +778,9 @@ impl McpHandler {
                                 let mut converted = match target_type.trim().to_lowercase().as_str() {
                                     "credit_note" | "credit" | "refund" => doc_req.to_credit_note(credit_reason),
                                     "receipt" => doc_req.to_receipt(
-                                        "Stripe / Apple Pay",
-                                        "TX-PAID",
-                                        &chrono::Utc::now().format("%Y-%m-%d").to_string(),
+                                        doc_req.payment_method.as_deref().unwrap_or_default(),
+                                        doc_req.transaction_reference.as_deref().unwrap_or_default(),
+                                        doc_req.paid_at.as_deref().unwrap_or_default(),
                                     ),
                                     "estimate" | "quote" => doc_req.to_estimate(30),
                                     "invoice" => doc_req.to_invoice(due_days),
@@ -797,7 +816,8 @@ impl McpHandler {
                                                     {
                                                         "type": "text",
                                                         "text": format_document_markdown(&converted, "Document Converted to", ms)
-                                                    }
+                                                    },
+                                                    pdf_resource(&pdf_bytes, &b64)
                                                 ],
                                                 "document": converted,
                                                 "pdf_base64": b64,
@@ -888,10 +908,9 @@ impl McpHandler {
                     }
                     "record_payment" => {
                         let doc_val = arguments.get("document").cloned().unwrap_or(Value::Null);
-                        let method = arguments.get("payment_method").and_then(|m| m.as_str()).unwrap_or("Stripe / Apple Pay");
-                        let tx_ref = arguments.get("transaction_reference").and_then(|r| r.as_str()).unwrap_or("STRIPE-AUTO-PAID");
-                        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-                        let paid_date = arguments.get("paid_date").and_then(|d| d.as_str()).unwrap_or(&today);
+                        let method = arguments.get("payment_method").and_then(|m| m.as_str()).unwrap_or_default();
+                        let tx_ref = arguments.get("transaction_reference").and_then(|r| r.as_str()).unwrap_or_default();
+                        let paid_date = arguments.get("paid_date").and_then(|d| d.as_str()).unwrap_or_default();
                         let amount_paid = arguments.get("amount_paid").and_then(|a| a.as_f64());
 
                         if let Some(paid) = amount_paid {
@@ -902,7 +921,7 @@ impl McpHandler {
                                     result: None,
                                     error: Some(json!({
                                         "code": -32602,
-                                        "message": "Validation error: amount_paid cannot be negative. Use convert_document with target_type='credit_note' to issue a refund."
+                                        "message": "Validation error: amount_paid cannot be negative. Use convert_document with target_type='credit_note' to prepare a credit note; this does not send a refund."
                                     })),
                                 };
                             }
@@ -927,9 +946,9 @@ impl McpHandler {
                                         partial_doc.amount_paid = Some(paid);
                                         partial_doc.is_paid = Some(false);
                                         partial_doc.payment_status = Some("partial".to_string());
-                                        partial_doc.payment_method = Some(method.to_string());
-                                        partial_doc.transaction_reference = Some(tx_ref.to_string());
-                                        partial_doc.paid_at = Some(paid_date.to_string());
+                                        partial_doc.payment_method = (!method.trim().is_empty()).then(|| method.to_string());
+                                        partial_doc.transaction_reference = (!tx_ref.trim().is_empty()).then(|| tx_ref.to_string());
+                                        partial_doc.paid_at = (!paid_date.trim().is_empty()).then(|| paid_date.to_string());
                                         (partial_doc, "Partial Payment Recorded & Invoice Updated")
                                     } else {
                                         let mut receipt = doc_req.to_receipt(method, tx_ref, paid_date);
@@ -951,7 +970,8 @@ impl McpHandler {
                                                     {
                                                         "type": "text",
                                                         "text": format_document_markdown(&payment_doc, action_label, ms)
-                                                    }
+                                                    },
+                                                    pdf_resource(&pdf_bytes, &b64)
                                                 ],
                                                 "document": payment_doc,
                                                 "pdf_base64": b64,
@@ -998,11 +1018,32 @@ impl McpHandler {
                 result: None,
                 error: Some(json!({ "code": -32601, "message": "Method not found" })),
             },
+        };
+        if is_tool_call {
+            if let Some(result) = response.result.as_mut().and_then(Value::as_object_mut) {
+                let mut structured = result.clone();
+                structured.remove("content");
+                structured.remove("isError");
+                result.insert("structuredContent".to_string(), Value::Object(structured));
+            }
         }
+        response
     }
 }
 
-fn format_document_markdown(doc: &DocumentRequest, action_title: &str, compile_ms: u128) -> String {
+fn pdf_resource(pdf_bytes: &[u8], base64_pdf: &str) -> Value {
+    let digest = hex::encode(Sha256::digest(pdf_bytes));
+    json!({
+        "type": "resource",
+        "resource": {
+            "uri": format!("pressmark://documents/{digest}.pdf"),
+            "mimeType": "application/pdf",
+            "blob": base64_pdf
+        }
+    })
+}
+
+fn format_document_markdown(doc: &DocumentRequest, action_title: &str, _compile_ms: u128) -> String {
     let status_badge = match doc.effective_payment_status() {
         "paid" => "**PAID IN FULL** ✅",
         "partial" => "**PARTIALLY PAID** 💳",
@@ -1014,13 +1055,15 @@ fn format_document_markdown(doc: &DocumentRequest, action_title: &str, compile_m
         .issue_date
         .as_deref()
         .map(|d| doc.format_date(d))
-        .unwrap_or_else(|| "Current".to_string());
+        .unwrap_or_else(|| "Not provided".to_string());
+    let doc_number = doc.doc_number.as_deref().filter(|value| !value.trim().is_empty())
+        .unwrap_or("Not provided");
 
     let mut md = format!(
         "### {} {}\n\n**Document #:** `{}` | **Date:** `{}` | **Status:** {}\n\n",
         action_title,
         doc.effective_title(),
-        doc.effective_doc_number(),
+        doc_number,
         issue_date_str,
         status_badge
     );
@@ -1054,14 +1097,11 @@ fn format_document_markdown(doc: &DocumentRequest, action_title: &str, compile_m
     }
 
     if let Some(link) = &doc.payment_link {
-        md.push_str(&format!("\n👉 [💳 Click Here to Pay Online]({})\n", link));
+        md.push_str(&format!("\n[Pay online]({})\n", link));
         if doc.payment_qr_code.unwrap_or(false) {
-            md.push_str("\n*Vector SVG QR code embedded in document for 1-scan mobile checkout.*\n");
+            md.push_str("\nThe document includes a QR code for this payment link.\n");
         }
     }
-    md.push_str(&format!(
-        "\n*Rendered in {}ms via Pressmark Vector Engine.* | [Unlock Single Export ($2.99)](https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true) · [Solo Pro ($15/mo)](https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true)",
-        compile_ms
-    ));
+    md.push_str("\n[Single Document Pass ($2.99 one-time)](https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true) · [Solo Pro ($15/month)](https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true)");
     md
 }

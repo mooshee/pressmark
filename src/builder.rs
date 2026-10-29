@@ -59,7 +59,7 @@ fn sanitize_hex_color<'a>(hex: &'a str, fallback: &'a str) -> &'a str {
 pub enum ExecutionMode {
     /// Traditional physical wet-ink execution with guidelines and clerk date-stamp box
     WetInk,
-    /// Digital electronic signature with 15 U.S.C. § 7001 (ESIGN Act) audit compliance badge
+    /// Electronic signature layout using a supplied signature image and record details.
     Esign,
     /// Remote Online Notary (RON) with statutory recital and 1.0-inch seal clearance box
     NotarizedRon,
@@ -85,12 +85,12 @@ pub struct MastheadConfig {
 impl Default for MastheadConfig {
     fn default() -> Self {
         Self {
-            jurisdiction: "OFFICIAL COMMERCIAL & STATUTORY JURISDICTION".to_string(),
-            document_title: "COMMERCIAL TRANSACTION PETITION".to_string(),
-            subtitle: "Certified Vector Document · Sovereign Commercial Record".to_string(),
+            jurisdiction: String::new(),
+            document_title: "DOCUMENT".to_string(),
+            subtitle: String::new(),
             docket: None,
-            reference_id: "REF-2026-001".to_string(),
-            date_str: "2026-10-01".to_string(),
+            reference_id: String::new(),
+            date_str: String::new(),
         }
     }
 }
@@ -155,26 +155,26 @@ pub struct JuratConfig {
 impl Default for JuratConfig {
     fn default() -> Self {
         Self {
-            heading: "EXECUTION & SWORN ATTESTATION".to_string(),
-            attestation: "I hereby attest under penalty of perjury that the statements, figures, and attached schedules herein are true, correct, and complete to the best of my knowledge and belief.".to_string(),
+            heading: "SIGNATURE".to_string(),
+            attestation: String::new(),
             notary_required: false,
             pro_se: true,
-            signer_title: "Authorized Representative / Managing Principal".to_string(),
-            signer_capacity: "Managing Principal".to_string(),
+            signer_title: "Signer".to_string(),
+            signer_capacity: String::new(),
             seal_box: false,
             cross_reference: String::new(),
             signature_type: ExecutionMode::Esign,
-            signer_name: "Daniel Hallman".to_string(),
+            signer_name: String::new(),
             signature_img: None,
-            execution_date: "10/01/2026".to_string(),
-            esign_audit_id: "PRESSMARK-ESIGN-8492-7A1B".to_string(),
-            esign_timestamp: "2026-10-01T02:00:00Z".to_string(),
-            esign_ip: "192.0.2.14".to_string(),
-            ron_statute_citation: "T.C.A. § 8-16-301 et seq.".to_string(),
+            execution_date: String::new(),
+            esign_audit_id: String::new(),
+            esign_timestamp: String::new(),
+            esign_ip: String::new(),
+            ron_statute_citation: String::new(),
             ron_session_id: String::new(),
             include_clerk_stamp: false,
-            state_name: "Tennessee".to_string(),
-            county_name: "Hamilton".to_string(),
+            state_name: String::new(),
+            county_name: String::new(),
         }
     }
 }
@@ -191,10 +191,10 @@ pub struct AuditSlugConfig {
 impl Default for AuditSlugConfig {
     fn default() -> Self {
         Self {
-            reference_id: "DOC-2026-0042".to_string(),
-            hash: "c4ca4238a0b923820dcc509a6f75849b84927a1b8c8d9e0f1a2b3c4d5e6f7a8b".to_string(),
-            engine_version: "Pressmark Vector Engine v1.0.0".to_string(),
-            timestamp: "2026-10-01T02:00:00Z".to_string(),
+            reference_id: String::new(),
+            hash: String::new(),
+            engine_version: String::new(),
+            timestamp: String::new(),
         }
     }
 }
@@ -259,10 +259,10 @@ impl PressmarkDocumentBuilder {
         Self {
             title: "COMMERCIAL INSTRUMENT".to_string(),
             subtitle: String::new(),
-            jurisdiction: "OFFICIAL COMMERCIAL & STATUTORY JURISDICTION".to_string(),
+            jurisdiction: String::new(),
             docket: None,
             reference_id: String::new(),
-            tax_year: "2026".to_string(),
+            tax_year: String::new(),
             branding: DocumentBrandingConfig::default(),
             recordable: false,
             elements: Vec::new(),

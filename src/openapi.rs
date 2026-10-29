@@ -62,7 +62,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                 "post": {
                     "operationId": "generateDocument",
                     "summary": "Generate a PDF document",
-                    "description": "Creates a PDF from the supplied JSON document and returns Base64 PDF data and a download link.",
+                    "description": "Creates a PDF and returns Base64 PDF data. Configured customer sync can save contact details and a document summary and start follow-up. See https://pressmark.dev/privacy.",
                     "security": [],
                     "requestBody": {
                         "required": true,
@@ -193,7 +193,7 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
                 "post": {
                     "operationId": "runCopilot",
                     "summary": "AI Copilot document editing",
-                    "description": "Edits a document from written instructions using the user's connected ChatGPT Plus or Pro account.",
+                    "description": "Applies supported edits to document details from written instructions.",
                     "responses": {
                         "200": {
                             "description": "Modified document state and AI explanation"

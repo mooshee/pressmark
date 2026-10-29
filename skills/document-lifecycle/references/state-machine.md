@@ -4,7 +4,7 @@ Author: Daniel Hallman
 
 Use this reference to check the fields and document numbers returned by a conversion or payment calculation. These tools prepare documents from supplied details; they do not move money.
 
-## State Transition Diagram
+## Document changes
 
 ```text
 [Estimate / Quote]  (EST-2026-XXXX, status: draft/valid)
@@ -17,8 +17,8 @@ Use this reference to check the fields and document numbers returned by a conver
        | record_payment        | record_payment        | convert_document
        | (amount < total)      | (amount >= total)     | (target_type: "credit_note")
        v                       v                       v
-[Partially Paid Inv]    [Settled Invoice /]     [Credit Note / Refund]
-(status: partial,        [Official Receipt]     (CRD-2026-XXXX,
+[Partially Paid Inv]    [Paid Invoice /]        [Credit Note / Refund]
+(status: partial,        [Payment Receipt]      (CRD-2026-XXXX,
  balance_due > 0)       (REC-2026-XXXX,          status: refunded/credited)
                          balance_due == 0,
                          status: paid)
@@ -47,10 +47,10 @@ Use this reference to check the fields and document numbers returned by a conver
    - `is_paid` becomes `true`.
    - Visual watermark stamped: `PAID IN FULL`.
 
-4. **Invoice -> Official Receipt (`convert_document(target_type: "receipt")`):**
+4. **Invoice -> Receipt (`convert_document(target_type: "receipt")`):**
    - Prefix changes from `INV-` to `REC-`.
-   - Title updates to `OFFICIAL PAYMENT RECEIPT`.
-   - Shows zero balance due and payment settlement receipt footer.
+   - The returned document records the supplied payment details. It does not verify that money was received.
+   - This conversion records full payment of the document total. Confirm full payment first. For a partial payment, use `record_payment` with the cumulative `amount_paid`.
 
 5. **Invoice -> Credit Note (`convert_document(target_type: "credit_note")`):**
    - Prefix changes to `CRD-`.

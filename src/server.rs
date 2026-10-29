@@ -30,6 +30,7 @@ pub struct AppState {
     pub rate_limiter: RateLimiter,
     pub stripe_idempotency: crate::stripe::StripeIdempotencyStore,
     pub storage: Arc<crate::storage::Storage>,
+    pub downloads: crate::downloads::PdfDownloadCache,
 }
 
 impl AppState {
@@ -49,6 +50,7 @@ impl AppState {
 
         Self {
             base_url,
+            downloads: crate::downloads::PdfDownloadCache::default(),
             auth_mgr,
             rate_limiter: RateLimiter::new(max_req, window_secs),
             stripe_idempotency,
@@ -131,6 +133,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/.well-known/security.txt", get(handle_security_txt))
         // API v1
         .route("/api/v1/generate", post(handle_generate))
+        .route("/api/v1/downloads/:token", get(handle_pdf_download))
         .route("/api/v1/preview", post(handle_preview))
         .route("/api/v1/render-raw", post(handle_render_raw))
         .route("/api/v1/render-vector", post(handle_render_raw))
@@ -222,6 +225,36 @@ async fn handle_health() -> impl IntoResponse {
         "engine": "pressmark-vector-v1",
         "version": crate::mcp::MCP_SERVER_VERSION
     })))
+}
+
+async fn handle_pdf_download(
+    State(state): State<Arc<AppState>>,
+    Path(token): Path<String>,
+) -> Response {
+    let mut response = match state.downloads.get(&token) {
+        Some(pdf) => {
+            let length = pdf.bytes.len();
+            let mut response = (StatusCode::OK, pdf.bytes).into_response();
+            let headers = response.headers_mut();
+            headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/pdf"));
+            headers.insert(header::CONTENT_LENGTH, header::HeaderValue::from(length));
+            // The cache only emits ASCII letters, digits, hyphens, and underscores in filenames.
+            headers.insert(header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{}\"", pdf.filename).parse().expect("safe PDF filename"));
+            response
+        }
+        None => (StatusCode::NOT_FOUND,
+            "This download link is unavailable or has expired. Generate the PDF again.").into_response(),
+    };
+    let headers = response.headers_mut();
+    headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("private, no-store, max-age=0"));
+    headers.insert("cdn-cache-control", header::HeaderValue::from_static("no-store"));
+    headers.insert("cloudflare-cdn-cache-control", header::HeaderValue::from_static("no-store"));
+    headers.insert("x-robots-tag", header::HeaderValue::from_static("noindex, nofollow, noarchive"));
+    headers.insert("referrer-policy", header::HeaderValue::from_static("no-referrer"));
+    headers.insert("x-content-type-options", header::HeaderValue::from_static("nosniff"));
+    headers.insert(header::CONTENT_SECURITY_POLICY, header::HeaderValue::from_static("default-src 'none'; sandbox"));
+    response
 }
 
 async fn handle_ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -1167,7 +1200,7 @@ async fn handle_capabilities_txt() -> impl IntoResponse {
     (
         StatusCode::OK,
         [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        "name: Pressmark\nversion: 1.2.4\ncapabilities:\n  - vector_pdf_synthesis\n  - 57_document_archetypes\n  - 50_state_statutory_leases\n  - mcp_streamable_http\n  - png_preview_rendering\n  - zero_retention\nendpoints:\n  mcp: https://pressmark.dev/mcp\n  studio: https://pressmark.dev\n  openapi: https://pressmark.dev/openapi.json\n",
+        "name: Pressmark\ncapabilities:\n  - vector_pdf_synthesis\n  - 57_document_archetypes\n  - mcp_streamable_http\n  - png_preview_rendering\n  - temporary_pdf_downloads\nendpoints:\n  mcp: https://pressmark.dev/mcp\n  studio: https://pressmark.dev\n  openapi: https://pressmark.dev/openapi.json\nprivacy: https://pressmark.dev/privacy\n",
     )
 }
 
@@ -1194,8 +1227,7 @@ async fn handle_brick_blue_json() -> impl IntoResponse {
             "domain": "pressmark.dev",
             "agent_url": "https://pressmark.dev/mcp",
             "protocol": "mcp",
-            "version": env!("CARGO_PKG_VERSION"),
-            "verified": true
+            "version": env!("CARGO_PKG_VERSION")
         })),
     )
 }
@@ -1522,6 +1554,13 @@ async fn handle_mcp(
         is_paid_session,
         session_email,
     );
+    if resp.tool_succeeded()
+        && matches!(tool_name.as_deref(), Some("generate_document" | "convert_document" | "record_payment"))
+    {
+        if let Some(result) = resp.result.as_mut() {
+            attach_pdf_download(&state, result, doc_type.as_deref().unwrap_or("document"), &client_proto);
+        }
+    }
     let compile_ms = resp
         .result
         .as_ref()
@@ -1557,7 +1596,7 @@ async fn handle_mcp(
                         },
                         "protocolVersion": "2026-07-28",
                         "streamingSupported": true,
-                        "cacheTtlMs": 300_000
+                        "cacheTtlMs": if mcp_method == "tools/call" { 0 } else { 300_000 }
                     })
                 });
             }
@@ -1565,6 +1604,9 @@ async fn handle_mcp(
     }
 
     let mut resp_headers = HeaderMap::new();
+    if mcp_method == "tools/call" {
+        resp_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("private, no-store"));
+    }
     let negotiated_proto = resp
         .result
         .as_ref()
@@ -1592,6 +1634,46 @@ async fn handle_mcp(
     (StatusCode::OK, resp_headers, Json(resp)).into_response()
 }
 
+
+fn attach_pdf_download(state: &AppState, result: &mut serde_json::Value, fallback_type: &str, protocol: &str) {
+    use crate::downloads::{DownloadError, MAX_DOWNLOAD_BYTES};
+    let Some(encoded) = result.get("pdf_base64").and_then(|v| v.as_str()) else { return; };
+    let stored = if encoded.len() > ((MAX_DOWNLOAD_BYTES + 2) / 3) * 4 {
+        Err(DownloadError::TooLarge)
+    } else {
+        BASE64.decode(encoded).map_err(|_| DownloadError::InvalidPdf).and_then(|pdf| {
+            let doc = &result["document"];
+            let kind = doc.get("doc_type").and_then(|v| v.as_str()).unwrap_or(fallback_type);
+            let number = doc.get("doc_number").or_else(|| result.get("doc_number"))
+                .and_then(|v| v.as_str()).unwrap_or_default();
+            state.downloads.insert(pdf, kind, number, &state.base_url)
+        })
+    };
+    match stored {
+        Ok(link) => {
+            let message = format!("[Download PDF]({})\n\nThis link expires in 15 minutes and may stop working sooner if the service restarts. Anyone with the link can download the PDF while it is valid.", link.url);
+            let metadata = serde_json::to_value(&link).expect("serializable download metadata");
+            result["download"] = metadata.clone();
+            result["structuredContent"]["download"] = metadata;
+            if let Some(content) = result["content"].as_array_mut() {
+                content.insert(0, serde_json::json!({"type": "text", "text": message}));
+                if matches!(protocol, "2025-06-18" | "2025-11-25" | "2026-07-28") {
+                    content.push(serde_json::json!({
+                        "type": "resource_link", "uri": link.url, "name": link.filename,
+                        "mimeType": "application/pdf", "description": "Generated PDF. Download link expires in 15 minutes."
+                    }));
+                }
+            }
+        }
+        Err(error) => {
+            result["download_error"] = serde_json::json!(error.message());
+            result["structuredContent"]["download_error"] = serde_json::json!(error.message());
+            if let Some(content) = result["content"].as_array_mut() {
+                content.push(serde_json::json!({"type": "text", "text": error.message()}));
+            }
+        }
+    }
+}
 
 #[path = "server_lifecycle_and_tests.rs"]
 mod server_lifecycle_and_tests;

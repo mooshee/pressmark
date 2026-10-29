@@ -1413,7 +1413,7 @@ async fn test_pro_qa_all_defect_fixes_and_visual_verification() {
     assert!(hash1.chars().all(|c| c.is_ascii_hexdigit()));
     assert_ne!(hash1, hash2, "Different documents must produce different SHA-256 hashes");
     assert!(!hash1.starts_with("7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1f"));
-    assert!(deed_markup.contains(&hash1), "Markup must embed real SHA-256 digest");
+    assert!(!deed_markup.contains("\n#audit-slug("), "Documents must not add an internal audit footer by default");
 
     // Verify /api/v1/templates and /api/v1/states include "success": true
     let storage = Arc::new(Storage::new(":memory:").unwrap());

@@ -181,9 +181,9 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
 
     // 1. Paid in full attestation watermark stamp (if marked as paid, placed alongside Totals box for zero vertical collision)
     if req.is_paid_state() {
-        let method = req.payment_method.as_deref().unwrap_or("Stripe / Apple Pay");
-        let paid_date = req.paid_at.as_deref().unwrap_or(req.issue_date.as_deref().unwrap_or("2026-10-02"));
-        let tx_ref = req.transaction_reference.as_deref().unwrap_or("STRIPE-PAID-001");
+        let method = req.payment_method.as_deref().unwrap_or_default();
+        let paid_date = req.paid_at.as_deref().unwrap_or_default();
+        let tx_ref = req.transaction_reference.as_deref().unwrap_or_default();
         markup.push_str(&format!(
             "#v(4pt)\n#block(breakable: false, width: 100%)[\n  #grid(\n    columns: (1fr, auto),\n    gutter: 16pt,\n    align: (center + horizon, right + horizon),\n    [#paid-watermark-stamp(tx-ref: \"{}\", paid-date: \"{}\", method: \"{}\")],\n    [\n{}\n    ]\n  )\n]\n#v(4pt)\n\n",
             escape_typst_string_literal(tx_ref),
@@ -205,9 +205,9 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
         .filter(|s| !s.is_empty());
     if !req.is_paid_state()
         && req.doc_type.allows_payment_qr()
-        && (req.payment_qr_code == Some(true) || non_empty_payment_link.is_some())
+        && non_empty_payment_link.is_some()
     {
-        let raw_url = non_empty_payment_link.unwrap_or("https://buy.stripe.com/demo_checkout");
+        let raw_url = non_empty_payment_link.expect("payment link checked above");
         let payment_url = if raw_url.starts_with("https://")
             || raw_url.starts_with("http://")
             || raw_url.starts_with("mailto:")
@@ -226,7 +226,7 @@ fn render_totals_box(markup: &mut String, req: &DocumentRequest, primary_hex: &s
             None => "none".to_string(),
         };
         let payment_status = req.effective_payment_status();
-        let payment_method = req.payment_method.as_deref().unwrap_or("Stripe / Card / Apple Pay");
+        let payment_method = req.payment_method.as_deref().unwrap_or_default();
         let due_date_arg = match req.due_date.as_deref() {
             Some(d) => format!("\"{}\"", escape_typst_string_literal(d)),
             None => "none".to_string(),
@@ -300,15 +300,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         _ => ""
     };
 
-    let footer_text = if let Some(ref ft) = req.footer_text {
-        if !ft.trim().is_empty() {
-            escape_typst_text(ft)
-        } else {
-            "Pressmark Vector Engine · Certified Record".to_string()
-        }
-    } else {
-        "Pressmark Vector Engine · Certified Commercial Record".to_string()
-    };
+    let footer_text = req.footer_text.as_deref().map(escape_typst_text).unwrap_or_default();
 
     let page_numbers_snippet = if req.show_page_numbers.unwrap_or(true) {
         "align(right, text(size: 7.5pt, fill: rgb(\"#94a3b8\"))[\n        Page #counter(page).display() of #counter(page).final().first()\n      ])"
@@ -322,12 +314,12 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         ""
     };
 
-    let issue_date = req.issue_date.as_deref().unwrap_or("2026-10-01");
+    let issue_date = req.issue_date.as_deref().unwrap_or_default();
     let doc_num = req.effective_doc_number();
     let doc_title = req.effective_title();
 
     markup.push_str(&format!(
-        "#set page(\n  paper: \"{}\",\n  fill: rgb(\"{}\"),\n  margin: {},\n  header: context {{\n    if counter(page).get().first() > 1 [\n      #grid(\n        columns: (1fr, 1fr),\n        text(font: {}, size: 7.5pt, fill: rgb(\"#94a3b8\"), weight: \"bold\")[{} · OFFICIAL RECORD],\n        align(right, text(font: {}, size: 7.5pt, fill: rgb(\"#94a3b8\"), weight: \"bold\")[\n          REF: {} · DATE: {}\n        ])\n      )\n      #v(-4pt)\n      #line(length: 100%, stroke: 0.5pt + rgb(\"#e2e8f0\"))\n    ]\n  }},\n  footer: context [\n    {}#grid(\n      columns: (1fr, auto),\n      text(size: 7.5pt, fill: rgb(\"#94a3b8\"))[{}],\n      {}\n    )\n  ]{}\n)\n",
+        "#set page(\n  paper: \"{}\",\n  fill: rgb(\"{}\"),\n  margin: {},\n  header: context {{\n    if counter(page).get().first() > 1 [\n      #grid(\n        columns: (1fr, 1fr),\n        text(font: {}, size: 7.5pt, fill: rgb(\"#94a3b8\"), weight: \"bold\")[{}],\n        align(right, text(font: {}, size: 7.5pt, fill: rgb(\"#94a3b8\"), weight: \"bold\")[\n          REF: {} · DATE: {}\n        ])\n      )\n      #v(-4pt)\n      #line(length: 100%, stroke: 0.5pt + rgb(\"#e2e8f0\"))\n    ]\n  }},\n  footer: context [\n    {}#grid(\n      columns: (1fr, auto),\n      text(size: 7.5pt, fill: rgb(\"#94a3b8\"))[{}],\n      {}\n    )\n  ]{}\n)\n",
         paper_size,
         bg_fill,
         req.effective_margins(),
@@ -401,7 +393,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 | DocumentType::RealEstateDealAnalysis
         ) || req.doc_type.is_contract_or_lease())
     {
-        "OFFICIALLY ISSUED"
+        "PREPARED"
     } else if is_paid {
         "PAID / SETTLED"
     } else if req.effective_payment_status() == "partial" {
@@ -417,7 +409,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         let state_name = req
             .effective_state_profile()
             .map(|p| p.name)
-            .unwrap_or("Tennessee");
+            .unwrap_or_default();
         let county_name = req.effective_county();
         let custom_prepared_by = req
             .custom_fields
@@ -469,7 +461,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 l.contains("parcel") || l.contains("apn") || l.contains("pin") || l.contains("tax id")
             })
             .map(|cf| cf.value.as_str())
-            .unwrap_or(req.doc_number.as_deref().unwrap_or("APN-VERIFIED"));
+            .unwrap_or_default();
 
         markup.push_str(&format!(
             "#recording-header-block(\n  prepared-by: \"{}\",\n  return-to: \"{}\",\n  parcel-id: \"{}\",\n  state-name: \"{}\",\n  county-name: \"{}\"\n)\n#v(6pt)\n\n",
@@ -486,7 +478,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         escape_typst_string_literal(&req.effective_title()),
         subtitle_typst_arg,
         escape_typst_string_literal(&req.effective_doc_number()),
-        escape_typst_string_literal(&req.format_date(req.issue_date.as_deref().unwrap_or("2026-10-01"))),
+        escape_typst_string_literal(&req.format_date(req.issue_date.as_deref().unwrap_or_default())),
         due_date_typst_arg,
         logo_typst_arg,
         escape_typst_string_literal(company_name),
@@ -705,9 +697,9 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 _ => "CERTIFICATE OF RECOGNITION",
             };
             markup.push_str(&format!(
-                "  #text(size: 11pt, weight: \"bold\", fill: rgb(\"{}\"))[{}] \\\n  #v(8pt)\n  #text(size: 13pt, style: \"italic\", fill: color-slate-500)[This certifies that] \\\n  #v(10pt)\n  #text(size: 24pt, weight: \"bold\", fill: rgb(\"{}\"))[{}] \\\n  #v(10pt)\n  #text(size: 10.5pt, fill: color-slate-700)[\n{}\n]  #v(16pt)\n",
+                "  #text(size: 11pt, weight: \"bold\", fill: rgb(\"{}\"))[{}] \\\n  #v(8pt)\n  #text(size: 13pt, style: \"italic\", fill: color-slate-500)[Issued to] \\\n  #v(10pt)\n  #text(size: 24pt, weight: \"bold\", fill: rgb(\"{}\"))[{}] \\\n  #v(10pt)\n  #text(size: 10.5pt, fill: color-slate-700)[\n{}\n]  #v(16pt)\n",
                 primary_hex, cert_title, primary_hex, escape_typst_text(&req.to.name),
-                escape_typst_text(req.terms.as_deref().unwrap_or("Having fulfilled all criteria and professional requirements in full compliance with recognized standards."))
+                escape_typst_text(req.terms.as_deref().unwrap_or("Certificate details not supplied."))
             ));
             markup.push_str("]\n#v(14pt)\n");
         }
@@ -850,12 +842,17 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             let state_name = req
                 .effective_state_profile()
                 .map(|p| p.name)
-                .unwrap_or("Tennessee");
+                .unwrap_or_default();
             let premises_addr = req
                 .to
                 .address
                 .as_deref()
-                .unwrap_or("Premises Address on File");
+                .unwrap_or_default();
+            let service_field = |labels: &[&str]| {
+                req.custom_fields.iter()
+                    .find(|cf| labels.contains(&cf.label.trim().to_ascii_lowercase().as_str()))
+                    .map(|cf| cf.value.as_str()).unwrap_or_default()
+            };
             let service_method = req
                 .custom_fields
                 .iter()
@@ -873,15 +870,17 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                         "substitute"
                     } else if v.contains("mail") || v.contains("certified") {
                         "mail"
-                    } else {
+                    } else if v.contains("personal") || v.contains("hand") {
                         "personal"
+                    } else {
+                        ""
                     }
                 })
-                .unwrap_or("personal");
+                .unwrap_or_default();
             markup.push_str(&format!(
                 "#v(6pt)\n#certificate-of-service(\n  server-name: \"{}\",\n  service-date: \"{}\",\n  recipient-name: \"{}\",\n  premises-address: \"{}\",\n  state-name: \"{}\",\n  service-method: \"{}\"\n)\n#v(4pt)\n",
-                escape_typst_string_literal(&req.from.name),
-                escape_typst_string_literal(req.issue_date.as_deref().unwrap_or("2026-10-01")),
+                escape_typst_string_literal(service_field(&["server name", "served by"])),
+                escape_typst_string_literal(service_field(&["service date", "date of service", "served on"])),
                 escape_typst_string_literal(&req.to.name),
                 escape_typst_string_literal(&premises_addr.replace('\n', ", ")),
                 escape_typst_string_literal(state_name),
@@ -942,9 +941,9 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::TenantEstoppel => {
             if !req.items.is_empty() {
-                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Certified Lease Financial & Deposit Summary]]\n");
+                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Lease Financial & Deposit Summary]]\n");
                 markup.push_str(&format!(
-                    "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Certified Lease Financial Component*], [*Verified Amount*]),\n",
+                    "#table(\n  columns: (1fr, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col == 0 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*Lease Financial Component*], [*Supplied Amount*]),\n",
                     secondary_hex, secondary_hex, surface_hex
                 ));
                 for item in &req.items {
@@ -955,7 +954,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     ));
                 }
                 markup.push_str(")\n#v(4pt)\n");
-                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Total Certified Monthly & Deposit Exposure:");
+                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Total Monthly & Deposit Amount:");
             }
             if let Some(ref terms) = req.terms {
                 if !terms.is_empty() {
@@ -1020,7 +1019,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         }
         DocumentType::TenantRentLedger => {
             if !req.items.is_empty() {
-                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Chronological Certified Tenant Rent, Fee & Payment Ledger]]\n");
+                markup.push_str("#block(sticky: true, above: 8pt, below: 4pt)[#text(size: 10pt, weight: \"bold\", fill: color-slate-900)[Tenant Rent, Fee & Payment Ledger]]\n");
                 markup.push_str(&format!(
                     "#table(\n  columns: (auto, 1fr, auto, auto),\n  stroke: 0.5pt + rgb(\"{}\").lighten(65%),\n  fill: (col, row) => if row == 0 {{ rgb(\"{}\").lighten(90%) }} else if calc.even(row) {{ rgb(\"{}\") }} else {{ white }},\n  inset: (x: 8pt, y: 7pt),\n  align: (col, row) => if col <= 1 {{ left + horizon }} else {{ right + horizon }},\n  table.header([*\\#*], [*Date & Transaction Description*], [*Entry Amount*], [*Running Balance*]),\n",
                     secondary_hex, secondary_hex, surface_hex
@@ -1038,7 +1037,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     ));
                 }
                 markup.push_str(")\n#v(4pt)\n");
-                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Certified Ending Ledger Balance Due:");
+                render_totals_box(&mut markup, req, &primary_hex, &accent_hex, &surface_hex, "Ending Ledger Balance Due:");
             }
             if let Some(ref terms) = req.terms {
                 if !terms.is_empty() {
@@ -1061,7 +1060,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 kpi_tuples.push((
                     "NET TOTAL / NOI".to_string(),
                     req.format_amount(req.grand_total()),
-                    "Verified Schedule".to_string(),
+                    "Calculated from supplied line items".to_string(),
                 ));
                 kpi_tuples.push((
                     "LINE ITEMS".to_string(),
@@ -1442,7 +1441,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                 if let Some(yb) = req.effective_year_built() {
                     if yb < 1978 {
                         disclosures_vec.push(format!(
-                            "*Federal Pre-1978 Lead-Based Paint Disclosure (42 U.S.C. § 4852d · Constructed {}):* Housing built before 1978 may contain lead-based paint. Landlord discloses `[X]` No known lead-based paint hazards OR `[ ]` Known hazards attached; Tenant acknowledges receipt of EPA pamphlet *Protect Your Family From Lead in Your Home*.",
+                            "*Federal Pre-1978 Lead-Based Paint Disclosure (42 U.S.C. § 4852d · Constructed {}):* Housing built before 1978 may contain lead-based paint. Landlord disclosure: `[ ]` No known lead-based paint hazards OR `[ ]` Known hazards attached. Tenant receipt of EPA pamphlet *Protect Your Family From Lead in Your Home*: `[ ]` Confirmed. Complete these fields from the actual disclosure and receipt.",
                             yb
                         ));
                     }
@@ -1456,9 +1455,9 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                             l.contains("escrow") || l.contains("bank") || l.contains("depository")
                         })
                         .map(|cf| cf.value.as_str())
-                        .unwrap_or("Segregated Statutory Escrow Account at FDIC-Insured Depository (See Schedule)");
+                        .unwrap_or("Not supplied");
                     disclosures_vec.push(format!(
-                        "*Mandatory Escrow Bank Depository Disclosure ({}):* Security deposit funds are held at: *{}*.",
+                        "*Escrow Bank Depository Disclosure ({}):* Depository details supplied by the preparer: *{}*.",
                         escape_typst_text(state_profile.governing_statute),
                         escape_typst_text(bank_info)
                     ));
@@ -1467,10 +1466,10 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     disclosures_vec.push("*Statutory Radon Gas Warning:* Radon is a naturally occurring radioactive gas that, when accumulated in a building in sufficient quantities, may present health risks (lung cancer) to persons exposed over time.".to_string());
                 }
                 if state_profile.requires_mold_disclosure {
-                    disclosures_vec.push("*Statutory Mold & Moisture Prevention Disclosure:* Landlord has inspected the Premises and knows of no damp or wet building materials or visible mold contamination; Tenant agrees to maintain ventilation and report water leaks immediately.".to_string());
+                    disclosures_vec.push("*Mold & Moisture Disclosure:* Inspection date, known moisture conditions, and visible mold findings: Not supplied. Complete the property-specific disclosure before use.".to_string());
                 }
                 if state_profile.requires_bed_bug_disclosure {
-                    disclosures_vec.push("*Statutory Bed Bug Infestation History & Educational Notice:* Landlord certifies the Premises and adjacent units are free of known active bed bug infestation; Tenant agrees to inspect personal furnishings prior to move-in.".to_string());
+                    disclosures_vec.push("*Bed Bug Infestation History & Educational Notice:* Known infestation history and related treatment details: Not supplied. Complete the property-specific disclosure before use.".to_string());
                 }
                 if state_profile.requires_flood_disclosure {
                     disclosures_vec.push("*Statutory Flood Zone & Prior Flooding History Disclosure:* Landlord discloses whether the Premises is located in a FEMA Special Flood Hazard Area (100-year floodplain) or has experienced prior flooding damage; standard renter's insurance does not cover flood loss.".to_string());
@@ -1528,7 +1527,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
 
     // Remittance Stub if enabled
     if req.show_remittance_stub.unwrap_or(false) {
-        let remittance_due_date = req.due_date.as_deref().unwrap_or("2026-10-15");
+        let remittance_due_date = req.due_date.as_deref().unwrap_or_default();
         markup.push_str(&format!(
             "#remittance-stub(\n  doc-number: \"{}\",\n  client-name: \"{}\",\n  amount-due: \"{}\",\n  due-date: \"{}\",\n  issuer-name: \"{}\"\n)\n\n",
             escape_typst_string_literal(&req.effective_doc_number()),
@@ -1585,7 +1584,7 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
                     Some(ref p) => format!("\"{}\"", escape_typst_string_literal(p)),
                     None => "none".to_string(),
                 };
-                let date_str = sig.date.as_deref().unwrap_or(req.issue_date.as_deref().unwrap_or("2026-10-01"));
+                let date_str = sig.date.as_deref().unwrap_or_default();
                 let formatted_date = req.format_date(date_str);
                 let title_str = sig.signer_title.as_deref().unwrap_or("Authorized Signatory");
 
@@ -1613,9 +1612,9 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         };
         let signatures = req.effective_signatures();
         let first_sig = signatures.first();
-        let signer_name = first_sig.map(|s| s.signer_name.as_str()).unwrap_or(req.from.name.as_str());
+        let signer_name = first_sig.map(|s| s.signer_name.as_str()).unwrap_or_default();
         let signer_title = first_sig.and_then(|s| s.signer_title.as_deref()).unwrap_or("Authorized Signatory");
-        let date_str = first_sig.and_then(|s| s.date.as_deref()).unwrap_or(req.issue_date.as_deref().unwrap_or("2026-10-01"));
+        let date_str = first_sig.and_then(|s| s.date.as_deref()).unwrap_or_default();
         let sig_img = first_sig.and_then(|s| s.signature_data.as_deref())
             .and_then(|data| stage_image_asset("jurat_sig", data));
         let sig_img_str = match sig_img {
@@ -1624,14 +1623,14 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
         };
         let include_clerk = req.include_clerk_stamp.unwrap_or(false);
         let state_profile = req.effective_state_profile();
-        let state_name = state_profile.map(|p| p.name).unwrap_or("Tennessee");
+        let state_name = state_profile.map(|p| p.name).unwrap_or_default();
         let county_name = req.effective_county();
         let ron_citation = state_profile
             .map(|p| p.notary_ron_statute)
-            .unwrap_or("T.C.A. § 8-16-301 et seq.");
+            .unwrap_or_default();
 
         markup.push_str(&format!(
-            "\n#v(8pt)\n#jurat-box(\n  signature-type: \"{}\",\n  notary-required: {},\n  signer-name: \"{}\",\n  signer-title: \"{}\",\n  signature-img: {},\n  execution-date: \"{}\",\n  esign-audit-id: \"PRESSMARK-ESIGN-8492-7A1B\",\n  esign-timestamp: \"2026-10-01T02:00:00Z\",\n  esign-ip: \"192.0.2.14\",\n  ron-statute-citation: \"{}\",\n  ron-session-id: \"RON-SESSION-2026-9941\",\n  include-clerk-stamp: {},\n  state: \"{}\",\n  county: \"{}\"\n)\n",
+            "\n#v(8pt)\n#jurat-box(\n  signature-type: \"{}\",\n  notary-required: {},\n  signer-name: \"{}\",\n  signer-title: \"{}\",\n  signature-img: {},\n  execution-date: \"{}\",\n  ron-statute-citation: \"{}\",\n  include-clerk-stamp: {},\n  state: \"{}\",\n  county: \"{}\"\n)\n",
             escape_typst_string_literal(em),
             notary_req,
             escape_typst_string_literal(signer_name),
@@ -1682,16 +1681,6 @@ pub fn generate_typst_markup(req: &DocumentRequest) -> String {
             }
         }
     }
-
-    // 11. Tamper-Evident Cryptographic Audit Slug (real SHA-256 hex digest)
-    let audit_hash = req.compute_audit_sha256();
-    let issue_date = req.issue_date.as_deref().unwrap_or("2026-10-01");
-    markup.push_str(&format!(
-        "\n#v(4pt)\n#audit-slug(parcel-id: \"{}\", hash: \"{}\", engine-version: \"Pressmark Vector Engine v1.0.0\", timestamp: \"{}T00:00:00Z\")\n",
-        escape_typst_string_literal(&req.effective_doc_number()),
-        escape_typst_string_literal(&audit_hash),
-        escape_typst_string_literal(issue_date)
-    ));
 
     markup
 }
