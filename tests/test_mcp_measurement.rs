@@ -151,7 +151,68 @@ async fn http_tool_results_distinguish_success_failure_and_protocol_discovery() 
     assert_eq!(summary["mcp_measurement"]["by_actor"]["internal_probe"]["attempts"], 3);
     assert_eq!(summary["mcp_measurement"]["by_tool"]["get_pricing"]["success"], 1);
     assert_eq!(summary["mcp_measurement"]["by_tool"]["generate_document"]["failure"], 1);
+    assert_eq!(summary["mcp_measurement"]["failure_breakdown"], json!({"unknown_tool": 1, "invalid_arguments": 1, "execution_error": 0, "unclassified": 0}));
     assert_eq!(summary["events_by_type"]["mcp_protocol"], 1);
     assert_eq!(summary["mcp_measurement"]["attempt_write_failures_since_process_start"], 0);
     assert_eq!(summary["mcp_measurement"]["outcome_write_failures_since_process_start"], 0);
+}
+
+#[test]
+fn failure_reasons_preserve_rejections_execution_errors_and_unknowns() {
+    let storage = Storage::new(":memory:").unwrap();
+    for error_code in [Some(-32601), Some(-32602), Some(-32602), Some(-32000), Some(-32603), Some(-32099), None] {
+        let attempt = storage.begin_mcp_tool_attempt(None, "Pressmark-Measurement-QA/1.0", Some("generate_document")).unwrap();
+        storage.finish_mcp_tool_attempt(attempt, false, error_code, None);
+    }
+    let success = storage.begin_mcp_tool_attempt(None, "Pressmark-Measurement-QA/1.0", Some("generate_document")).unwrap();
+    storage.finish_mcp_tool_attempt(success, true, None, None);
+    storage.begin_mcp_tool_attempt(None, "Pressmark-Measurement-QA/1.0", Some("get_pricing"));
+    storage.record_usage_event("mcp_tool_call", None, "curl/8.0", Some("get_pricing"), None);
+
+    let summary = storage.analytics_summary();
+    assert_eq!(summary["mcp_measurement"]["failure_breakdown"], json!({"unknown_tool": 1, "invalid_arguments": 2, "execution_error": 2, "unclassified": 2}));
+    assert_eq!(summary["mcp_measurement"]["outcomes"], json!({"success": 1, "failure": 7, "pending": 1, "unknown": 1}));
+    assert_eq!(summary["mcp_measurement"]["by_tool"]["generate_document"]["attempts"], 8);
+    assert_eq!(summary["mcp_measurement"]["by_actor"]["internal_probe"]["attempts"], 9);
+    assert_eq!(summary["mcp_measurement"]["attempts"], 10);
+}
+
+#[test]
+fn legacy_checkout_events_do_not_establish_explicit_checkout_starts() {
+    use pressmark::storage::CheckoutStart;
+    let storage = Storage::new(":memory:").unwrap();
+    storage.record_usage_event("checkout_init", None, "stripe_probe", Some("plan_solo"), None);
+    let legacy = storage.analytics_summary();
+    assert_eq!(legacy["checkout_measurement"]["query_complete"], true);
+    assert_eq!(legacy["checkout_measurement"]["recorded_starts"], 0);
+    assert_eq!(legacy["checkout_measurement"]["initialization_events"], 1);
+
+    assert_eq!(storage.record_checkout_start("fixture-key", "same-payload", "plan_solo", "stripe_probe").unwrap(), CheckoutStart::Created);
+    assert_eq!(storage.record_checkout_start("fixture-key", "same-payload", "plan_solo", "stripe_probe").unwrap(), CheckoutStart::Replayed);
+    assert_eq!(storage.record_checkout_start("fixture-key", "different-payload", "plan_solo", "stripe_probe").unwrap(), CheckoutStart::Conflict);
+    let current = storage.analytics_summary();
+    assert_eq!(current["checkout_measurement"]["recorded_starts"], 1);
+    assert_eq!(current["checkout_measurement"]["initialization_events"], 2);
+    assert_eq!(current["events_by_type"]["checkout_init"], 2);
+    assert_eq!(current["paid_entitlements_count"], 0);
+}
+
+#[test]
+fn unavailable_measurements_are_null_instead_of_zero() {
+    let path = std::env::temp_dir().join(format!("pressmark-diagnostics-{}.db", uuid::Uuid::new_v4()));
+    let storage = Storage::new(&path).unwrap();
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute_batch("DROP TABLE checkout_starts;").unwrap();
+    let missing_checkouts = storage.analytics_summary();
+    assert_eq!(missing_checkouts["checkout_measurement"]["query_complete"], false);
+    assert!(missing_checkouts["checkout_measurement"]["recorded_starts"].is_null());
+    assert!(missing_checkouts["checkout_measurement"]["initialization_events"].is_null());
+
+    conn.execute_batch("DROP TABLE usage_events;").unwrap();
+    let missing_events = storage.analytics_summary();
+    assert_eq!(missing_events["mcp_measurement"]["query_complete"], false);
+    assert!(missing_events["mcp_measurement"]["failure_breakdown"].is_null());
+    drop(conn);
+    drop(storage);
+    std::fs::remove_file(path).unwrap();
 }

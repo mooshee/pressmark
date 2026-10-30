@@ -803,23 +803,33 @@ impl Storage {
         }
 
         let mut mcp_outcomes = serde_json::json!({"success": 0, "failure": 0, "pending": 0, "unknown": 0});
+        let mut mcp_failure_breakdown = serde_json::json!({"unknown_tool": 0, "invalid_arguments": 0, "execution_error": 0, "unclassified": 0});
         let mut mcp_by_tool = serde_json::Map::new();
         let mut mcp_by_actor = serde_json::Map::new();
         let mut mcp_attempts = 0_i64;
         let mut mcp_query_ok = false;
         if let Ok(mut stmt) = lock.prepare_cached(
-            "SELECT COALESCE(detail, '(unnamed)'), channel, COALESCE(outcome, 'unknown'), count(*) FROM usage_events WHERE event_type = 'mcp_tool_call' GROUP BY detail, channel, outcome;",
+            "SELECT COALESCE(detail, '(unnamed)'), channel, COALESCE(outcome, 'unknown'), error_code, count(*) FROM usage_events WHERE event_type = 'mcp_tool_call' GROUP BY detail, channel, outcome, error_code;",
         ) {
             if let Ok(mut rows) = stmt.query([]) {
                 mcp_query_ok = true;
                 loop {
                     match rows.next() {
                         Ok(Some(row)) => {
-                            let values = (row.get::<_, String>(0), row.get::<_, String>(1), row.get::<_, String>(2), row.get::<_, i64>(3));
-                            let (Ok(tool), Ok(channel), Ok(raw_outcome), Ok(count)) = values else { mcp_query_ok = false; break; };
+                            let values = (row.get::<_, String>(0), row.get::<_, String>(1), row.get::<_, String>(2), row.get::<_, Option<i64>>(3), row.get::<_, i64>(4));
+                            let (Ok(tool), Ok(channel), Ok(raw_outcome), Ok(error_code), Ok(count)) = values else { mcp_query_ok = false; break; };
                             let outcome = match raw_outcome.as_str() { "success" => "success", "failure" => "failure", "pending" => "pending", _ => "unknown" };
                             mcp_attempts += count;
                             mcp_outcomes[outcome] = serde_json::json!(mcp_outcomes[outcome].as_i64().unwrap_or(0) + count);
+                            if outcome == "failure" {
+                                let reason = match error_code {
+                                    Some(-32601) => "unknown_tool",
+                                    Some(-32602) => "invalid_arguments",
+                                    Some(-32000 | -32603) => "execution_error",
+                                    _ => "unclassified",
+                                };
+                                mcp_failure_breakdown[reason] = serde_json::json!(mcp_failure_breakdown[reason].as_i64().unwrap_or(0) + count);
+                            }
                             let tool = if tool == "unnamed_tool" || tool == "(unnamed)" { "unnamed_tool".to_string() } else { crate::mcp::McpHandler::measurement_tool_name(Some(&tool)) };
                             for (map, key) in [(&mut mcp_by_tool, tool), (&mut mcp_by_actor, Self::classify_usage_actor(&channel, None).to_string())] {
                                 let entry = map.entry(key).or_insert_with(|| serde_json::json!({"attempts": 0, "success": 0, "failure": 0, "pending": 0, "unknown": 0}));
@@ -850,6 +860,13 @@ impl Storage {
             )
             .and_then(|mut s| s.query_row([], |r| r.get(0)))
             .unwrap_or(0.0);
+
+        let checkout_counts: Option<(i64, i64)> = lock
+            .prepare_cached(
+                "SELECT (SELECT count(*) FROM checkout_starts), (SELECT count(*) FROM usage_events WHERE event_type = 'checkout_init');",
+            )
+            .and_then(|mut statement| statement.query_row([], |row| Ok((row.get(0)?, row.get(1)?))))
+            .ok();
 
         let (sessions_count, stripe_events_count, entitlements_count, paid_entitlements_count) = {
             let s: i64 = lock
@@ -903,11 +920,18 @@ impl Storage {
                 "outcomes_started_at": outcomes_started_at,
                 "attempts": if mcp_query_ok { serde_json::json!(mcp_attempts) } else { serde_json::Value::Null },
                 "outcomes": if mcp_query_ok { mcp_outcomes } else { serde_json::Value::Null },
+                "failure_breakdown": if mcp_query_ok { mcp_failure_breakdown } else { serde_json::Value::Null },
                 "by_tool": if mcp_query_ok { serde_json::json!(mcp_by_tool) } else { serde_json::Value::Null },
                 "by_actor": if mcp_query_ok { serde_json::json!(mcp_by_actor) } else { serde_json::Value::Null },
                 "attempt_write_failures_since_process_start": self.mcp_attempt_write_failures.load(Ordering::Relaxed),
                 "outcome_write_failures_since_process_start": self.mcp_outcome_write_failures.load(Ordering::Relaxed),
-                "definitions": "Attempts are parsed tools/call requests reaching the handler. Success is a tool result without a JSON-RPC or tool error. Pending means completion was not recorded. Historical outcomes are unknown. Protocol discovery and malformed HTTP/JSON requests are excluded. Counts do not establish users, customers, payment or delivery."
+                "definitions": "Attempts are parsed tools/call requests reaching the handler. Success is a tool result without a JSON-RPC or tool error. Pending means completion was not recorded. Historical outcomes are unknown. Failure reasons use recorded error codes: unknown_tool (-32601), invalid_arguments (-32602), execution_error (-32000 or -32603), otherwise unclassified. Rejected requests are not execution errors. Protocol discovery and malformed HTTP/JSON requests are excluded. Counts do not establish users, customers, payment or delivery."
+            },
+            "checkout_measurement": {
+                "query_complete": checkout_counts.is_some(),
+                "recorded_starts": checkout_counts.map(|counts| counts.0),
+                "initialization_events": checkout_counts.map(|counts| counts.1),
+                "definitions": "Recorded starts count deduplicated explicit checkout actions in checkout_starts. Initialization events count retained checkout_init events, including older automatic requests and probes; they do not establish explicit starts. Recorded starts include test actions and are not unique people, completed purchases or payments. The start table and retained event table have different retention scopes."
             },
             "events_by_type": by_type,
             "top_archetypes": by_archetype,
