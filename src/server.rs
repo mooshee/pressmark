@@ -177,13 +177,24 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/.well-known/ai-catalog.json", get(handle_agent_card))
         .route("/mcp/.well-known/agent.json", get(handle_agent_card))
         .route("/mcp/.well-known/agent-card.json", get(handle_agent_card))
+        .route("/api/v1/mcp/.well-known/agent.json", get(handle_agent_card))
+        .route("/api/v1/mcp/.well-known/agent-card.json", get(handle_agent_card))
+        .route("/mcp/server-card", get(handle_mcp_server_card))
+        .route("/mcp/server-card.json", get(handle_mcp_server_card))
+        .route("/api/v1/mcp/server-card", get(handle_mcp_server_card))
+        .route("/api/v1/mcp/server-card.json", get(handle_mcp_server_card))
         .route("/.well-known/capabilities.txt", get(handle_capabilities_txt))
         .route("/.well-known/did.json", get(handle_did_json))
         .route("/.well-known/brick-blue.json", get(handle_brick_blue_json))
         .route("/discovery/resources", get(handle_discovery_resources))
         .route("/.well-known/x402", get(handle_x402_discovery))
         .route("/.well-known/x402.json", get(handle_x402_discovery))
-        .route("/a2a", get(handle_agent_card).post(handle_mcp))
+        .route("/a2a", get(handle_agent_card).post(handle_a2a_post))
+        .route("/a2a/", get(handle_agent_card).post(handle_a2a_post))
+        .route("/api/v1/mcp/a2a", get(handle_agent_card).post(handle_a2a_post))
+        .route("/api/v1/mcp/a2a/", get(handle_agent_card).post(handle_a2a_post))
+        .route("/v1/message:send", post(handle_a2a_post))
+        .route("/api/v1/mcp/v1/message:send", post(handle_a2a_post))
         // Universal Authentication
         .route("/api/v1/auth/session", get(handle_chatgpt_session))
         .route("/api/v1/auth/guest", post(handle_guest_login))
@@ -206,6 +217,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/mcp/sse", get(handle_mcp_get).post(handle_mcp))
         .route("/sse", get(handle_mcp_get).post(handle_mcp))
         .route("/api/v1/mcp", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
+        .route("/api/v1/mcp/", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
+        .route("/api/v1/mcp/mcp", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
+        .route("/api/v1/mcp/sse", get(handle_mcp_get).post(handle_mcp))
         .route("/api/v1/mcp/tools.json", get(handle_mcp_tools))
         // Static assets
         .nest_service("/static", ServeDir::new("static"))
@@ -1185,6 +1199,26 @@ async fn handle_agent_card() -> impl IntoResponse {
             ]
         })),
     )
+}
+
+async fn handle_a2a_post(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Response {
+    if let Ok(req) = serde_json::from_slice::<JsonRpcRequest>(&body) {
+        return handle_mcp(State(state), headers, Json(req)).await;
+    }
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "ok",
+            "agent": "io.github.mooshee/pressmark",
+            "version": env!("CARGO_PKG_VERSION"),
+            "message": "Pressmark vector document engine is active and ready for MCP tool invocations."
+        })),
+    )
+        .into_response()
 }
 
 async fn handle_mcp_delete() -> impl IntoResponse {

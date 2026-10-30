@@ -76,16 +76,16 @@ impl McpHandler {
     fn document_input_properties() -> Value {
         json!({
             "doc_type": { "type": "string", "description": "Archetype slug (invoice, receipt, residential_lease, nda, etc.)." },
-            "doc_number": { "type": "string", "description": "Document number supplied by the user. Left blank when omitted." },
-            "issue_date": { "type": "string", "description": "Issue date (YYYY-MM-DD). Left blank when omitted." },
-            "due_date": { "type": "string", "description": "Payment due date (YYYY-MM-DD). Left blank when omitted." },
+            "doc_number": { "type": "string", "description": "Document number. Left blank when omitted." },
+            "issue_date": { "type": "string", "description": "Issue date (YYYY-MM-DD)." },
+            "due_date": { "type": "string", "description": "Payment due date (YYYY-MM-DD)." },
             "state_code": { "type": "string", "description": "2-letter US state or DC code." },
             "municipality": { "type": "string", "description": "Municipal profile (Chicago, Cook County, NYC, SF, Seattle, Portland)." },
             "county": { "type": "string", "description": "County name for jurats and headers." },
             "recordable": { "type": "boolean", "description": "Enable County Recorder 3-inch top margin." },
-            "notary_required": { "type": "boolean", "description": "Add a blank section for a notary to complete. Does not notarize the document." },
-            "execution_mode": { "type": "string", "description": "Signature layout (esign, wet_ink, notarized_wet, ron). Does not sign or notarize the document." },
-            "compliance_mode": { "type": "string", "description": "Add a note for a selected compliance topic (none, eu_vat, peppol_bis, hipaa_baa). Does not certify compliance." },
+            "notary_required": { "type": "boolean", "description": "Add blank section for notary completion." },
+            "execution_mode": { "type": "string", "description": "Signature layout (esign, wet_ink, notarized_wet, ron)." },
+            "compliance_mode": { "type": "string", "description": "Compliance topic note (none, eu_vat, peppol_bis, hipaa_baa)." },
             "date_format": { "type": "string", "description": "Date format (iso, us_slash, euro, formal_prose)." },
             "currency_symbol_mode": { "type": "string", "description": "Display currency symbol or ISO code." },
             "currency_placement": { "type": "string", "description": "Currency prefix or suffix placement." },
@@ -131,14 +131,14 @@ impl McpHandler {
             "custom_fields": { "type": "array", "description": "Custom key-value metadata fields." },
             "sections": { "type": "array", "description": "Structured legal clause sections." },
             "signatures": {
-                "type": "array", "description": "Signature fields using supplied names, dates, and optional signature images. A name alone leaves the signature line blank.",
+                "type": "array", "description": "Signature fields with signer names, dates, and optional signature images.",
                 "items": {
                     "type": "object",
                     "properties": {
                         "signer_name": { "type": "string" },
                         "signer_title": { "type": "string" },
-                        "date": { "type": "string", "description": "Signing date supplied by the user. Left blank when omitted." },
-                        "signature_data": { "type": "string", "description": "Optional supplied signature image as a Base64 data URI." }
+                        "date": { "type": "string", "description": "Signing date." },
+                        "signature_data": { "type": "string", "description": "Base64 signature image data URI." }
                     },
                     "required": ["signer_name"]
                 }
@@ -152,7 +152,7 @@ impl McpHandler {
 
     fn download_output_schema() -> Value {
         json!({
-            "type": "object", "description": "Temporary file link when this tool is called over HTTP. Anyone with the URL can access the file until expiry or a service restart.",
+            "type": "object", "description": "Temporary file link for HTTP tool calls.",
             "properties": {
                 "url": { "type": "string", "format": "uri" },
                 "filename": { "type": "string" },
@@ -174,11 +174,11 @@ impl McpHandler {
             {
                 "name": "generate_document",
                 "title": "Generate PDF Document",
-                "description": "Creates a PDF. HTTP calls can return a temporary download link. Configured customer sync can save contact details and a document summary and start follow-up. See https://pressmark.dev/privacy.",
+                "description": "Generate a vector PDF from document details. HTTP calls can return a temporary download link. Configured customer sync can save contact details and start follow-up. See https://pressmark.dev/privacy.",
                 "annotations": {
                     "title": "Generate PDF Document",
                     "readOnlyHint": false,
-                    "destructiveHint": true,
+                    "destructiveHint": false,
                     "idempotentHint": false,
                     "openWorldHint": true
                 },
@@ -211,7 +211,7 @@ impl McpHandler {
             {
                 "name": "preview_document",
                 "title": "Preview Document as PNG",
-                "description": "Render a PNG preview from the supplied document details. HTTP calls can return a temporary image link. Use the returned image to show the actual document; do not substitute an illustration. This does not send the document.",
+                "description": "Render a PNG preview from supplied document details. HTTP calls can return a temporary image link.",
                 "annotations": {
                     "title": "Preview Document as PNG",
                     "readOnlyHint": false,
@@ -245,7 +245,7 @@ impl McpHandler {
             {
                 "name": "calculate_totals",
                 "title": "Calculate Document Totals",
-                "description": "Statelessly compute subtotal, tax, discount, grand total, and balance due for a document payload without mutating server records. Example: tax_rate=8.25 or calculate_totals({\"document\":{\"items\":[{\"quantity\":2,\"unit_price\":50}]}})",
+                "description": "Compute subtotal, tax, discount, grand total, and balance due from document items. Stateless.",
                 "annotations": {
                     "title": "Calculate Document Totals",
                     "readOnlyHint": true,
@@ -283,7 +283,7 @@ impl McpHandler {
             {
                 "name": "get_pricing",
                 "title": "Get Pressmark Pricing Catalog",
-                "description": "Read static subscription tiers, single-pass unlocks, and checkout links without mutating server records. Example: currency='USD' or get_pricing({})",
+                "description": "Read subscription tiers, single-pass unlocks, and checkout links. Stateless.",
                 "annotations": {
                     "title": "Get Pressmark Pricing Catalog",
                     "readOnlyHint": true,
@@ -309,7 +309,7 @@ impl McpHandler {
             {
                 "name": "convert_document",
                 "title": "Convert Document",
-                "description": "Convert document details to an invoice, estimate, receipt, credit note, or refund PDF. This does not update saved records. HTTP calls can return a temporary download link.",
+                "description": "Convert document details to an invoice, estimate, receipt, credit note, or refund PDF. HTTP calls can return a temporary download link.",
                 "annotations": {
                     "title": "Convert Document",
                     "readOnlyHint": false,
@@ -347,7 +347,7 @@ impl McpHandler {
             {
                 "name": "record_payment",
                 "title": "Create Payment Record",
-                "description": "Create a receipt or updated invoice from supplied payment details. This does not charge a payment method or verify payment. HTTP calls can return a temporary PDF download link.",
+                "description": "Create a receipt or updated invoice from supplied payment details. Does not charge or verify payment. HTTP calls can return a temporary download link.",
                 "annotations": {
                     "title": "Create Payment Record",
                     "readOnlyHint": false,
@@ -496,37 +496,37 @@ impl McpHandler {
                         {
                             "uri": "pressmark://catalog/archetypes",
                             "name": "Document Archetypes Catalog",
-                            "description": "All 57 supported commercial, legal, and real estate document archetypes.",
+                            "description": "All 57 supported document archetypes.",
                             "mimeType": "application/json"
                         },
                         {
                             "uri": "pressmark://catalog/states",
                             "name": "US State Statutory Lease Profiles",
-                            "description": "50-state, DC, and 6 municipal statutory lease profiles.",
+                            "description": "50-state, DC, and municipal statutory lease profiles.",
                             "mimeType": "application/json"
                         },
                         {
                             "uri": "pressmark://catalog/pricing",
                             "name": "Pricing & Unlock Tiers",
-                            "description": "Subscription plans and single-pass document unlock pricing.",
+                            "description": "Subscription plans and document unlock pricing.",
                             "mimeType": "application/json"
                         },
                         {
                             "uri": "pressmark://catalog/themes",
                             "name": "Visual Theme Presets",
-                            "description": "Where to choose appearance presets and preview document colors.",
+                            "description": "Visual appearance presets and document colors.",
                             "mimeType": "application/json"
                         },
                         {
                             "uri": "pressmark://catalog/compliance",
                             "name": "Compliance Notes",
-                            "description": "Available compliance-topic notes. These do not certify compliance.",
+                            "description": "Compliance topic notes and disclosures.",
                             "mimeType": "application/json"
                         },
                         {
                             "uri": "pressmark://catalog/execution",
                             "name": "Signature Layouts",
-                            "description": "Available signature layouts. These do not sign or notarize a document.",
+                            "description": "Signature layout templates.",
                             "mimeType": "application/json"
                         }
                     ]

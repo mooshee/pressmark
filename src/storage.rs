@@ -562,6 +562,20 @@ impl Storage {
             "7maps",
             "spanly",
             "mcp-cloud",
+            "pryno",
+            "mcpcentral",
+            "agentservicedirectory",
+            "ariesview",
+            "agentalmanac",
+            "kell-tool-router",
+            "lowdown-scanner",
+            "mcpmon",
+            "mcp-discovery-measurement",
+            "whoelse-probe",
+            "sarnai",
+            "telosnex",
+            "stack-install-probe",
+            "tacuri",
         ];
         BOT_MARKERS.iter().any(|m| lower.contains(m))
     }
