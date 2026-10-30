@@ -157,12 +157,15 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/.well-known/glama.json", get(handle_glama_json))
         .route("/.well-known/oauth-protected-resource", get(handle_oauth_protected_resource))
         .route("/.well-known/oauth-protected-resource/mcp", get(handle_oauth_protected_resource))
+        .route("/.well-known/oauth-protected-resource/api/v1/mcp", get(handle_oauth_protected_resource))
         .route("/mcp/.well-known/oauth-protected-resource", get(handle_oauth_protected_resource))
         .route("/.well-known/oauth-authorization-server", get(handle_oauth_authorization_server))
         .route("/.well-known/oauth-authorization-server/mcp", get(handle_oauth_authorization_server))
+        .route("/.well-known/oauth-authorization-server/api/v1/mcp", get(handle_oauth_authorization_server))
         .route("/mcp/.well-known/oauth-authorization-server", get(handle_oauth_authorization_server))
         .route("/.well-known/openid-configuration", get(handle_oauth_authorization_server))
         .route("/.well-known/openid-configuration/mcp", get(handle_oauth_authorization_server))
+        .route("/.well-known/openid-configuration/api/v1/mcp", get(handle_oauth_authorization_server))
         .route("/mcp/.well-known/openid-configuration", get(handle_oauth_authorization_server))
         .route("/.well-known/mcp/server-card.json", get(handle_mcp_server_card))
         .route("/.well-known/mcp.json", get(handle_mcp_server_card))
@@ -1227,7 +1230,8 @@ async fn handle_brick_blue_json() -> impl IntoResponse {
             "domain": "pressmark.dev",
             "agent_url": "https://pressmark.dev/mcp",
             "protocol": "mcp",
-            "version": env!("CARGO_PKG_VERSION")
+            "version": env!("CARGO_PKG_VERSION"),
+            "verified": true
         })),
     )
 }
