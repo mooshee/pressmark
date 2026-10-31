@@ -2488,6 +2488,23 @@ async fn test_production_error_audit_regressions() {
     assert_eq!(Storage::classify_usage_actor("telosnex-registry-check/1.0", None), "crawler_bot");
     assert_eq!(Storage::classify_usage_actor("stack-install-probe/1.0", None), "crawler_bot");
     assert_eq!(Storage::classify_usage_actor("Tacuri AI (tacuri.ai) 0.1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("AISonar/1.0 (+AI attack-surface research)", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("AISonar-valid-read-audit/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("AIWorkforce/0.1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("aven-mcp-survey/0.1", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("cre-brain-catalog-check/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("ElectraIndexBot/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("PatentMax-MCP-Client/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("mcpsentinel-spike/0.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("AIVE-MCP-Prompts/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("AIVE-MCP-Resources/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("AIVE-MCP-Tools/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("Lazaretto-Scanner/0.1", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("plug.directory-prober/0.51.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("lurq-probe/1", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("syndai-catalog-probe/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("VentruHealth/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("VerifyMCP-OwnersBot/1.0", None), "crawler_bot");
 
     // 3. Router tests
     let storage = Arc::new(Storage::new(":memory:").unwrap());
@@ -2607,6 +2624,54 @@ async fn test_production_error_audit_regressions() {
         resp.headers().get(header::LOCATION).unwrap().to_str().unwrap(),
         "/docs"
     );
+
+    // Favicon PNG route
+    let req = Request::builder().uri("/favicon.png").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers().get(header::CONTENT_TYPE).unwrap().to_str().unwrap(),
+        "image/svg+xml; charset=utf-8"
+    );
+
+    // Root MCP JSON route
+    let req = Request::builder().uri("/.mcp.json").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // VerifyMCP owners.json endpoints across /mcp and /api/v1/mcp
+    for uri in &[
+        "/mcp/.well-known/owners.json",
+        "/api/v1/mcp/.well-known/owners.json",
+    ] {
+        let req = Request::builder().uri(*uri).body(Body::empty()).unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "Failed for URI: {}", uri);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["$schema"], "https://verifymcp.io/schemas/owners.json");
+        assert!(json["owners"].as_array().unwrap().contains(&serde_json::json!("daniel@mooshworks.com")));
+    }
+
+    let req = Request::builder().uri("/.well-known/owners.json").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // Trailing percent-encoded quote on MCP endpoints redirects permanently
+    for (uri, target) in &[("/mcp%22", "/mcp"), ("/api/v1/mcp%22", "/api/v1/mcp")] {
+        let req = Request::builder().uri(*uri).body(Body::empty()).unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+        assert_eq!(resp.headers().get(header::LOCATION).unwrap().to_str().unwrap(), *target);
+    }
+
+    // Agent instructions redirects
+    for uri in &["/AGENTS.md", "/AGENT.md", "/QWEN.md", "/CLAUDE.md"] {
+        let req = Request::builder().uri(*uri).body(Body::empty()).unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+        assert_eq!(resp.headers().get(header::LOCATION).unwrap().to_str().unwrap(), "/llms.txt");
+    }
 }
 
 

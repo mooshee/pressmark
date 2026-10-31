@@ -162,12 +162,19 @@ pub async fn rate_limit_middleware(
         || path == "/ready"
         || path.starts_with("/.well-known/")
         || path.starts_with("/mcp/.well-known/")
+        || path.starts_with("/api/v1/mcp/.well-known/")
         || path == "/robots.txt"
         || path == "/sitemap.xml"
         || path == "/llms.txt"
         || path == "/llms-full.txt"
         || path == "/favicon.ico"
         || path == "/favicon.svg"
+        || path == "/favicon.png"
+        || path == "/.mcp.json"
+        || path == "/AGENTS.md"
+        || path == "/AGENT.md"
+        || path == "/QWEN.md"
+        || path == "/CLAUDE.md"
     {
         return next.run(req).await;
     }
