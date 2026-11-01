@@ -2740,6 +2740,7 @@ async fn test_production_error_audit_regressions() {
         ("/terms/", "/terms"),
         ("/pricing%29", "/pricing"),
         ("/pricing/", "/pricing"),
+        ("/templates/invoice/", "/templates/invoice"),
     ] {
         let req = Request::builder().uri(*uri).body(Body::empty()).unwrap();
         let resp = router.clone().oneshot(req).await.unwrap();

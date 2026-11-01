@@ -105,6 +105,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/templates", get(handle_index))
         .route("/templates/", get(handle_index))
         .route("/templates/:slug", get(handle_template_landing))
+        .route("/templates/:slug/", get(handle_template_landing_trailing))
         .route("/favicon.ico", get(handle_favicon))
         .route("/favicon.svg", get(handle_favicon))
         .route("/favicon.png", get(handle_favicon))
@@ -368,6 +369,11 @@ async fn handle_index() -> impl IntoResponse {
             Html(format!("<h1>Error loading index.html: {}</h1>", e)),
         ),
     }
+}
+
+async fn handle_template_landing_trailing(Path(slug): Path<String>) -> Response {
+    let clean_slug = slug.trim_end_matches([':', ')', ']', '}', '"', '\'', '.', ',', ';', '>', '/']);
+    Redirect::permanent(&format!("/templates/{}", clean_slug)).into_response()
 }
 
 async fn handle_template_landing(
