@@ -132,6 +132,11 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/security", get(|| async { Redirect::permanent("/.well-known/security.txt") }))
         .route("/security.txt", get(handle_security_txt))
         .route("/.well-known/security.txt", get(handle_security_txt))
+        .route("/.well-known/mcpprobe-opt-out", get(handle_mcpprobe_opt_out))
+        .route("/ads.txt", get(handle_ads_txt))
+        .route("/sellers.json", get(handle_sellers_json))
+        .route("/docs/mcp", get(|| async { Redirect::permanent("/mcp") }))
+        .route("/docs/mcp/", get(|| async { Redirect::permanent("/mcp") }))
         .route("/AGENTS.md", get(|| async { Redirect::permanent("/llms.txt") }))
         .route("/AGENT.md", get(|| async { Redirect::permanent("/llms.txt") }))
         .route("/QWEN.md", get(|| async { Redirect::permanent("/llms.txt") }))
@@ -146,7 +151,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/states", get(handle_states_catalog))
         .route("/api/v1/pricing", get(handle_pricing))
         .route("/api/v1/checkout", get(handle_checkout_get).post(handle_checkout_post))
-        .route("/api/v1/checkout/continue", post(handle_checkout_continue))
+        .route("/api/v1/checkout/continue", get(|| async { Redirect::to("/#pricing") }).post(handle_checkout_continue))
         .route("/api/v1/setup-check", get(handle_setup_check).post(handle_setup_check))
         .route("/api/v1/analytics", get(handle_analytics).post(handle_analytics))
         .route("/api/v1/openapi.json", get(handle_openapi))
@@ -222,9 +227,53 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/mcp.", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
         .route("/mcp\"", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
         .route("/mcp%22", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp`", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp%60", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp)", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp%29", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
         .route("/api/v1/mcp.", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
         .route("/api/v1/mcp\"", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
         .route("/api/v1/mcp%22", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
+        .route("/api/v1/mcp`", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
+        .route("/api/v1/mcp%60", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
+        .route("/api/v1/mcp)", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
+        .route("/api/v1/mcp%29", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
+        .route("/api/v1/mcp/tools.json`", get(|| async { Redirect::permanent("/api/v1/mcp/tools.json") }))
+        .route("/api/v1/mcp/tools.json%60", get(|| async { Redirect::permanent("/api/v1/mcp/tools.json") }))
+        .route("/api/v1/openapi.json`", get(|| async { Redirect::permanent("/api/v1/openapi.json") }))
+        .route("/api/v1/openapi.json%60", get(|| async { Redirect::permanent("/api/v1/openapi.json") }))
+        .route("/api/v1/states`", get(|| async { Redirect::permanent("/api/v1/states") }))
+        .route("/api/v1/states%60", get(|| async { Redirect::permanent("/api/v1/states") }))
+        .route("/.well-known/ai-plugin.json`", get(|| async { Redirect::permanent("/.well-known/ai-plugin.json") }))
+        .route("/.well-known/ai-plugin.json%60", get(|| async { Redirect::permanent("/.well-known/ai-plugin.json") }))
+        .route("/docs\"", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs%22", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs`", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs%60", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs)", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs%29", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs/", get(|| async { Redirect::permanent("/docs") }))
+        .route("/privacy)", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy%29", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy`", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy%60", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy\"", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy%22", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy/", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/terms)", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms%29", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms`", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms%60", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms\"", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms%22", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms/", get(|| async { Redirect::permanent("/terms") }))
+        .route("/pricing)", get(|| async { Redirect::permanent("/pricing") }))
+        .route("/pricing%29", get(|| async { Redirect::permanent("/pricing") }))
+        .route("/pricing`", get(|| async { Redirect::permanent("/pricing") }))
+        .route("/pricing%60", get(|| async { Redirect::permanent("/pricing") }))
+        .route("/pricing\"", get(|| async { Redirect::permanent("/pricing") }))
+        .route("/pricing%22", get(|| async { Redirect::permanent("/pricing") }))
+        .route("/pricing/", get(|| async { Redirect::permanent("/pricing") }))
         .route("/mcp/sse", get(handle_mcp_get).post(handle_mcp))
         .route("/sse", get(handle_mcp_get).post(handle_mcp))
         .route("/api/v1/mcp", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
@@ -1241,6 +1290,41 @@ async fn handle_security_txt() -> impl IntoResponse {
         StatusCode::OK,
         [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
         "Contact: mailto:daniel@mooshworks.com\nExpires: 2027-12-31T23:59:59.000Z\nPreferred-Languages: en\nCanonical: https://pressmark.dev/.well-known/security.txt\nPolicy: https://pressmark.dev/privacy\n",
+    )
+}
+
+async fn handle_ads_txt() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        "# Pressmark Vector Document Engine (https://pressmark.dev)\n# Contact: daniel@mooshworks.com\n",
+    )
+}
+
+async fn handle_sellers_json() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        Json(serde_json::json!({
+            "sellerId": "mooshworks",
+            "name": "Moosh Works LLC",
+            "domain": "pressmark.dev",
+            "seller_type": "PUBLISHER",
+            "is_passthrough": false
+        })),
+    )
+}
+
+async fn handle_mcpprobe_opt_out() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        Json(serde_json::json!({
+            "opt_out": false,
+            "contact": "daniel@mooshworks.com",
+            "policy": "https://pressmark.dev/privacy",
+            "server": "https://pressmark.dev/mcp"
+        })),
     )
 }
 

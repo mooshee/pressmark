@@ -2505,6 +2505,19 @@ async fn test_production_error_audit_regressions() {
     assert_eq!(Storage::classify_usage_actor("syndai-catalog-probe/1.0", None), "crawler_bot");
     assert_eq!(Storage::classify_usage_actor("VentruHealth/1.0", None), "crawler_bot");
     assert_eq!(Storage::classify_usage_actor("VerifyMCP-OwnersBot/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("KoskamoDirectoryCheck/1.0 (+https://koskamo.com/explore)", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("mcpprobe/0.3.0 (+https://mcpprobe.tech/scanning-policy)", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("CSOAI-census/0.1 (+https://councilof.ai/census)", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("RegistryEcologyResearch/1.0 (anonymous metadata-only study)", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("TrimtabVerifier/0.1 (+https://trimtabist.com/verifier; mrigank86@gmail.com)", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("mashprime-mcp-scan/1.0 (+https://mashprime.dev/)", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("measure-mcp-schema/0.1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("lastseen-migration-watch/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("TheWhiteRock-HealthCheck/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("BuiltWith/1.4", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("BuiltWith-MCPRegistryScrape/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("agent2agent-hub/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("catalog-census/1.0", None), "crawler_bot");
 
     // 3. Router tests
     let storage = Arc::new(Storage::new(":memory:").unwrap());
@@ -2671,6 +2684,67 @@ async fn test_production_error_audit_regressions() {
         let resp = router.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
         assert_eq!(resp.headers().get(header::LOCATION).unwrap().to_str().unwrap(), "/llms.txt");
+    }
+
+    // mcpprobe-opt-out discovery route
+    let req = Request::builder().uri("/.well-known/mcpprobe-opt-out").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["opt_out"], false);
+
+    // ads.txt and sellers.json publisher routes
+    let req = Request::builder().uri("/ads.txt").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    assert!(String::from_utf8_lossy(&body).contains("Pressmark"));
+
+    let req = Request::builder().uri("/sellers.json").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["sellerId"], "mooshworks");
+
+    // Documentation MCP redirect
+    for uri in &["/docs/mcp", "/docs/mcp/"] {
+        let req = Request::builder().uri(*uri).body(Body::empty()).unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+        assert_eq!(resp.headers().get(header::LOCATION).unwrap().to_str().unwrap(), "/mcp");
+    }
+
+    // Checkout continue GET redirects to pricing
+    let req = Request::builder().uri("/api/v1/checkout/continue").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::SEE_OTHER);
+    assert_eq!(resp.headers().get(header::LOCATION).unwrap().to_str().unwrap(), "/#pricing");
+
+    // Markdown backtick / quote / paren pollution redirects
+    for (uri, target) in &[
+        ("/mcp%60", "/mcp"),
+        ("/mcp%29", "/mcp"),
+        ("/api/v1/mcp%60", "/api/v1/mcp"),
+        ("/api/v1/mcp%29", "/api/v1/mcp"),
+        ("/api/v1/mcp/tools.json%60", "/api/v1/mcp/tools.json"),
+        ("/api/v1/openapi.json%60", "/api/v1/openapi.json"),
+        ("/api/v1/states%60", "/api/v1/states"),
+        ("/.well-known/ai-plugin.json%60", "/.well-known/ai-plugin.json"),
+        ("/docs%22", "/docs"),
+        ("/docs/", "/docs"),
+        ("/privacy%29", "/privacy"),
+        ("/privacy/", "/privacy"),
+        ("/terms%29", "/terms"),
+        ("/terms/", "/terms"),
+        ("/pricing%29", "/pricing"),
+        ("/pricing/", "/pricing"),
+    ] {
+        let req = Request::builder().uri(*uri).body(Body::empty()).unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT, "Failed for URI: {}", uri);
+        assert_eq!(resp.headers().get(header::LOCATION).unwrap().to_str().unwrap(), *target, "Wrong target for URI: {}", uri);
     }
 }
 
