@@ -170,7 +170,7 @@ impl McpHandler {
     pub fn get_tools() -> Value {
         let doc_props = Self::document_input_properties();
         let preview_props = Self::preview_input_properties();
-        json!([
+        let mut tools = json!([
             {
                 "name": "generate_document",
                 "title": "Generate PDF Document",
@@ -381,7 +381,9 @@ impl McpHandler {
                     "required": ["document", "pdf_base64", "compile_time_ms"]
                 }
             }
-        ])
+        ]);
+        tools.as_array_mut().expect("tool registry is an array").extend(crate::feedback::tools());
+        tools
     }
 
 
@@ -403,6 +405,9 @@ impl McpHandler {
         is_paid_session: bool,
         session_email: Option<&str>,
     ) -> JsonRpcResponse {
+        if crate::feedback::is_tool(&req) {
+            return crate::feedback::handle_stdio(req);
+        }
         let is_tool_call = req.method == "tools/call";
         let mut response = match req.method.as_str() {
             "initialize" => {

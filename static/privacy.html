@@ -115,7 +115,7 @@
       </a>
       <h1>Privacy Policy</h1>
       <div class="legal-meta">
-        Last Updated: October 28, 2026 · Effective Date: October 28, 2026
+        Last Updated: November 1, 2026 · Effective Date: November 1, 2026
       </div>
       <div class="legal-badge">Document data, account records, and service providers</div>
     </header>
@@ -131,6 +131,7 @@
       <p>Pressmark processes the following information when you use the corresponding features:</p>
       <ul>
         <li><strong>Document Generation Inputs:</strong> Party names, corporate addresses, line item descriptions, rates, quantities, currency symbols, invoice identifiers, notes, and payment terms provided in generation requests.</li>
+        <li><strong>Feedback:</strong> The bug reports, feature requests, and other feedback you send, including an optional reply email. Feedback is kept in a private product-support inbox to review requests and track their resolution. It is separate from document-generation customer sync and is not used to enroll you in marketing follow-up. Leave out documents, passwords, payment information, and access tokens.</li>
         <li><strong>Digital Signatures & Logos:</strong> Base64-encoded image assets submitted for inclusion in headers or signature blocks.</li>
         <li><strong>Account and session information:</strong> Your name, email, sign-in method, session records, and paid-access status. Guest access also creates a session.</li>
         <li><strong>Payment and checkout information:</strong> Stripe handles payment checkout. Pressmark records the selected plan, payment amount, payment-event identifiers, and access entitlement. Pressmark does not receive your full card number or bank credentials.</li>
@@ -145,6 +146,7 @@
         <li><strong>Documents and previews:</strong> Pressmark processes your supplied content to create the requested output. Temporary rendering assets may be cached. The Studio can also save documents and company details in your browser.</li>
         <li><strong>Temporary document and preview links:</strong> Document tools called through an assistant over HTTP can return links to PDFs and PNG previews. Pressmark holds these files in memory. Each link expires after 15 minutes and stops working if the service restarts. Anyone with a link can view or download its file while it is valid. Expired files are removed during cleanup, which runs every 30 seconds. These copies are not written to the account database or a document archive. Links may be unavailable when a file exceeds 8 MiB or temporary storage is full.</li>
         <li><strong>Account, billing, and usage records:</strong> These are stored separately from rendered documents. Expired sessions and older payment-event and usage records are removed periodically. Account entitlements and customer records are not deleted when rendering finishes.</li>
+        <li><strong>Feedback records:</strong> We retain feedback while it is being reviewed and for follow-up and product-support history. The private receipt is stored in your browser when browser storage is available. Anyone with its report ID and access key can view the report's review status, but not its text or contact details. Contact us below to request deletion of identifiable feedback.</li>
         <li><strong>Document-generation sync:</strong> When customer sync is enabled and an accepted email is available, Pressmark creates or updates a customer record. It uses the signed-in email when available; otherwise it uses the sender email, or the recipient email if the sender email is absent. This can happen without signing in.</li>
         <li><strong>Fields shared during generation:</strong> The selected email is recorded with the sender's name, phone number, company, and address, when supplied. The record also includes the document number, title, type, total, currency, and how it was created. Tags record watermark status, the presence of signatures, and the selected compliance setting. Document type and total can also be used to select follow-up. This sync does not send the PDF or line-item descriptions.</li>
         <li><strong>Account activity and follow-up:</strong> Email sign-in, checkout, payment, and refund events can also update customer records. Depending on the event, access status, document type, and total, the service can update a sales opportunity and enroll the contact in automated follow-up.</li>

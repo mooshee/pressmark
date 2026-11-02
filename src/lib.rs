@@ -8,6 +8,7 @@ pub mod auth;
 pub mod branding;
 pub mod builder;
 pub mod downloads;
+pub mod feedback;
 pub mod engine;
 pub mod ghl;
 pub mod mcp;
