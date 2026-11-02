@@ -355,3 +355,79 @@ async fn test_plans_redirect_and_crawler_manifests() {
     assert_eq!(tdm_json["tdm-reservation"], 1);
     assert_eq!(tdm_json["policy"], "https://pressmark.dev/terms");
 }
+
+#[tokio::test]
+async fn test_trailing_punctuation_and_mcp_tools_discovery() {
+    let app = setup_test_app();
+
+    // 1. GET /mcp/tools.json -> 200 OK
+    let req = Request::builder()
+        .uri("/mcp/tools.json")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(json["tools"].is_array());
+
+    // 2. GET /privacy. -> 308 to /privacy
+    let req = Request::builder()
+        .uri("/privacy.")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get(header::LOCATION).unwrap().to_str().unwrap(), "/privacy");
+
+    // 3. GET /terms. -> 308 to /terms
+    let req = Request::builder()
+        .uri("/terms.")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get(header::LOCATION).unwrap().to_str().unwrap(), "/terms");
+
+    // 4. GET /docs%22 -> 308 to /docs
+    let req = Request::builder()
+        .uri("/docs%22")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get(header::LOCATION).unwrap().to_str().unwrap(), "/docs");
+
+    // 5. GET /mcp: -> 308 to /mcp
+    let req = Request::builder()
+        .uri("/mcp:")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get(header::LOCATION).unwrap().to_str().unwrap(), "/mcp");
+
+    // 6. GET /imprint & /impressum -> 308 to /terms
+    let req = Request::builder()
+        .uri("/imprint")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get(header::LOCATION).unwrap().to_str().unwrap(), "/terms");
+
+    let req = Request::builder()
+        .uri("/impressum")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get(header::LOCATION).unwrap().to_str().unwrap(), "/terms");
+}

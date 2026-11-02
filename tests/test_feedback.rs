@@ -180,3 +180,42 @@ async fn form_discovery_and_safe_target_validation() {
     );
     task.abort();
 }
+
+#[tokio::test]
+async fn test_feedback_status_get_and_health_post() {
+    let (app, _seen, task) = fixture().await;
+
+    // 1. GET /api/v1/feedback/health
+    let res = app
+        .clone()
+        .oneshot(Request::builder().uri("/api/v1/feedback/health").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 2. POST /api/v1/feedback/health
+    let res = app
+        .clone()
+        .oneshot(Request::builder().method("POST").uri("/api/v1/feedback/health").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 3. GET /api/v1/feedback/status without request_id returns 400 Bad Request (not 405 Method Not Allowed)
+    let res = app
+        .clone()
+        .oneshot(Request::builder().uri("/api/v1/feedback/status").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+
+    // 4. GET /api/v1/feedback/status?request_id=... returns 200 OK
+    let res = app
+        .clone()
+        .oneshot(Request::builder().uri("/api/v1/feedback/status?request_id=00000000-0000-4000-8000-000000000001").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    task.abort();
+}

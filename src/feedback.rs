@@ -5,7 +5,7 @@ use crate::{
     server::AppState,
 };
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{Html, IntoResponse, Response},
     Json,
@@ -169,6 +169,41 @@ pub async fn submit(
         None => private_response(StatusCode::SERVICE_UNAVAILABLE, unavailable()),
     }
 }
+#[derive(serde::Deserialize, Default)]
+pub struct FeedbackStatusQuery {
+    pub request_id: Option<String>,
+    pub feedback_id: Option<String>,
+}
+
+pub async fn status_get(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(query): Query<FeedbackStatusQuery>,
+) -> Response {
+    if !valid_origin(&headers, &state.base_url) {
+        return private_response(StatusCode::FORBIDDEN, json!({"error":"origin_rejected"}));
+    }
+    let target_id = query.request_id.or(query.feedback_id);
+    let Some(id) = target_id else {
+        return private_response(
+            StatusCode::BAD_REQUEST,
+            json!({
+                "error": "missing_request_id",
+                "message": "Provide request_id in query parameter or POST request body"
+            }),
+        );
+    };
+    match &state.feedback {
+        Some(client) => {
+            let (code, value) = client
+                .send(true, "web", json!({ "request_id": id }), &headers)
+                .await;
+            private_response(code, value)
+        }
+        None => private_response(StatusCode::SERVICE_UNAVAILABLE, unavailable()),
+    }
+}
+
 pub async fn status(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

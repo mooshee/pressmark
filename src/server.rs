@@ -129,8 +129,11 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/support", get(|| async { Redirect::temporary("/feedback") }))
         .route("/feedback", get(crate::feedback::page))
         .route("/api/v1/feedback", post(crate::feedback::submit))
-        .route("/api/v1/feedback/status", post(crate::feedback::status))
-        .route("/api/v1/feedback/health", get(crate::feedback::health))
+        .route("/api/v1/feedback/status", post(crate::feedback::status).get(crate::feedback::status_get))
+        .route("/api/v1/feedback/health", get(crate::feedback::health).post(crate::feedback::health))
+        .route("/imprint", get(|| async { Redirect::permanent("/terms") }))
+        .route("/impressum", get(|| async { Redirect::permanent("/terms") }))
+        .route("/info", get(|| async { Redirect::permanent("/") }))
         .route("/help", get(|| async { Redirect::permanent("/") }))
         .route("/faq", get(|| async { Redirect::permanent("/") }))
         .route("/features", get(|| async { Redirect::permanent("/#pricing") }))
@@ -237,13 +240,28 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/mcp/v1", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
         .route("/api/mcp", get(handle_mcp_get).post(handle_mcp).delete(handle_mcp_delete))
         .route("/mcp.", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp%2E", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp%3A", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp,", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp%2C", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp;", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp%3B", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
         .route("/mcp\"", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
         .route("/mcp%22", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
         .route("/mcp`", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
         .route("/mcp%60", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
         .route("/mcp)", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
         .route("/mcp%29", get(|| async { Redirect::permanent("/mcp") }).post(|| async { Redirect::permanent("/mcp") }))
+        .route("/mcp/tools.json", get(handle_mcp_tools))
+        .route("/mcp/tools.json`", get(|| async { Redirect::permanent("/mcp/tools.json") }))
+        .route("/mcp/tools.json%60", get(|| async { Redirect::permanent("/mcp/tools.json") }))
         .route("/api/v1/mcp.", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
+        .route("/api/v1/mcp%2E", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
+        .route("/api/v1/mcp%3A", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
+        .route("/api/v1/mcp,", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
+        .route("/api/v1/mcp%2C", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
+        .route("/api/v1/mcp;", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
+        .route("/api/v1/mcp%3B", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
         .route("/api/v1/mcp\"", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
         .route("/api/v1/mcp%22", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
         .route("/api/v1/mcp`", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
@@ -252,12 +270,29 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/mcp%29", get(|| async { Redirect::permanent("/api/v1/mcp") }).post(|| async { Redirect::permanent("/api/v1/mcp") }))
         .route("/api/v1/mcp/tools.json`", get(|| async { Redirect::permanent("/api/v1/mcp/tools.json") }))
         .route("/api/v1/mcp/tools.json%60", get(|| async { Redirect::permanent("/api/v1/mcp/tools.json") }))
+        .route("/openapi.json`", get(|| async { Redirect::permanent("/openapi.json") }))
+        .route("/openapi.json%60", get(|| async { Redirect::permanent("/openapi.json") }))
+        .route("/openapi.json\"", get(|| async { Redirect::permanent("/openapi.json") }))
+        .route("/openapi.json%22", get(|| async { Redirect::permanent("/openapi.json") }))
+        .route("/openapi.json.", get(|| async { Redirect::permanent("/openapi.json") }))
+        .route("/openapi.json%2E", get(|| async { Redirect::permanent("/openapi.json") }))
         .route("/api/v1/openapi.json`", get(|| async { Redirect::permanent("/api/v1/openapi.json") }))
         .route("/api/v1/openapi.json%60", get(|| async { Redirect::permanent("/api/v1/openapi.json") }))
+        .route("/api/v1/openapi.json\"", get(|| async { Redirect::permanent("/api/v1/openapi.json") }))
+        .route("/api/v1/openapi.json%22", get(|| async { Redirect::permanent("/api/v1/openapi.json") }))
+        .route("/api/v1/openapi.json.", get(|| async { Redirect::permanent("/api/v1/openapi.json") }))
+        .route("/api/v1/openapi.json%2E", get(|| async { Redirect::permanent("/api/v1/openapi.json") }))
         .route("/api/v1/states`", get(|| async { Redirect::permanent("/api/v1/states") }))
         .route("/api/v1/states%60", get(|| async { Redirect::permanent("/api/v1/states") }))
         .route("/.well-known/ai-plugin.json`", get(|| async { Redirect::permanent("/.well-known/ai-plugin.json") }))
         .route("/.well-known/ai-plugin.json%60", get(|| async { Redirect::permanent("/.well-known/ai-plugin.json") }))
+        .route("/docs.", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs%2E", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs%3A", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs,", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs%2C", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs;", get(|| async { Redirect::permanent("/docs") }))
+        .route("/docs%3B", get(|| async { Redirect::permanent("/docs") }))
         .route("/docs\"", get(|| async { Redirect::permanent("/docs") }))
         .route("/docs%22", get(|| async { Redirect::permanent("/docs") }))
         .route("/docs`", get(|| async { Redirect::permanent("/docs") }))
@@ -265,6 +300,13 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/docs)", get(|| async { Redirect::permanent("/docs") }))
         .route("/docs%29", get(|| async { Redirect::permanent("/docs") }))
         .route("/docs/", get(|| async { Redirect::permanent("/docs") }))
+        .route("/privacy.", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy%2E", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy%3A", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy,", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy%2C", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy;", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy%3B", get(|| async { Redirect::permanent("/privacy") }))
         .route("/privacy)", get(|| async { Redirect::permanent("/privacy") }))
         .route("/privacy%29", get(|| async { Redirect::permanent("/privacy") }))
         .route("/privacy`", get(|| async { Redirect::permanent("/privacy") }))
@@ -272,6 +314,13 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/privacy\"", get(|| async { Redirect::permanent("/privacy") }))
         .route("/privacy%22", get(|| async { Redirect::permanent("/privacy") }))
         .route("/privacy/", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/terms.", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms%2E", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms%3A", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms,", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms%2C", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms;", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms%3B", get(|| async { Redirect::permanent("/terms") }))
         .route("/terms)", get(|| async { Redirect::permanent("/terms") }))
         .route("/terms%29", get(|| async { Redirect::permanent("/terms") }))
         .route("/terms`", get(|| async { Redirect::permanent("/terms") }))
@@ -298,6 +347,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .nest_service("/assets", ServeDir::new("static/assets"))
         .nest_service("/css", ServeDir::new("static/css"))
         .nest_service("/js", ServeDir::new("static/js"))
+        .fallback(handle_fallback)
         .layer(CorsLayer::permissive())
         .layer(axum::middleware::from_fn_with_state(
             state.rate_limiter.clone(),
@@ -305,6 +355,36 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         ))
         .layer(axum::extract::DefaultBodyLimit::max(body_limit_bytes))
         .with_state(state)
+}
+
+async fn handle_fallback(uri: axum::http::Uri) -> impl IntoResponse {
+    let path = uri.path();
+    let trimmed = path.trim_end_matches(['.', ',', ':', ';', '"', '\'', '`', ')', ']', '}', '>', '\\']);
+    if trimmed != path {
+        match trimmed {
+            "/mcp" | "/privacy" | "/terms" | "/pricing" | "/docs" | "/openapi.json"
+            | "/api/v1/mcp" | "/api/v1/openapi.json" | "/api/v1/pricing" | "/api/v1/states"
+            | "/api/v1/templates" | "/mcp/tools.json" | "/api/v1/mcp/tools.json" => {
+                let redirect_to = if let Some(query) = uri.query() {
+                    format!("{}?{}", trimmed, query)
+                } else {
+                    trimmed.to_string()
+                };
+                return Redirect::permanent(&redirect_to).into_response();
+            }
+            _ => {
+                if trimmed.starts_with("/templates/") {
+                    let redirect_to = if let Some(query) = uri.query() {
+                        format!("{}?{}", trimmed, query)
+                    } else {
+                        trimmed.to_string()
+                    };
+                    return Redirect::permanent(&redirect_to).into_response();
+                }
+            }
+        }
+    }
+    (StatusCode::NOT_FOUND, "Not Found").into_response()
 }
 
 async fn handle_health() -> impl IntoResponse {
