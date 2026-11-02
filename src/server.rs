@@ -31,6 +31,7 @@ pub struct AppState {
     pub stripe_idempotency: crate::stripe::StripeIdempotencyStore,
     pub storage: Arc<crate::storage::Storage>,
     pub downloads: crate::downloads::DocumentDownloadCache,
+    pub feedback: Option<crate::feedback::FeedbackClient>,
 }
 
 impl AppState {
@@ -55,6 +56,7 @@ impl AppState {
             rate_limiter: RateLimiter::new(max_req, window_secs),
             stripe_idempotency,
             storage,
+            feedback: crate::feedback::FeedbackClient::from_env(),
         }
     }
 
@@ -123,8 +125,12 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/about", get(|| async { Redirect::permanent("/") }))
         .route("/about-us", get(|| async { Redirect::permanent("/") }))
         .route("/company", get(|| async { Redirect::permanent("/") }))
-        .route("/contact", get(|| async { Redirect::permanent("/") }))
-        .route("/support", get(|| async { Redirect::permanent("/") }))
+        .route("/contact", get(|| async { Redirect::temporary("/feedback") }))
+        .route("/support", get(|| async { Redirect::temporary("/feedback") }))
+        .route("/feedback", get(crate::feedback::page))
+        .route("/api/v1/feedback", post(crate::feedback::submit))
+        .route("/api/v1/feedback/status", post(crate::feedback::status))
+        .route("/api/v1/feedback/health", get(crate::feedback::health))
         .route("/help", get(|| async { Redirect::permanent("/") }))
         .route("/faq", get(|| async { Redirect::permanent("/") }))
         .route("/features", get(|| async { Redirect::permanent("/#pricing") }))
@@ -363,7 +369,7 @@ async fn handle_ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
 
 async fn handle_index() -> impl IntoResponse {
     match tokio::fs::read_to_string("static/index.html").await {
-        Ok(html) => (StatusCode::OK, Html(html)),
+        Ok(html) => (StatusCode::OK, Html(html.replace("<div class=\"studio-help\">", "<div class=\"studio-help\"><a href=\"/feedback\">Give feedback</a>"))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Html(format!("<h1>Error loading index.html: {}</h1>", e)),
@@ -1561,7 +1567,10 @@ pub fn run_setup_check(storage: Option<&crate::storage::Storage>) -> serde_json:
 }
 
 async fn handle_setup_check(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let report = run_setup_check(Some(&state.storage));
+    let mut report = run_setup_check(Some(&state.storage));
+    let ready = match &state.feedback { Some(client) => client.healthy().await, None => false };
+    report["checks"]["feedback"] = serde_json::json!({"status": if ready { "ok" } else { "unavailable" }, "url": "/feedback"});
+    if !ready { report["status"] = serde_json::json!("degraded"); }
     (StatusCode::OK, Json(report))
 }
 
@@ -1688,7 +1697,9 @@ async fn handle_mcp(
         None
     };
 
-    let mut resp = if let Some(response) = read_download_resource(&state, &req) {
+    let mut resp = if crate::feedback::is_tool(&req) {
+        crate::feedback::handle_tool(&state, &headers, req).await
+    } else if let Some(response) = read_download_resource(&state, &req) {
         response
     } else {
         McpHandler::handle_request_with_context(req, Some(&state.storage), is_paid_session, session_email)

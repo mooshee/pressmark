@@ -1201,7 +1201,7 @@ async fn test_setup_check_checkout_entitlement_and_discovery_routes() {
     let setup_bytes = axum::body::to_bytes(res_setup.into_body(), 1024 * 1024).await.unwrap();
     let setup_json: serde_json::Value = serde_json::from_slice(&setup_bytes).unwrap();
     assert_eq!(setup_json["checks"]["vector_engine"]["pdf_smoke_test"], true);
-    assert_eq!(setup_json["checks"]["mcp_and_discovery"]["tools_count"], 6);
+    assert_eq!(setup_json["checks"]["mcp_and_discovery"]["tools_count"], 8);
     assert_eq!(setup_json["checks"]["mcp_and_discovery"]["archetypes_count"], 57);
 
     // 2. Verify /api/v1/checkout & /api/v1/pricing checkout_url
@@ -1802,6 +1802,7 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     let state = Arc::new(AppState {
         base_url: "https://pressmark.dev".to_string(),
         downloads: Default::default(),
+        feedback: None,
         auth_mgr: auth_mgr.clone(),
         rate_limiter: RateLimiter::new(1000, 60),
         stripe_idempotency,

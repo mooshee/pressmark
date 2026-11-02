@@ -28,6 +28,7 @@ fn app() -> axum::Router {
         stripe_idempotency: StripeIdempotencyStore::new().with_storage(Arc::clone(&storage)),
         storage,
         downloads: Default::default(),
+        feedback: None,
     }))
 }
 

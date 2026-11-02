@@ -40,7 +40,7 @@ pub fn get_ai_plugin_manifest(server_url: &str) -> Value {
 
 /// OpenAPI 3.1.0 Specification for ChatGPT Actions & Custom GPTs
 pub fn get_openapi_spec(server_url: &str) -> Value {
-    json!({
+    let mut spec = json!({
         "openapi": "3.1.0",
         "info": {
             "title": "Pressmark Vector Document Engine API",
@@ -408,5 +408,10 @@ pub fn get_openapi_spec(server_url: &str) -> Value {
             { "bearerAuth": [] },
             {}
         ]
-    })
+    });
+    let tools = crate::feedback::tools();
+    for (path, tool, operation) in [("/api/v1/feedback", &tools[0], "submitFeedback"), ("/api/v1/feedback/status", &tools[1], "getFeedbackStatus")] {
+        spec["paths"][path] = json!({"post":{"operationId":operation,"summary":tool["title"],"description":tool["description"],"security":[],"requestBody":{"required":true,"content":{"application/json":{"schema":tool["inputSchema"]}}},"responses":{"200":{"description":"Feedback receipt or review status. Keep the access key private."},"400":{"description":"Check the supplied feedback."},"404":{"description":"Report not found."},"409":{"description":"Request ID was reused with different feedback."},"429":{"description":"Please try again later."},"503":{"description":"Feedback could not be confirmed. Retry with the same request ID."}}}});
+    }
+    spec
 }

@@ -22,6 +22,7 @@ fn setup_test_app() -> axum::Router {
     let state = Arc::new(AppState {
         base_url: "https://pressmark.dev".to_string(),
         downloads: Default::default(),
+        feedback: None,
         auth_mgr,
         rate_limiter,
         stripe_idempotency,

@@ -43,8 +43,16 @@ Installing a skill alone does not connect the server. After connecting, confirm 
 | `get_pricing` | Shows plans, document limits, and checkout links. |
 | `convert_document` | Converts an estimate, invoice, receipt, or credit note. |
 | `record_payment` | Prepares a receipt or updated invoice from payment details. It does not move money. |
+| `submit_feedback` | Sends a requested bug report, feature request, or general feedback to the private support inbox. |
+| `get_feedback_status` | Checks one report using its private receipt. |
 
 Try: “Create an invoice for 15 hours of consulting at $250 per hour, due in 14 days. Show me a preview first.”
+
+## Feedback and support
+
+Use [Give feedback](https://pressmark.dev/feedback) to report a problem or request a feature. An email address is optional. Keep the private receipt to check review progress. Leave out documents, passwords, payment information, and access tokens.
+
+Agents can use `submit_feedback` when the user asks to send feedback. Generate one UUID for `request_id` and reuse it when retrying the same report. A success response contains `report_id` and a private `access_key` in `structuredContent`; use those with `get_feedback_status`. Do not report success after an error or timeout. The feedback service does not enroll the reporter in marketing follow-up.
 
 ## Documents and editing
 
