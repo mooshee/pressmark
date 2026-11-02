@@ -142,6 +142,11 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/.well-known/mcpprobe-opt-out", get(handle_mcpprobe_opt_out))
         .route("/ads.txt", get(handle_ads_txt))
         .route("/sellers.json", get(handle_sellers_json))
+        .route("/plans", get(|| async { Redirect::permanent("/pricing") }))
+        .route("/plans/", get(|| async { Redirect::permanent("/pricing") }))
+        .route("/ai.txt", get(|| async { Redirect::permanent("/llms.txt") }))
+        .route("/humans.txt", get(handle_humans_txt))
+        .route("/.well-known/tdmrep.json", get(handle_tdmrep_json))
         .route("/docs/mcp", get(|| async { Redirect::permanent("/mcp") }))
         .route("/docs/mcp/", get(|| async { Redirect::permanent("/mcp") }))
         .route("/AGENTS.md", get(|| async { Redirect::permanent("/llms.txt") }))
@@ -1336,6 +1341,25 @@ async fn handle_mcpprobe_opt_out() -> impl IntoResponse {
             "contact": "daniel@mooshworks.com",
             "policy": "https://pressmark.dev/privacy",
             "server": "https://pressmark.dev/mcp"
+        })),
+    )
+}
+
+async fn handle_humans_txt() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        "/* TEAM */\nFounder & Lead Architect: Daniel Hallman\nContact: daniel@mooshworks.com\nLocation: Chattanooga, Tennessee, USA\n\n/* SITE */\nName: Pressmark\nURL: https://pressmark.dev\nEngine: Typst & Rust (Axum, Tokio)\nStandards: Model Context Protocol (MCP), OpenAPI 3.1, A2A\n",
+    )
+}
+
+async fn handle_tdmrep_json() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        Json(serde_json::json!({
+            "tdm-reservation": 1,
+            "policy": "https://pressmark.dev/terms"
         })),
     )
 }

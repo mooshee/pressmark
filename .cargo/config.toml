@@ -1,0 +1,9 @@
+# Author: Daniel Hallman
+# Workspace Cargo configuration optimized for sccache compilation caching.
+
+[build]
+rustc-wrapper = "sccache"
+incremental = false
+
+[env]
+CARGO_INCREMENTAL = "0"

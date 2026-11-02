@@ -222,8 +222,44 @@ pub fn tools() -> Vec<Value> {
         "version":{"type":"string","maxLength":80},"reply_email":{"type":"string","maxLength":254,"description":"Optional email supplied by the user for feedback follow-up."}
     });
     vec![
-        json!({"name":"submit_feedback","title":"Send Pressmark feedback","description":"Send a bug report, feature request, or general feedback to the private Pressmark inbox when the user asks. Include only details they choose to share; omit documents, passwords, and tokens.","annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":true},"inputSchema":{"type":"object","properties":properties,"required":["request_id","kind","summary","description"],"additionalProperties":false}}),
-        json!({"name":"get_feedback_status","title":"Check feedback status","description":"Check one Pressmark report using its report ID and private access key. Returns its review status without exposing the report text or contact details.","annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":true},"inputSchema":{"type":"object","properties":{"report_id":{"type":"string","format":"uuid"},"access_key":{"type":"string","minLength":64,"maxLength":64}},"required":["report_id","access_key"],"additionalProperties":false}}),
+        json!({
+            "name":"submit_feedback",
+            "title":"Send Pressmark feedback",
+            "description":"Send a bug report, feature request, or general feedback to the private Pressmark inbox when the user asks. Include only details they choose to share; omit documents, passwords, and tokens.",
+            "annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":true},
+            "inputSchema":{
+                "type":"object",
+                "properties":properties,
+                "required":["request_id","kind","summary","description"],
+                "additionalProperties":false,
+                "examples": [
+                    {
+                        "request_id": "a0000000-0000-0000-0000-000000000001",
+                        "kind": "bug",
+                        "summary": "Preview rendering error on custom font",
+                        "description": "When exporting with custom font tokens, preview returns fallback styling."
+                    }
+                ]
+            }
+        }),
+        json!({
+            "name":"get_feedback_status",
+            "title":"Check feedback status",
+            "description":"Check one Pressmark report using its report ID and private access key. Returns its review status without exposing the report text or contact details.",
+            "annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":true},
+            "inputSchema":{
+                "type":"object",
+                "properties":{"report_id":{"type":"string","format":"uuid"},"access_key":{"type":"string","minLength":64,"maxLength":64}},
+                "required":["report_id","access_key"],
+                "additionalProperties":false,
+                "examples": [
+                    {
+                        "report_id": "a0000000-0000-0000-0000-000000000001",
+                        "access_key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                    }
+                ]
+            }
+        }),
     ]
 }
 pub fn is_tool(req: &JsonRpcRequest) -> bool {

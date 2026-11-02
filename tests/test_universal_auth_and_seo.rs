@@ -266,3 +266,92 @@ async fn test_universal_auth_email_and_api_key_flows() {
     let check_json: Value = serde_json::from_slice(&check_bytes).unwrap();
     assert_eq!(check_json["authenticated"], false);
 }
+
+#[tokio::test]
+async fn test_plans_redirect_and_crawler_manifests() {
+    let app = setup_test_app();
+
+    // 1. GET /plans -> 308 to /pricing
+    let req_plans = Request::builder()
+        .uri("/plans")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_plans = app.clone().oneshot(req_plans).await.unwrap();
+    assert_eq!(res_plans.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        res_plans
+            .headers()
+            .get(header::LOCATION)
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "/pricing"
+    );
+
+    // 2. GET /plans/ -> 308 to /pricing
+    let req_plans_slash = Request::builder()
+        .uri("/plans/")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_plans_slash = app.clone().oneshot(req_plans_slash).await.unwrap();
+    assert_eq!(res_plans_slash.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        res_plans_slash
+            .headers()
+            .get(header::LOCATION)
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "/pricing"
+    );
+
+    // 3. GET /ai.txt -> 308 to /llms.txt
+    let req_ai = Request::builder()
+        .uri("/ai.txt")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_ai = app.clone().oneshot(req_ai).await.unwrap();
+    assert_eq!(res_ai.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        res_ai
+            .headers()
+            .get(header::LOCATION)
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "/llms.txt"
+    );
+
+    // 4. GET /humans.txt -> 200 OK
+    let req_humans = Request::builder()
+        .uri("/humans.txt")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_humans = app.clone().oneshot(req_humans).await.unwrap();
+    assert_eq!(res_humans.status(), StatusCode::OK);
+    let humans_bytes = axum::body::to_bytes(res_humans.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    let humans_str = String::from_utf8_lossy(&humans_bytes);
+    assert!(humans_str.contains("Daniel Hallman"));
+    assert!(humans_str.contains("Pressmark"));
+
+    // 5. GET /.well-known/tdmrep.json -> 200 OK
+    let req_tdm = Request::builder()
+        .uri("/.well-known/tdmrep.json")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_tdm = app.clone().oneshot(req_tdm).await.unwrap();
+    assert_eq!(res_tdm.status(), StatusCode::OK);
+    let tdm_bytes = axum::body::to_bytes(res_tdm.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    let tdm_json: Value = serde_json::from_slice(&tdm_bytes).unwrap();
+    assert_eq!(tdm_json["tdm-reservation"], 1);
+    assert_eq!(tdm_json["policy"], "https://pressmark.dev/terms");
+}
