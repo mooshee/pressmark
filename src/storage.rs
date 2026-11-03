@@ -616,6 +616,19 @@ impl Storage {
             "mashprime",
             "measure-mcp",
             "agent2agent",
+            "agentscout",
+            "agentdirectory",
+            "mcphere",
+            "pick.tools",
+            "truespar",
+            "polly-catalog",
+            "mcp-registry-",
+            "mcp-discovery-",
+            "mcp-auth-posture",
+            "ragmap",
+            "offplatform",
+            "mcp-dualstack",
+            "sitv",
         ];
         BOT_MARKERS.iter().any(|m| lower.contains(m))
     }
@@ -632,6 +645,7 @@ impl Storage {
             "seo_audit",
             "pressmark-smoke",
             "pressmark-measurement-qa/",
+            "pressmark-disclosure-qa",
             "pressmark-feedback",
             "hallman-lab-ops-heartbeats",
         ];

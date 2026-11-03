@@ -128,7 +128,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/contact", get(|| async { Redirect::temporary("/feedback") }))
         .route("/support", get(|| async { Redirect::temporary("/feedback") }))
         .route("/feedback", get(crate::feedback::page))
-        .route("/api/v1/feedback", post(crate::feedback::submit))
+        .route("/feedback/", get(|| async { Redirect::permanent("/feedback") }))
+        .route("/api/v1/feedback", post(crate::feedback::submit).get(|| async { Redirect::permanent("/feedback") }))
+        .route("/api/v1/feedback/", post(crate::feedback::submit).get(|| async { Redirect::permanent("/feedback") }))
         .route("/api/v1/feedback/status", post(crate::feedback::status).get(crate::feedback::status_get))
         .route("/api/v1/feedback/health", get(crate::feedback::health).post(crate::feedback::health))
         .route("/imprint", get(|| async { Redirect::permanent("/terms") }))
@@ -194,8 +196,14 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/.well-known/openid-configuration/mcp", get(handle_oauth_authorization_server))
         .route("/.well-known/openid-configuration/api/v1/mcp", get(handle_oauth_authorization_server))
         .route("/mcp/.well-known/openid-configuration", get(handle_oauth_authorization_server))
+        .route("/.well-known/mcp", get(handle_mcp_server_card))
+        .route("/.well-known/mcp/", get(handle_mcp_server_card))
+        .route("/.well-known/mcp-server-card", get(handle_mcp_server_card))
+        .route("/.well-known/mcp-server-card.json", get(handle_mcp_server_card))
+        .route("/.well-known/mcp/server-cards.json", get(handle_mcp_server_cards_json))
         .route("/.well-known/mcp/server-card.json", get(handle_mcp_server_card))
         .route("/.well-known/mcp.json", get(handle_mcp_server_card))
+        .route("/.well-known/toolvet-verify.txt", get(handle_toolvet_verify_txt))
         .route("/.mcp.json", get(handle_mcp_server_card))
         .route("/.cursor/mcp.json", get(handle_mcp_server_card))
         .route("/.well-known/agent-card.json", get(handle_agent_card))
@@ -1514,26 +1522,40 @@ async fn handle_discovery_resources() -> impl IntoResponse {
     )
 }
 
+fn build_mcp_server_card_json(base: &str) -> serde_json::Value {
+    serde_json::json!({
+        "name": "io.github.mooshee/pressmark",
+        "title": "Pressmark Vector Document Engine",
+        "description": "Vector document engine for 57 invoice, receipt, contract, and real estate PDFs with QR payments.",
+        "version": crate::mcp::MCP_SERVER_VERSION,
+        "protocolVersion": "2026-07-28",
+        "supportedProtocols": crate::mcp::SUPPORTED_MCP_PROTOCOLS,
+        "websiteUrl": base,
+        "remotes": [
+            {
+                "type": "streamable-http",
+                "url": format!("{}/mcp", base)
+            }
+        ],
+        "tools": McpHandler::get_tools()
+    })
+}
+
 async fn handle_mcp_server_card(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let base = state.base_url.trim_end_matches('/');
+    (StatusCode::OK, Json(build_mcp_server_card_json(base)))
+}
+
+async fn handle_mcp_server_cards_json(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let base = state.base_url.trim_end_matches('/');
+    (StatusCode::OK, Json(serde_json::json!([build_mcp_server_card_json(base)])))
+}
+
+async fn handle_toolvet_verify_txt() -> impl IntoResponse {
     (
         StatusCode::OK,
-        Json(serde_json::json!({
-            "name": "io.github.mooshee/pressmark",
-            "title": "Pressmark Vector Document Engine",
-            "description": "Vector document engine for 57 invoice, receipt, contract, and real estate PDFs with QR payments.",
-            "version": crate::mcp::MCP_SERVER_VERSION,
-            "protocolVersion": "2026-07-28",
-            "supportedProtocols": crate::mcp::SUPPORTED_MCP_PROTOCOLS,
-            "websiteUrl": base,
-            "remotes": [
-                {
-                    "type": "streamable-http",
-                    "url": format!("{}/mcp", base)
-                }
-            ],
-            "tools": McpHandler::get_tools()
-        })),
+        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        "server: Pressmark\nmaintainer: Daniel Hallman\nemail: daniel@mooshworks.com\nendpoint: https://pressmark.dev/mcp\nprotocol: mcp\nverified: true\npolicy: https://pressmark.dev/privacy\n",
     )
 }
 

@@ -517,4 +517,95 @@ async fn test_agent_discovery_and_a2a_routes() {
     let json: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(json["id"], "io.github.mooshee/pressmark");
     assert_eq!(json["name"], "Pressmark");
+
+    // 8. GET /.well-known/mcp -> 200 OK MCP server card
+    let req = Request::builder()
+        .uri("/.well-known/mcp")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["name"], "io.github.mooshee/pressmark");
+
+    // 9. GET /.well-known/mcp-server-card -> 200 OK
+    let req = Request::builder()
+        .uri("/.well-known/mcp-server-card")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 10. GET /.well-known/mcp/server-cards.json -> 200 OK array of cards
+    let req = Request::builder()
+        .uri("/.well-known/mcp/server-cards.json")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(json.is_array());
+    assert_eq!(json[0]["name"], "io.github.mooshee/pressmark");
+
+    // 11. GET /.well-known/toolvet-verify.txt -> 200 OK text/plain
+    let req = Request::builder()
+        .uri("/.well-known/toolvet-verify.txt")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    let text = String::from_utf8(bytes.to_vec()).unwrap();
+    assert!(text.contains("server: Pressmark"));
+    assert!(text.contains("maintainer: Daniel Hallman"));
+
+    // 12. GET /api/v1/feedback -> 308 Permanent Redirect to /feedback
+    let req = Request::builder()
+        .uri("/api/v1/feedback")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get("location").unwrap(), "/feedback");
+
+    // 13. GET /feedback/ -> 308 Permanent Redirect to /feedback
+    let req = Request::builder()
+        .uri("/feedback/")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get("location").unwrap(), "/feedback");
+}
+
+#[tokio::test]
+async fn test_expanded_bot_and_probe_marker_classification() {
+    use pressmark::storage::Storage;
+
+    // Check newly added bot markers
+    assert!(Storage::is_crawler_bot_ua("AgentScout-Tasker/1.0 (research test; read-only questions)"));
+    assert!(Storage::is_crawler_bot_ua("MCPHereBot/1.0 (+https://github.com/MoizAhmedd/mcp-here)"));
+    assert!(Storage::is_crawler_bot_ua("ToolVetProbe/1.0 (+https://toolvet.app/methodology)"));
+    assert!(Storage::is_crawler_bot_ua("AgentDirectoryBot/0.1"));
+    assert!(Storage::is_crawler_bot_ua("pick.tools-probe/0.0.1 (+https://pick.tools)"));
+    assert!(Storage::is_crawler_bot_ua("truespar-mcp-registry/0.1 (+https://registry.truespar.com)"));
+    assert!(Storage::is_crawler_bot_ua("polly-catalog-verify/1.0"));
+    assert!(Storage::is_crawler_bot_ua("mcp-registry-call-probe/0.1"));
+    assert!(Storage::is_crawler_bot_ua("mcp-discovery-probe/0.1"));
+    assert!(Storage::is_crawler_bot_ua("mcp-auth-posture-survey/0.2"));
+    assert!(Storage::is_crawler_bot_ua("Mozilla/5.0 (ragmap-probe)"));
+    assert!(Storage::is_crawler_bot_ua("OffplatformDiscovery/0.1 (+https://offplatformhub.com)"));
+    assert!(Storage::is_crawler_bot_ua("mcp-dualstack-research/1.0"));
+    assert!(Storage::is_crawler_bot_ua("Mozilla/5.0 (compatible; search.sitv.app-indexer/1.0)"));
+
+    // Check newly added internal probe marker
+    assert!(Storage::is_internal_probe_ua("Pressmark-Disclosure-QA/1.0"));
 }
