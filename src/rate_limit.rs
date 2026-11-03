@@ -167,6 +167,8 @@ pub async fn rate_limit_middleware(
         || path == "/sitemap.xml"
         || path == "/llms.txt"
         || path == "/llms-full.txt"
+        || path == "/ai.txt"
+        || path == "/agents.txt"
         || path == "/favicon.ico"
         || path == "/favicon.svg"
         || path == "/favicon.png"

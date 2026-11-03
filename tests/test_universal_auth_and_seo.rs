@@ -431,3 +431,90 @@ async fn test_trailing_punctuation_and_mcp_tools_discovery() {
     assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
     assert_eq!(res.headers().get(header::LOCATION).unwrap().to_str().unwrap(), "/terms");
 }
+
+#[tokio::test]
+async fn test_agent_discovery_and_a2a_routes() {
+    let app = setup_test_app();
+
+    // 1. GET /agents.txt -> 308 to /llms.txt
+    let req = Request::builder()
+        .uri("/agents.txt")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        res.headers().get(header::LOCATION).unwrap().to_str().unwrap(),
+        "/llms.txt"
+    );
+
+    // 2. GET /mcp/.well-known/mcp -> 200 OK server card
+    let req = Request::builder()
+        .uri("/mcp/.well-known/mcp")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(json["supportedProtocols"].is_array());
+    assert_eq!(json["name"], "io.github.mooshee/pressmark");
+
+    // 3. GET /mcp/.well-known/mcp.json -> 200 OK server card
+    let req = Request::builder()
+        .uri("/mcp/.well-known/mcp.json")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 4. POST /api/a2a -> 200 OK A2A greeting
+    let req = Request::builder()
+        .uri("/api/a2a")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"message":"hello"}"#))
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["status"], "ok");
+    assert_eq!(json["agent"], "io.github.mooshee/pressmark");
+
+    // 5. POST /a2a/v1 -> 200 OK A2A greeting
+    let req = Request::builder()
+        .uri("/a2a/v1")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"message":"hello"}"#))
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 6. POST /a2a/jsonrpc -> 200 OK A2A greeting
+    let req = Request::builder()
+        .uri("/a2a/jsonrpc")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"message":"hello"}"#))
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 7. GET /api/a2a -> 200 OK Agent card
+    let req = Request::builder()
+        .uri("/api/a2a")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["id"], "io.github.mooshee/pressmark");
+    assert_eq!(json["name"], "Pressmark");
+}
