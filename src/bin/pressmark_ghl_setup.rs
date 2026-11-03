@@ -35,18 +35,54 @@ struct FieldSpec {
 }
 
 const REQUIRED_FIELDS: &[FieldSpec] = &[
-    FieldSpec { name: "Pressmark Document ID", data_type: "TEXT" },
-    FieldSpec { name: "Pressmark Document Number", data_type: "TEXT" },
-    FieldSpec { name: "Pressmark Document Title", data_type: "TEXT" },
-    FieldSpec { name: "Pressmark Document Archetype", data_type: "TEXT" },
-    FieldSpec { name: "Pressmark Total Amount", data_type: "MONETORY" },
-    FieldSpec { name: "Pressmark Currency", data_type: "TEXT" },
-    FieldSpec { name: "Pressmark PDF Download Link", data_type: "TEXT" },
-    FieldSpec { name: "Pressmark Stripe Price ID", data_type: "TEXT" },
-    FieldSpec { name: "Pressmark Subscription Tier", data_type: "TEXT" },
-    FieldSpec { name: "Pressmark Last Action", data_type: "TEXT" },
-    FieldSpec { name: "Pressmark Generation Count", data_type: "NUMERICAL" },
-    FieldSpec { name: "Pressmark Source Channel", data_type: "TEXT" },
+    FieldSpec {
+        name: "Pressmark Document ID",
+        data_type: "TEXT",
+    },
+    FieldSpec {
+        name: "Pressmark Document Number",
+        data_type: "TEXT",
+    },
+    FieldSpec {
+        name: "Pressmark Document Title",
+        data_type: "TEXT",
+    },
+    FieldSpec {
+        name: "Pressmark Document Archetype",
+        data_type: "TEXT",
+    },
+    FieldSpec {
+        name: "Pressmark Total Amount",
+        data_type: "MONETORY",
+    },
+    FieldSpec {
+        name: "Pressmark Currency",
+        data_type: "TEXT",
+    },
+    FieldSpec {
+        name: "Pressmark PDF Download Link",
+        data_type: "TEXT",
+    },
+    FieldSpec {
+        name: "Pressmark Stripe Price ID",
+        data_type: "TEXT",
+    },
+    FieldSpec {
+        name: "Pressmark Subscription Tier",
+        data_type: "TEXT",
+    },
+    FieldSpec {
+        name: "Pressmark Last Action",
+        data_type: "TEXT",
+    },
+    FieldSpec {
+        name: "Pressmark Generation Count",
+        data_type: "NUMERICAL",
+    },
+    FieldSpec {
+        name: "Pressmark Source Channel",
+        data_type: "TEXT",
+    },
 ];
 
 fn resolve_location_token(location_id: &str) -> Result<String, String> {
@@ -113,7 +149,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| pressmark::ghl::PRESSMARK_LOCATION_ID.to_string());
 
     let token = resolve_location_token(&location_id)?;
-    let client = reqwest::Client::new();
+    let client = pressmark::ghl::shared_http_client();
 
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -127,12 +163,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Pressmark HighLevel Free-Creator Opportunity Reconciliation");
         println!("Target Location: {}", location_id);
         println!("Target Contact:  {}", contact_id);
-        println!("Mode:            {}", if dry_run { "DRY-RUN" } else { "LIVE" });
+        println!(
+            "Mode:            {}",
+            if dry_run { "DRY-RUN" } else { "LIVE" }
+        );
         println!("============================================================");
 
         // 1. Read-back Contact
-        let contact_url = format!("https://services.leadconnectorhq.com/contacts/{}", contact_id);
-        let c_resp = client.get(&contact_url).headers(headers.clone()).send().await?;
+        let contact_url = format!(
+            "https://services.leadconnectorhq.com/contacts/{}",
+            contact_id
+        );
+        let c_resp = client
+            .get(&contact_url)
+            .headers(headers.clone())
+            .send()
+            .await?;
         if !c_resp.status().is_success() {
             let err = c_resp.text().await?;
             return Err(format!("Failed to read contact {}: {}", contact_id, err).into());
@@ -161,7 +207,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .as_str()
             .filter(|s| !s.is_empty())
             .or_else(|| contact["name"].as_str().filter(|s| !s.is_empty()))
-            .or_else(|| full_fl.as_deref())
+            .or(full_fl.as_deref())
             .or_else(|| contact["companyName"].as_str().filter(|s| !s.is_empty()))
             .unwrap_or("Creator");
         println!("Verified Contact: {} <{}>", c_name, c_email);
@@ -206,7 +252,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(2.99),
         )
         .await?;
-        println!("✓ Upserted opportunity '{}' ($2.99) in stage {}", opp_name, pressmark::ghl::STAGE_ACTIVE_CREATOR_FREE);
+        println!(
+            "✓ Upserted opportunity '{}' ($2.99) in stage {}",
+            opp_name,
+            pressmark::ghl::STAGE_ACTIVE_CREATOR_FREE
+        );
 
         if let Err(e) = ghl
             .enroll_in_workflow(&contact_id, pressmark::ghl::WF1_FREE_CREATOR_NURTURE_ID)
@@ -214,7 +264,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         {
             println!("! Workflow enrollment note: {}", e);
         } else {
-            println!("✓ Enrolled in workflow {}", pressmark::ghl::WF1_FREE_CREATOR_NURTURE_ID);
+            println!(
+                "✓ Enrolled in workflow {}",
+                pressmark::ghl::WF1_FREE_CREATOR_NURTURE_ID
+            );
         }
 
         // Read-back verification of opportunity
@@ -222,7 +275,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "https://services.leadconnectorhq.com/opportunities/search?location_id={}",
             location_id
         );
-        let opp_resp = client.get(&search_url).headers(headers.clone()).send().await?;
+        let opp_resp = client
+            .get(&search_url)
+            .headers(headers.clone())
+            .send()
+            .await?;
         let opp_json: serde_json::Value = opp_resp.json().await?;
         let matching: Vec<&serde_json::Value> = opp_json["opportunities"]
             .as_array()
@@ -259,7 +316,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "https://services.leadconnectorhq.com/locations/{}/customFields",
         location_id
     );
-    let resp = client.get(&list_url).headers(headers.clone()).send().await?;
+    let resp = client
+        .get(&list_url)
+        .headers(headers.clone())
+        .send()
+        .await?;
 
     if !resp.status().is_success() {
         let err_text = resp.text().await?;
@@ -278,7 +339,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    println!("Discovered {} existing custom fields.", existing_names.len());
+    println!(
+        "Discovered {} existing custom fields.",
+        existing_names.len()
+    );
 
     // 2. Provision Missing Custom Fields
     let mut created_count = 0;
@@ -319,7 +383,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("============================================================");
-    println!("Deployment Complete: {} new custom fields created.", created_count);
+    println!(
+        "Deployment Complete: {} new custom fields created.",
+        created_count
+    );
     println!("============================================================");
 
     Ok(())

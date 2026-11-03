@@ -11,7 +11,23 @@ use axum::{
     Json,
 };
 use serde_json::{json, Value};
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
+
+fn shared_blocking_feedback_client() -> Option<&'static reqwest::blocking::Client> {
+    static CLIENT: OnceLock<Option<reqwest::blocking::Client>> = OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            reqwest::blocking::Client::builder()
+                .timeout(Duration::from_secs(8))
+                .no_proxy()
+                .build()
+                .ok()
+        })
+        .as_ref()
+}
 
 #[derive(Clone)]
 pub struct FeedbackClient {
@@ -255,7 +271,7 @@ pub fn tools() -> Vec<Value> {
                 "examples": [
                     {
                         "report_id": "a0000000-0000-0000-0000-000000000001",
-                        "access_key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                        "access_key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" // pragma: allowlist secret
                     }
                 ]
             }
@@ -331,11 +347,7 @@ pub fn handle_stdio(req: JsonRpcRequest) -> JsonRpcResponse {
             .and_then(|p| p.get("arguments"))
             .cloned()
             .unwrap_or(json!({}));
-        let result = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(8))
-            .no_proxy()
-            .build()
-            .ok()
+        let result = shared_blocking_feedback_client()
             .and_then(|c| {
                 c.post(format!("{}/v1/products/pressmark/{path}", config.base))
                     .json(&input)

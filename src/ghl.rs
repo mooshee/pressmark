@@ -12,6 +12,21 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
+use std::sync::OnceLock;
+
+static SHARED_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+/// Returns the shared connection-pooled HTTP client for HighLevel API calls.
+pub fn shared_http_client() -> reqwest::Client {
+    SHARED_HTTP_CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(15))
+                .build()
+                .unwrap_or_default()
+        })
+        .clone()
+}
 
 pub const PRESSMARK_LOCATION_ID: &str = "TnDcaRLbCxm7LnOUF173";
 
@@ -91,7 +106,7 @@ impl GhlDispatcher {
         Self {
             location_id,
             token,
-            client: reqwest::Client::new(),
+            client: shared_http_client(),
         }
     }
 
@@ -99,7 +114,7 @@ impl GhlDispatcher {
         Self {
             location_id,
             token,
-            client: reqwest::Client::new(),
+            client: shared_http_client(),
         }
     }
 
@@ -176,7 +191,10 @@ impl GhlDispatcher {
     }
 
     /// Upsert contact in HighLevel CRM with tags and custom fields.
-    pub async fn upsert_contact(&self, payload: &GhlContactPayload) -> Result<GhlDispatchReceipt, String> {
+    pub async fn upsert_contact(
+        &self,
+        payload: &GhlContactPayload,
+    ) -> Result<GhlDispatchReceipt, String> {
         if self.token.is_empty() {
             return Err("HighLevel Location PIT is missing or unauthenticated".to_string());
         }
@@ -294,7 +312,11 @@ impl GhlDispatcher {
     }
 
     /// Deterministically enroll a contact into a published HighLevel workflow via Public API v2.
-    pub async fn enroll_in_workflow(&self, contact_id: &str, workflow_id: &str) -> Result<(), String> {
+    pub async fn enroll_in_workflow(
+        &self,
+        contact_id: &str,
+        workflow_id: &str,
+    ) -> Result<(), String> {
         if self.token == "dry_run" {
             return Ok(());
         }
@@ -320,7 +342,11 @@ impl GhlDispatcher {
     }
 
     /// Remove a contact from an active HighLevel workflow via Public API v2.
-    pub async fn remove_from_workflow(&self, contact_id: &str, workflow_id: &str) -> Result<(), String> {
+    pub async fn remove_from_workflow(
+        &self,
+        contact_id: &str,
+        workflow_id: &str,
+    ) -> Result<(), String> {
         if self.token == "dry_run" {
             return Ok(());
         }
@@ -442,16 +468,31 @@ impl GhlDispatcher {
         }
 
         let mut custom_fields = HashMap::new();
-        custom_fields.insert("pressmark_document_number".to_string(), json!(doc.effective_doc_number()));
-        custom_fields.insert("pressmark_document_title".to_string(), json!(doc.title.as_deref().unwrap_or(archetype_title)));
-        custom_fields.insert("pressmark_document_archetype".to_string(), json!(archetype_title));
+        custom_fields.insert(
+            "pressmark_document_number".to_string(),
+            json!(doc.effective_doc_number()),
+        );
+        custom_fields.insert(
+            "pressmark_document_title".to_string(),
+            json!(doc.title.as_deref().unwrap_or(archetype_title)),
+        );
+        custom_fields.insert(
+            "pressmark_document_archetype".to_string(),
+            json!(archetype_title),
+        );
         custom_fields.insert("pressmark_total_amount".to_string(), json!(total_val));
-        custom_fields.insert("pressmark_currency".to_string(), json!(doc.normalized_currency_code()));
+        custom_fields.insert(
+            "pressmark_currency".to_string(),
+            json!(doc.normalized_currency_code()),
+        );
         custom_fields.insert("pressmark_source_channel".to_string(), json!(channel));
-        custom_fields.insert("pressmark_last_action".to_string(), json!("document_generated"));
+        custom_fields.insert(
+            "pressmark_last_action".to_string(),
+            json!("document_generated"),
+        );
 
         let email = user_email
-            .or_else(|| doc.from.email.as_deref())
+            .or(doc.from.email.as_deref())
             .map(|s| s.to_string());
 
         let payload = GhlContactPayload {
@@ -474,10 +515,18 @@ impl GhlDispatcher {
             if is_watermarked {
                 let opp_name = format!("{} — Free Creator", doc.from.name);
                 let _ = self
-                    .upsert_opportunity(cid, STAGE_ACTIVE_CREATOR_FREE, &opp_name, "open", Some(2.99))
+                    .upsert_opportunity(
+                        cid,
+                        STAGE_ACTIVE_CREATOR_FREE,
+                        &opp_name,
+                        "open",
+                        Some(2.99),
+                    )
                     .await;
                 receipt.pipeline_stage_id = Some(STAGE_ACTIVE_CREATOR_FREE.to_string());
-                let _ = self.enroll_in_workflow(cid, WF1_FREE_CREATOR_NURTURE_ID).await;
+                let _ = self
+                    .enroll_in_workflow(cid, WF1_FREE_CREATOR_NURTURE_ID)
+                    .await;
                 receipt
                     .workflows_enrolled
                     .push(WF1_FREE_CREATOR_NURTURE_ID.to_string());
@@ -516,9 +565,15 @@ impl GhlDispatcher {
         let amount_dollars = amount_cents as f64 / 100.0;
         let mut custom_fields = HashMap::new();
         custom_fields.insert("pressmark_document_number".to_string(), json!(doc_number));
-        custom_fields.insert("pressmark_subscription_tier".to_string(), json!(tier_or_pass));
+        custom_fields.insert(
+            "pressmark_subscription_tier".to_string(),
+            json!(tier_or_pass),
+        );
         custom_fields.insert("pressmark_total_amount".to_string(), json!(amount_dollars));
-        custom_fields.insert("pressmark_last_action".to_string(), json!("payment_unlocked"));
+        custom_fields.insert(
+            "pressmark_last_action".to_string(),
+            json!("payment_unlocked"),
+        );
 
         let payload = GhlContactPayload {
             email: Some(user_email.to_string()),
@@ -537,8 +592,12 @@ impl GhlDispatcher {
 
         let mut receipt = self.upsert_contact(&payload).await?;
         if let Some(ref cid) = receipt.contact_id {
-            let _ = self.remove_from_workflow(cid, WF1_FREE_CREATOR_NURTURE_ID).await;
-            let _ = self.remove_from_workflow(cid, WF2_ABANDONED_CHECKOUT_ID).await;
+            let _ = self
+                .remove_from_workflow(cid, WF1_FREE_CREATOR_NURTURE_ID)
+                .await;
+            let _ = self
+                .remove_from_workflow(cid, WF2_ABANDONED_CHECKOUT_ID)
+                .await;
             let stage_id = if is_subscriber {
                 STAGE_ACTIVE_SUBSCRIBER
             } else {
@@ -571,7 +630,10 @@ impl GhlDispatcher {
 
         let mut custom_fields = HashMap::new();
         custom_fields.insert("pressmark_source_channel".to_string(), json!(channel));
-        custom_fields.insert("pressmark_last_action".to_string(), json!("workspace_signin"));
+        custom_fields.insert(
+            "pressmark_last_action".to_string(),
+            json!("workspace_signin"),
+        );
 
         let payload = GhlContactPayload {
             email: Some(user_email.to_string()),
@@ -592,10 +654,18 @@ impl GhlDispatcher {
         if let Some(ref cid) = receipt.contact_id {
             let opp_name = format!("{} — Workspace Lead", name.unwrap_or(user_email));
             let _ = self
-                .upsert_opportunity(cid, STAGE_WORKSPACE_SIGNED_IN, &opp_name, "open", Some(2.99))
+                .upsert_opportunity(
+                    cid,
+                    STAGE_WORKSPACE_SIGNED_IN,
+                    &opp_name,
+                    "open",
+                    Some(2.99),
+                )
                 .await;
             receipt.pipeline_stage_id = Some(STAGE_WORKSPACE_SIGNED_IN.to_string());
-            let _ = self.enroll_in_workflow(cid, WF1_FREE_CREATOR_NURTURE_ID).await;
+            let _ = self
+                .enroll_in_workflow(cid, WF1_FREE_CREATOR_NURTURE_ID)
+                .await;
             receipt
                 .workflows_enrolled
                 .push(WF1_FREE_CREATOR_NURTURE_ID.to_string());
@@ -629,7 +699,10 @@ impl GhlDispatcher {
         }
         custom_fields.insert("pressmark_total_amount".to_string(), json!(amount_dollars));
         custom_fields.insert("pressmark_source_channel".to_string(), json!(channel));
-        custom_fields.insert("pressmark_last_action".to_string(), json!("checkout_started"));
+        custom_fields.insert(
+            "pressmark_last_action".to_string(),
+            json!("checkout_started"),
+        );
 
         let payload = GhlContactPayload {
             email: Some(user_email.to_string()),
@@ -650,10 +723,18 @@ impl GhlDispatcher {
         if let Some(ref cid) = receipt.contact_id {
             let opp_name = format!("{} — Checkout ({})", user_email, plan_id);
             let _ = self
-                .upsert_opportunity(cid, STAGE_CHECKOUT_STARTED, &opp_name, "open", Some(amount_dollars))
+                .upsert_opportunity(
+                    cid,
+                    STAGE_CHECKOUT_STARTED,
+                    &opp_name,
+                    "open",
+                    Some(amount_dollars),
+                )
                 .await;
             receipt.pipeline_stage_id = Some(STAGE_CHECKOUT_STARTED.to_string());
-            let _ = self.enroll_in_workflow(cid, WF2_ABANDONED_CHECKOUT_ID).await;
+            let _ = self
+                .enroll_in_workflow(cid, WF2_ABANDONED_CHECKOUT_ID)
+                .await;
             receipt
                 .workflows_enrolled
                 .push(WF2_ABANDONED_CHECKOUT_ID.to_string());
@@ -674,10 +755,19 @@ impl GhlDispatcher {
         ];
 
         let mut custom_fields = HashMap::new();
-        custom_fields.insert("pressmark_document_number".to_string(), json!(credit_note_number));
+        custom_fields.insert(
+            "pressmark_document_number".to_string(),
+            json!(credit_note_number),
+        );
         custom_fields.insert("pressmark_subscription_tier".to_string(), json!("free"));
-        custom_fields.insert("pressmark_total_amount".to_string(), json!(refund_cents as f64 / 100.0));
-        custom_fields.insert("pressmark_last_action".to_string(), json!("charge_refunded"));
+        custom_fields.insert(
+            "pressmark_total_amount".to_string(),
+            json!(refund_cents as f64 / 100.0),
+        );
+        custom_fields.insert(
+            "pressmark_last_action".to_string(),
+            json!("charge_refunded"),
+        );
 
         let payload = GhlContactPayload {
             email: Some(user_email.to_string()),
@@ -855,5 +945,13 @@ mod tests {
             refund_res.workflows_enrolled,
             vec![WF5_REFUND_CHURN_ID.to_string()]
         );
+    }
+
+    #[test]
+    fn test_shared_http_client_reuses_pool() {
+        let _c1 = shared_http_client();
+        let _c2 = shared_http_client();
+        let ghl = GhlDispatcher::new(PRESSMARK_LOCATION_ID.to_string(), "dry_run".to_string());
+        assert!(ghl.is_configured());
     }
 }

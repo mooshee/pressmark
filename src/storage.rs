@@ -10,8 +10,8 @@
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension, Result};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use crate::auth::{ChatGptSession, PendingAuth};
 
@@ -52,7 +52,8 @@ impl Storage {
         let _ = conn.execute_batch(
             "PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
-             PRAGMA busy_timeout = 5000;",
+             PRAGMA busy_timeout = 5000;
+             PRAGMA foreign_keys = ON;",
         );
 
         let storage = Self {
@@ -72,7 +73,10 @@ impl Storage {
         let path = std::env::var("PRESSMARK_DB_PATH")
             .unwrap_or_else(|_| ".local/pressmark_sessions.db".to_string());
         Self::new(path).unwrap_or_else(|e| {
-            tracing::warn!("Failed to open persistent DB at path, falling back to memory: {}", e);
+            tracing::warn!(
+                "Failed to open persistent DB at path, falling back to memory: {}",
+                e
+            );
             Self::new(":memory:").expect("In-memory SQLite DB must always succeed")
         })
     }
@@ -126,6 +130,7 @@ impl Storage {
                 request_fingerprint TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
+            CREATE INDEX IF NOT EXISTS idx_checkout_starts_created_at ON checkout_starts(created_at);
 
             CREATE TABLE IF NOT EXISTS customer_entitlements (
                 email TEXT PRIMARY KEY,
@@ -134,6 +139,7 @@ impl Storage {
                 amount_cents INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL
             );
+            CREATE INDEX IF NOT EXISTS idx_customer_entitlements_amount ON customer_entitlements(amount_cents);
 
             CREATE TABLE IF NOT EXISTS usage_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -149,18 +155,31 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_usage_events_channel_detail ON usage_events(channel, detail);
             CREATE INDEX IF NOT EXISTS idx_usage_events_archetype ON usage_events(archetype);
             CREATE INDEX IF NOT EXISTS idx_usage_events_type_detail ON usage_events(event_type, detail);
+            CREATE INDEX IF NOT EXISTS idx_usage_events_type_channel ON usage_events(event_type, channel);
+            CREATE INDEX IF NOT EXISTS idx_usage_events_compile_ms ON usage_events(compile_ms) WHERE compile_ms IS NOT NULL;
             UPDATE usage_events SET archetype = REPLACE(archetype, '-', '_') WHERE archetype IS NOT NULL AND archetype LIKE '%-%';",
         )?;
 
         // Nullable columns preserve the unknown outcome of historical attempts.
-        let columns: Vec<String> = lock.prepare_cached("PRAGMA table_info(usage_events)")?
-            .query_map([], |row| row.get(1))?.collect::<Result<_>>()?;
-        for (name, kind) in [("outcome", "TEXT"), ("completed_at", "TEXT"), ("error_code", "INTEGER")] {
+        let columns: Vec<String> = lock
+            .prepare_cached("PRAGMA table_info(usage_events)")?
+            .query_map([], |row| row.get(1))?
+            .collect::<Result<_>>()?;
+        for (name, kind) in [
+            ("outcome", "TEXT"),
+            ("completed_at", "TEXT"),
+            ("error_code", "INTEGER"),
+        ] {
             if !columns.iter().any(|column| column == name) {
-                lock.execute_batch(&format!("ALTER TABLE usage_events ADD COLUMN {name} {kind};"))?;
+                lock.execute_batch(&format!(
+                    "ALTER TABLE usage_events ADD COLUMN {name} {kind};"
+                ))?;
             }
         }
-        lock.execute_batch("CREATE TABLE IF NOT EXISTS usage_measurement_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);")?;
+        lock.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_usage_events_mcp_outcomes ON usage_events(event_type, detail, channel, outcome, error_code);
+             CREATE TABLE IF NOT EXISTS usage_measurement_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+        )?;
         lock.prepare_cached(
             "INSERT OR IGNORE INTO usage_measurement_metadata (key, value) VALUES ('mcp_outcomes_started_at', ?1)",
         )?
@@ -198,7 +217,11 @@ impl Storage {
             session.scope,
             session.expires_at.to_rfc3339(),
             session.created_at.to_rfc3339(),
-            if session.delegated_compute_active { 1 } else { 0 },
+            if session.delegated_compute_active {
+                1
+            } else {
+                0
+            },
         ])?;
 
         Ok(())
@@ -208,13 +231,15 @@ impl Storage {
         let clean = token_or_id.trim_start_matches("Bearer ").trim();
         let lock = self.conn.lock().unwrap();
 
-        let mut stmt = lock.prepare_cached(
-            "SELECT session_id, user_json, access_token, refresh_token,
+        let mut stmt = lock
+            .prepare_cached(
+                "SELECT session_id, user_json, access_token, refresh_token,
                     scope, expires_at, created_at, delegated_compute_active
              FROM sessions
              WHERE session_id = ?1 OR access_token = ?1
              LIMIT 1;",
-        ).ok()?;
+            )
+            .ok()?;
 
         let mut rows = stmt.query(params![clean]).ok()?;
 
@@ -229,8 +254,12 @@ impl Storage {
             let delegated_compute: i64 = row.get(7).ok()?;
 
             let user = serde_json::from_str(&user_json).ok()?;
-            let expires_at = DateTime::parse_from_rfc3339(&expires_at_str).ok()?.with_timezone(&Utc);
-            let created_at = DateTime::parse_from_rfc3339(&created_at_str).ok()?.with_timezone(&Utc);
+            let expires_at = DateTime::parse_from_rfc3339(&expires_at_str)
+                .ok()?
+                .with_timezone(&Utc);
+            let created_at = DateTime::parse_from_rfc3339(&created_at_str)
+                .ok()?
+                .with_timezone(&Utc);
 
             if expires_at > Utc::now() {
                 return Some(ChatGptSession {
@@ -290,11 +319,13 @@ impl Storage {
     pub fn take_pending_auth(&self, state: &str) -> Option<PendingAuth> {
         let lock = self.conn.lock().unwrap();
 
-        let mut stmt = lock.prepare_cached(
-            "DELETE FROM pending_auths
+        let mut stmt = lock
+            .prepare_cached(
+                "DELETE FROM pending_auths
              WHERE state = ?1
              RETURNING state, code_verifier, redirect_uri, return_to, created_at;",
-        ).ok()?;
+            )
+            .ok()?;
 
         let mut rows = stmt.query(params![state]).ok()?;
 
@@ -305,7 +336,9 @@ impl Storage {
             let return_to: String = row.get(3).ok()?;
             let created_at_str: String = row.get(4).ok()?;
 
-            let created_at = DateTime::parse_from_rfc3339(&created_at_str).ok()?.with_timezone(&Utc);
+            let created_at = DateTime::parse_from_rfc3339(&created_at_str)
+                .ok()?
+                .with_timezone(&Utc);
 
             return Some(PendingAuth {
                 state,
@@ -323,7 +356,9 @@ impl Storage {
 
     pub fn is_stripe_event_processed(&self, event_id: &str) -> bool {
         let lock = self.conn.lock().unwrap();
-        let mut stmt = match lock.prepare_cached("SELECT 1 FROM processed_stripe_events WHERE event_id = ?1 LIMIT 1;") {
+        let mut stmt = match lock
+            .prepare_cached("SELECT 1 FROM processed_stripe_events WHERE event_id = ?1 LIMIT 1;")
+        {
             Ok(s) => s,
             Err(_) => return false,
         };
@@ -405,7 +440,11 @@ impl Storage {
             .prepare_cached("SELECT count(*) FROM customer_entitlements;")
             .and_then(|mut s| s.query_row([], |r| r.get(0)))
             .unwrap_or(0);
-        (sessions as usize, stripe_events as usize, entitlements as usize)
+        (
+            sessions as usize,
+            stripe_events as usize,
+            entitlements as usize,
+        )
     }
 
     pub fn is_crawler_bot_ua(ua: &str) -> bool {
@@ -650,7 +689,8 @@ impl Storage {
         channel: &str,
     ) -> Result<CheckoutStart> {
         let mut lock = self.conn.lock().unwrap();
-        let transaction = lock.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let transaction =
+            lock.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let existing: Option<String> = transaction
             .prepare_cached(
                 "SELECT request_fingerprint FROM checkout_starts WHERE request_id = ?1",
@@ -715,7 +755,12 @@ impl Storage {
     }
 
     /// Persist an attempt before execution; interrupted work stays pending, never successful.
-    pub fn begin_mcp_tool_attempt(&self, archetype: Option<&str>, channel: &str, tool: Option<&str>) -> Option<i64> {
+    pub fn begin_mcp_tool_attempt(
+        &self,
+        archetype: Option<&str>,
+        channel: &str,
+        tool: Option<&str>,
+    ) -> Option<i64> {
         let tool = crate::mcp::McpHandler::measurement_tool_name(tool);
         let result = self.conn.lock().map_err(|_| "storage lock poisoned".to_string()).and_then(|lock| {
             lock.prepare_cached(
@@ -728,14 +773,21 @@ impl Storage {
         match result {
             Ok(id) => Some(id),
             Err(error) => {
-                self.mcp_attempt_write_failures.fetch_add(1, Ordering::Relaxed);
+                self.mcp_attempt_write_failures
+                    .fetch_add(1, Ordering::Relaxed);
                 tracing::warn!("MCP attempt measurement write failed: {}", error);
                 None
             }
         }
     }
 
-    pub fn finish_mcp_tool_attempt(&self, id: i64, success: bool, error_code: Option<i64>, compile_ms: Option<u64>) {
+    pub fn finish_mcp_tool_attempt(
+        &self,
+        id: i64,
+        success: bool,
+        error_code: Option<i64>,
+        compile_ms: Option<u64>,
+    ) {
         let result = self.conn.lock().map_err(|_| "storage lock poisoned".to_string()).and_then(|lock| {
             lock.prepare_cached(
                 "UPDATE usage_events SET outcome = ?1, completed_at = ?2, error_code = ?3, compile_ms = ?4 WHERE id = ?5 AND event_type = 'mcp_tool_call' AND outcome = 'pending'",
@@ -744,7 +796,8 @@ impl Storage {
             .map_err(|error| error.to_string())
         });
         if !matches!(result, Ok(1)) {
-            self.mcp_outcome_write_failures.fetch_add(1, Ordering::Relaxed);
+            self.mcp_outcome_write_failures
+                .fetch_add(1, Ordering::Relaxed);
             tracing::warn!("MCP outcome measurement write failed; the attempt remains unresolved");
         }
     }
@@ -832,7 +885,8 @@ impl Storage {
             }
         }
 
-        let mut mcp_outcomes = serde_json::json!({"success": 0, "failure": 0, "pending": 0, "unknown": 0});
+        let mut mcp_outcomes =
+            serde_json::json!({"success": 0, "failure": 0, "pending": 0, "unknown": 0});
         let mut mcp_failure_breakdown = serde_json::json!({"unknown_tool": 0, "invalid_arguments": 0, "execution_error": 0, "unclassified": 0});
         let mut mcp_by_tool = serde_json::Map::new();
         let mut mcp_by_actor = serde_json::Map::new();
@@ -912,7 +966,9 @@ impl Storage {
                 .and_then(|mut st| st.query_row([], |r| r.get(0)))
                 .unwrap_or(0);
             let paid: i64 = lock
-                .prepare_cached("SELECT count(*) FROM customer_entitlements WHERE amount_cents > 0;")
+                .prepare_cached(
+                    "SELECT count(*) FROM customer_entitlements WHERE amount_cents > 0;",
+                )
                 .and_then(|mut st| st.query_row([], |r| r.get(0)))
                 .unwrap_or(0);
             (s, st, e, paid)
@@ -980,7 +1036,8 @@ impl Storage {
         let now = Utc::now();
         let now_rfc3339 = now.to_rfc3339();
         let one_hour_ago = (now - chrono::Duration::hours(1)).to_rfc3339();
-        let stripe_cutoff = (now - chrono::Duration::days(max_stripe_event_age_days as i64)).to_rfc3339();
+        let stripe_cutoff =
+            (now - chrono::Duration::days(max_stripe_event_age_days as i64)).to_rfc3339();
         let usage_cutoff = (now - chrono::Duration::days(90)).to_rfc3339();
 
         let expired_sessions = lock
@@ -1001,9 +1058,13 @@ impl Storage {
 
         let total = expired_sessions + stale_auths + old_events + old_usage;
         if total > 0 {
+            let _ = lock.execute_batch("PRAGMA wal_checkpoint(PASSIVE); PRAGMA optimize;");
             tracing::info!(
                 "Pruned stale DB records: {} sessions, {} auths, {} stripe events, {} usage events",
-                expired_sessions, stale_auths, old_events, old_usage
+                expired_sessions,
+                stale_auths,
+                old_events,
+                old_usage
             );
         }
         Ok(total)
@@ -1011,15 +1072,19 @@ impl Storage {
 }
 
 /// Spawns a background pruning worker that runs every `interval_secs` seconds
-pub fn start_db_pruner_task(storage: Arc<Storage>, interval_secs: u64, max_stripe_event_age_days: u32) -> tokio::task::JoinHandle<()> {
+pub fn start_db_pruner_task(
+    storage: Arc<Storage>,
+    interval_secs: u64,
+    max_stripe_event_age_days: u32,
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
         loop {
             interval.tick().await;
             let s = Arc::clone(&storage);
-            let _ = tokio::task::spawn_blocking(move || {
-                s.prune_stale_data(max_stripe_event_age_days)
-            }).await;
+            let _ =
+                tokio::task::spawn_blocking(move || s.prune_stale_data(max_stripe_event_age_days))
+                    .await;
         }
     })
 }
@@ -1032,6 +1097,13 @@ mod tests {
     fn test_storage_covering_indexes_query_plan() {
         let storage = Storage::new(":memory:").expect("in-memory storage");
         let lock = storage.conn.lock().unwrap();
+
+        let fk_enabled: i64 = lock
+            .prepare_cached("PRAGMA foreign_keys;")
+            .expect("prepare_cached pragma")
+            .query_row([], |row| row.get(0))
+            .expect("query_row pragma");
+        assert_eq!(fk_enabled, 1, "expected PRAGMA foreign_keys = 1");
 
         let mut stmt_channel = lock
             .prepare_cached(
@@ -1069,6 +1141,42 @@ mod tests {
             mcp_plan
         );
 
+        let mut stmt_mcp_outcomes = lock
+            .prepare_cached(
+                "EXPLAIN QUERY PLAN SELECT COALESCE(detail, '(unnamed)'), channel, COALESCE(outcome, 'unknown'), error_code, count(*) FROM usage_events WHERE event_type = ?1 GROUP BY detail, channel, outcome, error_code;",
+            )
+            .expect("prepare_cached explain mcp outcomes");
+        let mcp_outcomes_plan: Vec<String> = stmt_mcp_outcomes
+            .query_map(["mcp_tool_call"], |row| row.get::<_, String>(3))
+            .expect("query_map")
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(
+            mcp_outcomes_plan
+                .iter()
+                .any(|d| d.contains("idx_usage_events_mcp_outcomes")),
+            "expected idx_usage_events_mcp_outcomes in plan: {:?}",
+            mcp_outcomes_plan
+        );
+
+        let mut stmt_entitlements = lock
+            .prepare_cached(
+                "EXPLAIN QUERY PLAN SELECT count(*) FROM customer_entitlements WHERE amount_cents > ?1;",
+            )
+            .expect("prepare_cached explain entitlements");
+        let entitlements_plan: Vec<String> = stmt_entitlements
+            .query_map([0_i64], |row| row.get::<_, String>(3))
+            .expect("query_map")
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(
+            entitlements_plan
+                .iter()
+                .any(|d| d.contains("idx_customer_entitlements_amount")),
+            "expected idx_customer_entitlements_amount in plan: {:?}",
+            entitlements_plan
+        );
+
         let mut stmt_arch = lock
             .prepare_cached(
                 "EXPLAIN QUERY PLAN SELECT archetype, count(*) FROM usage_events WHERE archetype IS NOT NULL AND archetype != '' GROUP BY archetype ORDER BY count(*) DESC LIMIT 20;",
@@ -1086,5 +1194,46 @@ mod tests {
             "expected idx_usage_events_archetype in plan: {:?}",
             arch_plan
         );
+
+        let mut stmt_compile_ms = lock
+            .prepare_cached(
+                "EXPLAIN QUERY PLAN SELECT COALESCE(AVG(compile_ms), 0.0) FROM usage_events WHERE compile_ms IS NOT NULL;",
+            )
+            .expect("prepare_cached explain compile_ms");
+        let compile_ms_plan: Vec<String> = stmt_compile_ms
+            .query_map([], |row| row.get::<_, String>(3))
+            .expect("query_map")
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(
+            compile_ms_plan
+                .iter()
+                .any(|d| d.contains("idx_usage_events_compile_ms")),
+            "expected idx_usage_events_compile_ms in plan: {:?}",
+            compile_ms_plan
+        );
+    }
+
+    #[test]
+    fn test_prune_stale_data_checkpoints_and_optimizes() {
+        let storage = Storage::new(":memory:").expect("in-memory storage");
+        storage.record_usage_event(
+            "mcp_tool_call",
+            None,
+            "test_client",
+            Some("get_pricing"),
+            None,
+        );
+        storage
+            .conn
+            .lock()
+            .unwrap()
+            .execute_batch(
+                "INSERT INTO sessions (session_id, user_id, user_json, access_token, scope, expires_at, created_at, delegated_compute_active)
+                 VALUES ('expired_tok', 'u1', '{}', 'tok1', 'openid', '2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z', 0);",
+            )
+            .expect("insert expired session");
+        let pruned = storage.prune_stale_data(30).expect("prune_stale_data");
+        assert_eq!(pruned, 1);
     }
 }
