@@ -201,6 +201,147 @@ impl DocumentRequest {
         }
     }
 
+    pub fn normalize_party_card_style(raw: Option<&str>, fallback: &'static str) -> &'static str {
+        match raw.map(str::trim).unwrap_or("").to_ascii_lowercase().as_str() {
+            "standard" | "accent" | "accent_bar" => "standard",
+            "badged" | "ribbon" | "header_ribbon" => "badged",
+            "minimal" | "clean" | "hairline" => "minimal",
+            "boxed_grid" | "boxed" | "grid" | "ledger" => "boxed_grid",
+            "editorial_split" | "editorial" | "callout" => "editorial_split",
+            "stacked_banner" | "stacked" | "banner" => "stacked_banner",
+            _ => fallback,
+        }
+    }
+
+    pub fn effective_parties_style(&self) -> &'static str {
+        Self::normalize_party_card_style(self.parties_style.as_deref(), "standard")
+    }
+
+    pub fn effective_from_style(&self) -> &'static str {
+        let fallback = self.effective_parties_style();
+        match self.from_style.as_deref().map(str::trim) {
+            Some(s) if !s.is_empty() && !s.eq_ignore_ascii_case("inherit") => {
+                Self::normalize_party_card_style(Some(s), fallback)
+            }
+            _ => fallback,
+        }
+    }
+
+    pub fn effective_to_style(&self) -> &'static str {
+        let fallback = self.effective_parties_style();
+        match self.to_style.as_deref().map(str::trim) {
+            Some(s) if !s.is_empty() && !s.eq_ignore_ascii_case("inherit") => {
+                Self::normalize_party_card_style(Some(s), fallback)
+            }
+            _ => fallback,
+        }
+    }
+
+    pub fn effective_fields_style(&self) -> &'static str {
+        match self
+            .fields_style
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "compact_strip" | "strip" | "horizontal" | "compact" => "compact_strip",
+            "ledger_table" | "ledger" | "table" | "bordered" => "ledger_table",
+            "minimal_list" | "minimal" | "hairline" => "minimal_list",
+            _ => "standard",
+        }
+    }
+
+    pub fn effective_table_style(&self) -> &'static str {
+        match self
+            .table_style
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "minimal_lines" | "minimal" | "hairline" | "open" => "minimal_lines",
+            "bordered_ledger" | "ledger" | "bordered" | "grid" => "bordered_ledger",
+            "modern_cards" | "modern" | "solid_header" | "tinted" => "modern_cards",
+            "compact_mono" | "mono" | "compact" | "dense" => "compact_mono",
+            _ => "standard",
+        }
+    }
+
+    pub fn effective_totals_style(&self) -> &'static str {
+        match self
+            .totals_style
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "card_highlight" | "card" | "highlighted" => "card_highlight",
+            "banner_bar" | "banner" | "bar" => "banner_bar",
+            "compact" | "inline" | "strip" => "compact",
+            "split_ledger" | "ledger" | "framed" | "boxed" => "split_ledger",
+            _ => "standard",
+        }
+    }
+
+    pub fn effective_payment_style(&self) -> &'static str {
+        match self
+            .payment_style
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "banner" | "highlight" | "bold" => "banner",
+            "minimal_inline" | "minimal" | "inline" | "compact" => "minimal_inline",
+            _ => "standard",
+        }
+    }
+
+    pub fn normalize_section_block_style(raw: Option<&str>, fallback: &'static str) -> &'static str {
+        match raw.map(str::trim).unwrap_or("").to_ascii_lowercase().as_str() {
+            "standard" | "underline" | "underlined" => "standard",
+            "callout_card" | "card" | "callout" | "boxed" => "callout_card",
+            "left_accent" | "accent" | "bar" | "left_bar" => "left_accent",
+            "numbered_legal" | "legal" | "indented" | "formal" => "numbered_legal",
+            _ => fallback,
+        }
+    }
+
+    pub fn effective_sections_style(&self) -> &'static str {
+        Self::normalize_section_block_style(self.sections_style.as_deref(), "standard")
+    }
+
+    pub fn effective_notes_style(&self) -> &'static str {
+        let fallback = self.effective_sections_style();
+        match self.notes_style.as_deref().map(str::trim) {
+            Some(s) if !s.is_empty() && !s.eq_ignore_ascii_case("inherit") => {
+                Self::normalize_section_block_style(Some(s), fallback)
+            }
+            _ => "standard",
+        }
+    }
+
+    pub fn effective_signature_style(&self) -> &'static str {
+        match self
+            .signature_style
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "framed_box" | "framed" | "card" | "boxed" => "framed_box",
+            "formal_deed" | "deed" | "formal" | "witnessed" => "formal_deed",
+            "minimal_compact" | "minimal" | "compact" => "minimal_compact",
+            _ => "standard",
+        }
+    }
+
     pub fn format_amount(&self, val: f64) -> String {
         let decimals = self.number_decimals.unwrap_or(2);
         let sep_mode = self.currency_separators.as_deref();

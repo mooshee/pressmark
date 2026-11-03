@@ -215,102 +215,225 @@
   amount-due: "$0.00",
   due-date: none,
   payment-method: "Stripe / Card / Apple Pay",
+  style: "standard",
   primary-color: color-indigo-600,
   accent-color: color-cyan-600,
   surface-color: color-slate-50
 ) = {
   let is-paid = (payment-status == "paid")
+  let qr-size = if style == "minimal_inline" { 40pt } else { 52pt }
+  let qr-img-size = if style == "minimal_inline" { 34pt } else { 46pt }
+  let qr-node = [
+    #if qr-path != none and qr-path != "" {
+      let qr-box = box(
+        width: qr-size,
+        height: qr-size,
+        fill: white,
+        radius: 3pt,
+        stroke: 0.5pt + color-slate-200,
+        inset: 3pt,
+        align(center + horizon)[
+          #image(qr-path, width: qr-img-size, height: qr-img-size, fit: "contain")
+        ]
+      )
+      if payment-url != none and payment-url != "" {
+        link(payment-url)[#qr-box]
+      } else {
+        qr-box
+      }
+    } else {
+      rect(
+        width: qr-size,
+        height: qr-size,
+        fill: if is-paid { color-emerald-600 } else { primary-color },
+        radius: 3pt,
+        align(center + horizon)[
+          #text(size: if style == "minimal_inline" { 5.5pt } else { 6.5pt }, weight: "bold", fill: white)[SCAN\ TO PAY]
+        ]
+      )
+    }
+  ]
   v(8pt)
-  rect(
-    width: 100%,
-    stroke: if is-paid { 1pt + color-emerald-500 } else { 0.75pt + accent-color.lighten(30%) },
-    fill: if is-paid { rgb("#f0fdf4") } else { surface-color },
-    radius: 4pt,
-    inset: 8pt,
-    [
-      #grid(
-        columns: (auto, 1fr, auto),
-        gutter: 12pt,
-        align: (center + horizon, left + horizon, right + horizon),
-        [
-          #if qr-path != none and qr-path != "" {
-            let qr-box = box(
-              width: 52pt,
-              height: 52pt,
-              fill: white,
-              radius: 3pt,
-              stroke: 0.5pt + color-slate-200,
-              inset: 3pt,
-              align(center + horizon)[
-                #image(qr-path, width: 46pt, height: 46pt, fit: "contain")
-              ]
-            )
-            if payment-url != none and payment-url != "" {
-              link(payment-url)[#qr-box]
-            } else {
-              qr-box
-            }
-          } else {
-            rect(
-              width: 52pt,
-              height: 52pt,
-              fill: if is-paid { color-emerald-600 } else { primary-color },
-              radius: 3pt,
-              align(center + horizon)[
-                #text(size: 6.5pt, weight: "bold", fill: white)[SCAN\ TO PAY]
-              ]
-            )
-          }
-        ],
-        [
-          #if is-paid {
-            stack(
-              dir: ttb,
-              spacing: 3pt,
-              text(size: 8.5pt, weight: "bold", fill: color-emerald-700)[✓ PAYMENT RECEIVED IN FULL],
-              text(size: 7pt, fill: color-slate-600)[Processed via #payment-method. Official receipt generated.]
-            )
-          } else {
-            stack(
-              dir: ttb,
-              spacing: 3pt,
-              text(size: 8.5pt, weight: "bold", fill: primary-color)[SCAN TO PAY VIA MOBILE · #upper(payment-method)],
-              text(size: 7pt, fill: color-slate-600)[Instant 1-tap checkout. Scan the QR code with your mobile camera.],
-              ..if payment-url != none and payment-url != "" {
-                (text(size: 6.5pt, font: font-mono, weight: "bold", fill: primary-color)[#link(payment-url)[#payment-url]],)
-              } else {
-                ()
-              }
-            )
-          }
-        ],
-        [
-          #if is-paid {
-            box(
-              fill: color-emerald-600,
-              radius: 3pt,
-              inset: (x: 8pt, y: 5pt),
-              text(size: 8pt, weight: "bold", fill: white)[PAID · \$0.00 DUE]
-            )
-          } else {
-            align(right)[
-              #stack(
+  if style == "banner" {
+    rect(
+      width: 100%,
+      stroke: if is-paid { 1.5pt + color-emerald-600 } else { 1.5pt + primary-color },
+      fill: if is-paid { rgb("#ecfdf5") } else { primary-color.lighten(93%) },
+      radius: 5pt,
+      inset: (x: 10pt, y: 8pt),
+      [
+        #grid(
+          columns: (auto, 1fr, auto),
+          gutter: 12pt,
+          align: (center + horizon, left + horizon, right + horizon),
+          qr-node,
+          [
+            #if is-paid {
+              stack(
                 dir: ttb,
                 spacing: 3pt,
-                text(size: 6.5pt, weight: "bold", fill: color-slate-500)[AMOUNT DUE],
-                text(size: 11pt, weight: 900, fill: primary-color)[#amount-due],
-                ..if due-date != none and due-date != "" {
-                  (text(size: 6.5pt, fill: color-slate-500)[Due: #due-date],)
+                text(size: 8.5pt, weight: "bold", fill: color-emerald-700)[✓ PAYMENT RECEIVED IN FULL],
+                text(size: 7pt, fill: color-slate-600)[Processed via #payment-method. Official receipt generated.]
+              )
+            } else {
+              stack(
+                dir: ttb,
+                spacing: 3pt,
+                box(
+                  fill: primary-color,
+                  radius: 2pt,
+                  inset: (x: 5pt, y: 2pt),
+                  text(size: 6pt, weight: "bold", fill: white)[INSTANT CHECKOUT · #upper(payment-method)]
+                ),
+                text(size: 7.5pt, weight: "medium", fill: color-slate-800)[Scan QR code with your mobile camera or click to pay online.],
+                ..if payment-url != none and payment-url != "" {
+                  (text(size: 6.5pt, font: font-mono, weight: "bold", fill: primary-color)[#link(payment-url)[#payment-url]],)
                 } else {
                   ()
                 }
               )
-            ]
-          }
-        ]
-      )
-    ]
-  )
+            }
+          ],
+          [
+            #if is-paid {
+              box(
+                fill: color-emerald-600,
+                radius: 3pt,
+                inset: (x: 8pt, y: 5pt),
+                text(size: 8pt, weight: "bold", fill: white)[PAID · \$0.00 DUE]
+              )
+            } else {
+              box(
+                fill: primary-color,
+                radius: 4pt,
+                inset: (x: 10pt, y: 6pt),
+                align(right)[
+                  #stack(
+                    dir: ttb,
+                    spacing: 2.5pt,
+                    text(size: 6pt, weight: "bold", fill: white.transparentize(15%))[AMOUNT DUE],
+                    text(size: 11pt, weight: 900, fill: white)[#amount-due],
+                    ..if due-date != none and due-date != "" {
+                      (text(size: 6pt, fill: white.transparentize(15%))[Due: #due-date],)
+                    } else {
+                      ()
+                    }
+                  )
+                ]
+              )
+            }
+          ]
+        )
+      ]
+    )
+  } else if style == "minimal_inline" {
+    rect(
+      width: 100%,
+      stroke: (top: 0.6pt + color-slate-300, bottom: 0.6pt + color-slate-300),
+      fill: none,
+      inset: (x: 2pt, y: 6pt),
+      [
+        #grid(
+          columns: (auto, 1fr, auto),
+          gutter: 10pt,
+          align: (center + horizon, left + horizon, right + horizon),
+          qr-node,
+          [
+            #if is-paid {
+              text(size: 8pt, weight: "bold", fill: color-emerald-700)[✓ PAID IN FULL · #payment-method]
+            } else {
+              stack(
+                dir: ttb,
+                spacing: 2.5pt,
+                text(size: 8pt, weight: "bold", fill: color-slate-900)[Pay Online · #payment-method],
+                ..if payment-url != none and payment-url != "" {
+                  (text(size: 6.5pt, font: font-mono, fill: primary-color)[#link(payment-url)[#payment-url]],)
+                } else {
+                  (text(size: 6.5pt, fill: color-slate-500)[Scan QR code with mobile camera for instant payment.],)
+                }
+              )
+            }
+          ],
+          [
+            #if is-paid {
+              text(size: 8pt, weight: "bold", fill: color-emerald-700)[\$0.00 DUE]
+            } else {
+              align(right)[
+                #stack(
+                  dir: ttb,
+                  spacing: 2pt,
+                  text(size: 6pt, weight: "bold", fill: color-slate-400)[DUE #{if due-date != none and due-date != "" { due-date } else { "UPON RECEIPT" }}],
+                  text(size: 10pt, weight: "bold", fill: primary-color)[#amount-due]
+                )
+              ]
+            }
+          ]
+        )
+      ]
+    )
+  } else {
+    rect(
+      width: 100%,
+      stroke: if is-paid { 1pt + color-emerald-500 } else { 0.75pt + accent-color.lighten(30%) },
+      fill: if is-paid { rgb("#f0fdf4") } else { surface-color },
+      radius: 4pt,
+      inset: 8pt,
+      [
+        #grid(
+          columns: (auto, 1fr, auto),
+          gutter: 12pt,
+          align: (center + horizon, left + horizon, right + horizon),
+          qr-node,
+          [
+            #if is-paid {
+              stack(
+                dir: ttb,
+                spacing: 3pt,
+                text(size: 8.5pt, weight: "bold", fill: color-emerald-700)[✓ PAYMENT RECEIVED IN FULL],
+                text(size: 7pt, fill: color-slate-600)[Processed via #payment-method. Official receipt generated.]
+              )
+            } else {
+              stack(
+                dir: ttb,
+                spacing: 3pt,
+                text(size: 8.5pt, weight: "bold", fill: primary-color)[SCAN TO PAY VIA MOBILE · #upper(payment-method)],
+                text(size: 7pt, fill: color-slate-600)[Instant 1-tap checkout. Scan the QR code with your mobile camera.],
+                ..if payment-url != none and payment-url != "" {
+                  (text(size: 6.5pt, font: font-mono, weight: "bold", fill: primary-color)[#link(payment-url)[#payment-url]],)
+                } else {
+                  ()
+                }
+              )
+            }
+          ],
+          [
+            #if is-paid {
+              box(
+                fill: color-emerald-600,
+                radius: 3pt,
+                inset: (x: 8pt, y: 5pt),
+                text(size: 8pt, weight: "bold", fill: white)[PAID · \$0.00 DUE]
+              )
+            } else {
+              align(right)[
+                #stack(
+                  dir: ttb,
+                  spacing: 3pt,
+                  text(size: 6.5pt, weight: "bold", fill: color-slate-500)[AMOUNT DUE],
+                  text(size: 11pt, weight: 900, fill: primary-color)[#amount-due],
+                  ..if due-date != none and due-date != "" {
+                    (text(size: 6.5pt, fill: color-slate-500)[Due: #due-date],)
+                  } else {
+                    ()
+                  }
+                )
+              ]
+            }
+          ]
+        )
+      ]
+    )
+  }
 }
 
 // =============================================================================
@@ -774,6 +897,157 @@
 // PARTIES GRID (FROM / TO)
 // =============================================================================
 
+#let render-single-party-card(
+  title: "ISSUED BY",
+  name: "Acme Studio Inc.",
+  details: [],
+  card-style: "standard",
+  accent-col: rgb("4f46e5"),
+  border-col: rgb("475569"),
+  fill-col: rgb("f8fafc"),
+  marker: "●",
+  fixed-height: auto
+) = {
+  if card-style == "badged" {
+    rect(
+      width: 100%,
+      height: fixed-height,
+      fill: fill-col,
+      stroke: 0.75pt + accent-col.lighten(45%),
+      radius: 4pt,
+      inset: 0pt,
+      stack(
+        dir: ttb,
+        spacing: 0pt,
+        rect(
+          width: 100%,
+          fill: accent-col,
+          radius: (top: 4pt),
+          inset: (x: 10pt, y: 4.5pt),
+          text(size: 6.5pt, weight: "bold", fill: white, tracking: 0.5pt)[#marker #title]
+        ),
+        pad(
+          x: 10pt,
+          y: 7.5pt,
+          [
+            #set par(leading: 0.48em)
+            #stack(
+              dir: ttb,
+              spacing: 3.5pt,
+              text(size: 10pt, weight: "bold", fill: color-slate-900)[#name],
+              text(size: 8pt, fill: color-slate-700)[#details]
+            )
+          ]
+        )
+      )
+    )
+  } else if card-style == "minimal" {
+    rect(
+      width: 100%,
+      height: fixed-height,
+      fill: none,
+      stroke: (
+        top: 1.5pt + accent-col,
+        bottom: 0.5pt + color-slate-200
+      ),
+      inset: (x: 2pt, y: 7pt),
+      [
+        #set par(leading: 0.48em)
+        #stack(
+          dir: ttb,
+          spacing: 3.5pt,
+          text(size: 6.5pt, weight: "bold", fill: accent-col, tracking: 0.6pt)[#title],
+          text(size: 10pt, weight: "bold", fill: color-slate-900)[#name],
+          text(size: 8pt, fill: color-slate-700)[#details]
+        )
+      ]
+    )
+  } else if card-style == "boxed_grid" {
+    rect(
+      width: 100%,
+      height: fixed-height,
+      fill: rgb("#ffffff"),
+      stroke: 0.75pt + color-slate-400,
+      radius: 2pt,
+      inset: 0pt,
+      stack(
+        dir: ttb,
+        spacing: 0pt,
+        rect(
+          width: 100%,
+          fill: color-slate-100,
+          radius: (top: 2pt),
+          stroke: (bottom: 0.5pt + color-slate-300),
+          inset: (x: 9pt, y: 4pt),
+          text(size: 6.5pt, font: font-mono, weight: "bold", fill: accent-col)[#title]
+        ),
+        pad(
+          x: 9pt,
+          y: 7pt,
+          [
+            #set par(leading: 0.48em)
+            #stack(
+              dir: ttb,
+              spacing: 3.5pt,
+              text(size: 9.5pt, weight: "bold", fill: color-slate-900)[#name],
+              text(size: 8pt, fill: color-slate-700)[#details]
+            )
+          ]
+        )
+      )
+    )
+  } else if card-style == "editorial_split" {
+    rect(
+      width: 100%,
+      height: fixed-height,
+      fill: accent-col.lighten(93%),
+      stroke: 0.5pt + accent-col.lighten(60%),
+      radius: 5pt,
+      inset: (x: 10pt, y: 8pt),
+      [
+        #set par(leading: 0.48em)
+        #stack(
+          dir: ttb,
+          spacing: 3.5pt,
+          text(size: 6.5pt, weight: "bold", fill: accent-col, tracking: 0.7pt)[#title],
+          line(length: 28pt, stroke: 1pt + accent-col),
+          text(size: 10.5pt, font: font-serif, weight: "bold", fill: color-slate-900)[#name],
+          text(size: 8pt, fill: color-slate-700)[#details]
+        )
+      ]
+    )
+  } else {
+    rect(
+      width: 100%,
+      height: fixed-height,
+      fill: fill-col,
+      stroke: (
+        left: 3.5pt + accent-col,
+        top: 0.5pt + border-col.lighten(70%),
+        right: 0.5pt + border-col.lighten(70%),
+        bottom: 0.5pt + border-col.lighten(70%)
+      ),
+      radius: (right: 5pt, left: 2pt),
+      inset: (x: 10pt, y: 8.5pt),
+      [
+        #set par(leading: 0.48em)
+        #stack(
+          dir: ttb,
+          spacing: 4pt,
+          box(
+            fill: accent-col.lighten(88%),
+            inset: (x: 5pt, y: 2.5pt),
+            radius: 3pt,
+            text(size: 6.5pt, weight: "bold", fill: accent-col)[#marker #title]
+          ),
+          text(size: 10pt, weight: "bold", fill: color-slate-900)[#name],
+          text(size: 8pt, fill: color-slate-700)[#details]
+        )
+      ]
+    )
+  }
+}
+
 #let parties-grid(
   from-name: "Acme Studio Inc.",
   from-details: "123 Innovation Way\nSan Francisco, CA 94105\nbilling@acme.io",
@@ -781,97 +1055,202 @@
   to-details: "456 Enterprise Blvd\nAustin, TX 78701\nap@globallogistics.com",
   from-title: "ISSUED BY",
   to-title: "BILLED TO",
+  parties-style: "standard",
+  from-style: "standard",
+  to-style: "standard",
   primary-color: rgb("4f46e5"),
   secondary-color: rgb("475569"),
   surface-color: rgb("f8fafc")
 ) = {
-  let from-inner = [
-    #set par(leading: 0.48em)
-    #stack(
+  let eff-from = if from-style != none and from-style != "" { from-style } else { parties-style }
+  let eff-to = if to-style != none and to-style != "" { to-style } else { parties-style }
+
+  if parties-style == "stacked_banner" or (eff-from == "stacked_banner" and eff-to == "stacked_banner") {
+    stack(
       dir: ttb,
-      spacing: 4pt,
-      box(
-        fill: primary-color.lighten(88%),
-        inset: (x: 5pt, y: 2.5pt),
-        radius: 3pt,
-        text(size: 6.5pt, weight: "bold", fill: primary-color)[● #from-title]
-      ),
-      text(size: 10pt, weight: "bold", fill: color-slate-900)[#from-name],
-      text(size: 8pt, fill: color-slate-700)[#from-details]
-    )
-  ]
-  let to-inner = [
-    #set par(leading: 0.48em)
-    #stack(
-      dir: ttb,
-      spacing: 4pt,
-      box(
-        fill: secondary-color.lighten(88%),
-        inset: (x: 5pt, y: 2.5pt),
-        radius: 3pt,
-        text(size: 6.5pt, weight: "bold", fill: secondary-color)[○ #to-title]
-      ),
-      text(size: 10pt, weight: "bold", fill: color-slate-900)[#to-name],
-      text(size: 8pt, fill: color-slate-700)[#to-details]
-    )
-  ]
-  layout(size => {
-    let col-w = (size.width - 14pt) / 2
-    let inner-w = col-w - 20pt
-    let h1 = measure(width: inner-w, from-inner).height
-    let h2 = measure(width: inner-w, to-inner).height
-    let card-h = calc.max(h1, h2) + 17pt
-    grid(
-      columns: (1fr, 1fr),
-      gutter: 14pt,
+      spacing: 6pt,
       rect(
         width: 100%,
-        height: card-h,
         fill: surface-color,
-        stroke: (
-          left: 3.5pt + primary-color,
-          top: 0.5pt + secondary-color.lighten(70%),
-          right: 0.5pt + secondary-color.lighten(70%),
-          bottom: 0.5pt + secondary-color.lighten(70%)
-        ),
-        radius: (right: 5pt, left: 2pt),
-        inset: (x: 10pt, y: 8.5pt),
-        from-inner
+        stroke: (left: 3.5pt + primary-color, rest: 0.5pt + color-slate-300),
+        radius: (right: 4pt, left: 2pt),
+        inset: (x: 10pt, y: 7pt),
+        grid(
+          columns: (145pt, 1fr),
+          gutter: 12pt,
+          align: (left + top, left + top),
+          stack(
+            dir: ttb,
+            spacing: 3pt,
+            box(
+              fill: primary-color.lighten(88%),
+              inset: (x: 5pt, y: 2pt),
+              radius: 2.5pt,
+              text(size: 6pt, weight: "bold", fill: primary-color)[● #from-title]
+            ),
+            text(size: 9.5pt, weight: "bold", fill: color-slate-900)[#from-name]
+          ),
+          [
+            #set par(leading: 0.45em)
+            #text(size: 8pt, fill: color-slate-700)[#from-details]
+          ]
+        )
       ),
       rect(
         width: 100%,
-        height: card-h,
         fill: rgb("#ffffff"),
-        stroke: (
-          left: 3.5pt + secondary-color,
-          top: 0.5pt + secondary-color.lighten(70%),
-          right: 0.5pt + secondary-color.lighten(70%),
-          bottom: 0.5pt + secondary-color.lighten(70%)
-        ),
-        radius: (right: 5pt, left: 2pt),
-        inset: (x: 10pt, y: 8.5pt),
-        to-inner
+        stroke: (left: 3.5pt + secondary-color, rest: 0.5pt + color-slate-300),
+        radius: (right: 4pt, left: 2pt),
+        inset: (x: 10pt, y: 7pt),
+        grid(
+          columns: (145pt, 1fr),
+          gutter: 12pt,
+          align: (left + top, left + top),
+          stack(
+            dir: ttb,
+            spacing: 3pt,
+            box(
+              fill: secondary-color.lighten(88%),
+              inset: (x: 5pt, y: 2pt),
+              radius: 2.5pt,
+              text(size: 6pt, weight: "bold", fill: secondary-color)[○ #to-title]
+            ),
+            text(size: 9.5pt, weight: "bold", fill: color-slate-900)[#to-name]
+          ),
+          [
+            #set par(leading: 0.45em)
+            #text(size: 8pt, fill: color-slate-700)[#to-details]
+          ]
+        )
       )
     )
-  })
+  } else {
+    layout(size => {
+      let col-w = (size.width - 14pt) / 2
+      let c1-probe = render-single-party-card(
+        title: from-title,
+        name: from-name,
+        details: from-details,
+        card-style: eff-from,
+        accent-col: primary-color,
+        border-col: secondary-color,
+        fill-col: surface-color,
+        marker: "●",
+        fixed-height: auto
+      )
+      let c2-probe = render-single-party-card(
+        title: to-title,
+        name: to-name,
+        details: to-details,
+        card-style: eff-to,
+        accent-col: secondary-color,
+        border-col: secondary-color,
+        fill-col: rgb("#ffffff"),
+        marker: "○",
+        fixed-height: auto
+      )
+      let h1 = measure(width: col-w, c1-probe).height
+      let h2 = measure(width: col-w, c2-probe).height
+      let card-h = calc.max(h1, h2)
+      grid(
+        columns: (1fr, 1fr),
+        gutter: 14pt,
+        render-single-party-card(
+          title: from-title,
+          name: from-name,
+          details: from-details,
+          card-style: eff-from,
+          accent-col: primary-color,
+          border-col: secondary-color,
+          fill-col: surface-color,
+          marker: "●",
+          fixed-height: card-h
+        ),
+        render-single-party-card(
+          title: to-title,
+          name: to-name,
+          details: to-details,
+          card-style: eff-to,
+          accent-col: secondary-color,
+          border-col: secondary-color,
+          fill-col: rgb("#ffffff"),
+          marker: "○",
+          fixed-height: card-h
+        )
+      )
+    })
+  }
 }
 
 // =============================================================================
 // CUSTOM SECTIONS
 // =============================================================================
 
-#let custom-section(title, body) = {
-  block(sticky: true, above: 9pt, below: 4pt)[
-    #stack(
-      dir: ttb,
-      spacing: 3pt,
-      text(size: 9.5pt, weight: "bold", fill: color-slate-900)[#title],
-      line(length: 100%, stroke: 0.5pt + color-slate-300)
-    )
-  ]
-  block(above: 4pt, below: 6pt)[
-    #text(size: 8.5pt, fill: color-slate-700)[#body]
-  ]
+#let custom-section(
+  title,
+  body,
+  style: "standard",
+  primary-color: color-indigo-600,
+  surface-color: color-slate-50
+) = {
+  if style == "callout_card" {
+    block(above: 7pt, below: 6pt, width: 100%)[
+      #rect(
+        width: 100%,
+        fill: surface-color,
+        stroke: 0.5pt + color-slate-300,
+        radius: 4pt,
+        inset: (x: 10pt, y: 7pt),
+        stack(
+          dir: ttb,
+          spacing: 4pt,
+          text(size: 8.5pt, weight: "bold", fill: primary-color)[#title],
+          text(size: 8.5pt, fill: color-slate-700)[#body]
+        )
+      )
+    ]
+  } else if style == "left_accent" {
+    block(above: 8pt, below: 6pt, width: 100%)[
+      #rect(
+        width: 100%,
+        fill: none,
+        stroke: (left: 2.5pt + primary-color),
+        inset: (left: 9pt, y: 2pt),
+        stack(
+          dir: ttb,
+          spacing: 3.5pt,
+          text(size: 9pt, weight: "bold", fill: color-slate-900)[#title],
+          text(size: 8.5pt, fill: color-slate-700)[#body]
+        )
+      )
+    ]
+  } else if style == "numbered_legal" {
+    block(sticky: true, above: 9pt, below: 3pt)[
+      #stack(
+        dir: ttb,
+        spacing: 2.5pt,
+        line(length: 100%, stroke: 0.4pt + color-slate-300),
+        text(size: 8.5pt, weight: "bold", fill: primary-color, tracking: 0.4pt)[#upper(title)]
+      )
+    ]
+    block(above: 3pt, below: 6pt)[
+      #pad(left: 6pt)[
+        #text(size: 8.5pt, fill: color-slate-700)[#body]
+      ]
+    ]
+  } else {
+    block(sticky: true, above: 9pt, below: 4pt)[
+      #stack(
+        dir: ttb,
+        spacing: 3pt,
+        text(size: 9.5pt, weight: "bold", fill: color-slate-900)[#title],
+        line(length: 100%, stroke: 0.5pt + color-slate-300)
+      )
+    ]
+    block(above: 4pt, below: 6pt)[
+      #text(size: 8.5pt, fill: color-slate-700)[#body]
+    ]
+  }
 }
 
 // =============================================================================
@@ -883,23 +1262,96 @@
   signer-name: "",
   signer-title: "Authorized Representative",
   date: "",
-  primary-color: color-indigo-600
+  style: "standard",
+  primary-color: color-indigo-600,
+  surface-color: color-slate-50
 ) = {
-  box(width: 100%)[
-    #stack(
-      dir: ttb,
-      spacing: 3.5pt,
-      if signature-path != none and signature-path != "" {
-        align(center)[#box(height: 28pt, image(signature-path, fit: "contain"))]
-      } else {
-        v(22pt)
-      },
-      line(length: 100%, stroke: 0.75pt + color-slate-700),
-      text(size: 8.5pt, weight: "bold", fill: color-slate-900)[#signer-name],
-      text(size: 7.5pt, fill: color-slate-500)[#signer-title],
-      text(size: 7pt, fill: color-slate-400)[Date: #date]
+  if style == "framed_box" {
+    rect(
+      width: 100%,
+      fill: surface-color,
+      stroke: 0.6pt + color-slate-300,
+      radius: 4pt,
+      inset: (x: 10pt, y: 7pt),
+      stack(
+        dir: ttb,
+        spacing: 3.5pt,
+        if signature-path != none and signature-path != "" {
+          align(center)[#box(height: 26pt, image(signature-path, fit: "contain"))]
+        } else {
+          v(18pt)
+        },
+        line(length: 100%, stroke: 0.75pt + primary-color),
+        grid(
+          columns: (1fr, auto),
+          gutter: 6pt,
+          align: (left + horizon, right + horizon),
+          text(size: 8.5pt, weight: "bold", fill: color-slate-900)[#signer-name],
+          text(size: 6.5pt, font: font-mono, fill: color-slate-500)[#date]
+        ),
+        text(size: 7pt, fill: color-slate-500)[#signer-title]
+      )
     )
-  ]
+  } else if style == "formal_deed" {
+    box(width: 100%)[
+      #stack(
+        dir: ttb,
+        spacing: 3pt,
+        line(length: 100%, stroke: 1.2pt + primary-color),
+        if signature-path != none and signature-path != "" {
+          align(left)[#box(height: 26pt, image(signature-path, fit: "contain"))]
+        } else {
+          v(18pt)
+        },
+        line(length: 100%, stroke: 0.5pt + color-slate-500),
+        grid(
+          columns: (36pt, 1fr),
+          row-gutter: 3pt,
+          text(size: 6.5pt, font: font-mono, weight: "bold", fill: color-slate-500)[BY:],
+          text(size: 8.5pt, weight: "bold", fill: color-slate-900)[#signer-name],
+          text(size: 6.5pt, font: font-mono, weight: "bold", fill: color-slate-500)[TITLE:],
+          text(size: 7.5pt, fill: color-slate-600)[#signer-title],
+          text(size: 6.5pt, font: font-mono, weight: "bold", fill: color-slate-500)[DATE:],
+          text(size: 7pt, fill: color-slate-500)[#date]
+        )
+      )
+    ]
+  } else if style == "minimal_compact" {
+    box(width: 100%)[
+      #stack(
+        dir: ttb,
+        spacing: 2.5pt,
+        if signature-path != none and signature-path != "" {
+          align(left)[#box(height: 22pt, image(signature-path, fit: "contain"))]
+        } else {
+          v(14pt)
+        },
+        line(length: 100%, stroke: 0.5pt + color-slate-400),
+        grid(
+          columns: (1fr, auto),
+          gutter: 6pt,
+          text(size: 8pt, weight: "bold", fill: color-slate-900)[#signer-name #text(weight: "regular", fill: color-slate-500)[· #signer-title]],
+          text(size: 6.5pt, fill: color-slate-400)[#date]
+        )
+      )
+    ]
+  } else {
+    box(width: 100%)[
+      #stack(
+        dir: ttb,
+        spacing: 3.5pt,
+        if signature-path != none and signature-path != "" {
+          align(center)[#box(height: 28pt, image(signature-path, fit: "contain"))]
+        } else {
+          v(22pt)
+        },
+        line(length: 100%, stroke: 0.75pt + color-slate-700),
+        text(size: 8.5pt, weight: "bold", fill: color-slate-900)[#signer-name],
+        text(size: 7.5pt, fill: color-slate-500)[#signer-title],
+        text(size: 7pt, fill: color-slate-400)[Date: #date]
+      )
+    ]
+  }
 }
 
 #let signature-grid(items) = {
@@ -939,23 +1391,19 @@
   signer-name: "",
   signer-title: "Authorized Representative",
   date: "",
+  style: "standard",
   primary-color: color-indigo-600
 ) = {
   block(breakable: false, width: 100%, above: 10pt, below: 6pt)[
     #align(right)[
       #box(width: 210pt)[
-        #stack(
-          dir: ttb,
-          spacing: 3.5pt,
-          if signature-path != none and signature-path != "" {
-            align(center)[#box(height: 30pt, image(signature-path, fit: "contain"))]
-          } else {
-            v(24pt)
-          },
-          line(length: 100%, stroke: 0.75pt + color-slate-700),
-          text(size: 9pt, weight: "bold", fill: color-slate-900)[#signer-name],
-          text(size: 8pt, fill: color-slate-500)[#signer-title],
-          text(size: 7.5pt, fill: color-slate-400)[Date: #date]
+        #signature-item(
+          signature-path: signature-path,
+          signer-name: signer-name,
+          signer-title: signer-title,
+          date: date,
+          style: style,
+          primary-color: primary-color
         )
       ]
     ]

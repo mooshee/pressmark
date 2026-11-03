@@ -2750,6 +2750,173 @@ async fn test_production_error_audit_regressions() {
     }
 }
 
+#[test]
+fn test_content_block_styles_and_selectors_audit() {
+    use pressmark::engine::{generate_pdf, generate_typst_markup};
+    use pressmark::models::{CustomField, DocumentRequest, DocumentSection, DocumentType, LineItem, PartyDetails, SignatureBlock};
+
+    // 1. Verify HTML & JS selectors for all content blocks exist and are wired
+    let html = std::fs::read_to_string("static/index.html").expect("index.html must exist");
+    let js = std::fs::read_to_string("static/js/studio.js").expect("studio.js must exist");
+    let css = std::fs::read_to_string("static/css/studio.css").expect("studio.css must exist");
+
+    for selector_id in &[
+        "partiesStyleSelect",
+        "fromStyleSelect",
+        "toStyleSelect",
+        "tableStyleSelect",
+        "totalsStyleSelect",
+        "fieldsStyleSelect",
+        "paymentStyleSelect",
+        "sectionsStyleSelect",
+        "signatureStyleSelect",
+        "notesStyleSelect",
+        "designPartiesStyleSelect",
+        "designToStyleSelect",
+        "designTableStyleSelect",
+        "designTotalsStyleSelect",
+        "designFieldsStyleSelect",
+        "designSignatureStyleSelect",
+    ] {
+        assert!(
+            html.contains(&format!("id=\"{}\"", selector_id)),
+            "static/index.html missing selector id={}",
+            selector_id
+        );
+        assert!(
+            js.contains(selector_id),
+            "static/js/studio.js missing wiring for {}",
+            selector_id
+        );
+    }
+
+    assert!(css.contains(".block-style-bar"));
+    assert!(css.contains(".block-style-select"));
+    assert!(css.contains(".block-styles-panel"));
+
+    // 2. Verify serde aliases and normalization for Billed To / Tenant / Landlord / Block styles
+    let parsed: DocumentRequest = serde_json::from_value(serde_json::json!({
+        "doc_type": "residential_lease",
+        "landlord_style": "minimal",
+        "tenant_style": "badged",
+        "property_style": "compact_strip",
+        "schedule_style": "modern_cards",
+        "summary_style": "banner_bar",
+        "clauses_style": "left_accent",
+        "signatory_style": "framed_box",
+        "checkout_style": "banner"
+    }))
+    .expect("serde aliases for block styles should deserialize");
+
+    assert_eq!(parsed.effective_from_style(), "minimal");
+    assert_eq!(parsed.effective_to_style(), "badged");
+    assert_eq!(parsed.effective_fields_style(), "compact_strip");
+    assert_eq!(parsed.effective_table_style(), "modern_cards");
+    assert_eq!(parsed.effective_totals_style(), "banner_bar");
+    assert_eq!(parsed.effective_sections_style(), "left_accent");
+    assert_eq!(parsed.effective_signature_style(), "framed_box");
+    assert_eq!(parsed.effective_payment_style(), "banner");
+
+    // 3. Verify Typst markup generation & PDF compilation across block style combinations
+    let base_req = DocumentRequest {
+        doc_type: DocumentType::Invoice,
+        title: Some("TAX INVOICE".to_string()),
+        doc_number: Some("INV-STYLE-01".to_string()),
+        from: PartyDetails {
+            name: "Pressmark Studio Inc.".to_string(),
+            company: Some("Pressmark Technologies LLC".to_string()),
+            address: Some("742 Evergreen Terrace, San Francisco, CA 94107".to_string()),
+            email: Some("billing@pressmark.dev".to_string()),
+            ..Default::default()
+        },
+        to: PartyDetails {
+            name: "Alexandria Vance".to_string(),
+            company: Some("Vance Dynamics Corp".to_string()),
+            address: Some("100 Innovation Pkwy, Austin, TX 78701".to_string()),
+            email: Some("ap@vancedynamics.com".to_string()),
+            ..Default::default()
+        },
+        custom_fields: vec![
+            CustomField { label: "PO Number".to_string(), value: "PO-99412".to_string() },
+            CustomField { label: "Service Period".to_string(), value: "Nov 2026".to_string() },
+            CustomField { label: "Project Code".to_string(), value: "PRJ-404".to_string() },
+        ],
+        items: vec![
+            LineItem {
+                description: "Vector Document Synthesis Engine".to_string(),
+                quantity: 10.0,
+                unit_price: 250.0,
+                tax_rate: None,
+                discount: None,
+            },
+            LineItem {
+                description: "Custom Content Block Styling Suite".to_string(),
+                quantity: 5.0,
+                unit_price: 180.0,
+                tax_rate: None,
+                discount: None,
+            },
+        ],
+        tax_rate: Some(8.25),
+        discount_amount: Some(100.0),
+        payment_link: Some("https://buy.stripe.com/test_link".to_string()),
+        notes: Some("Please remit via ACH or scan the mobile QR code.".to_string()),
+        terms: Some("Net 14 days.".to_string()),
+        sections: vec![DocumentSection {
+            title: "Service Level Covenant".to_string(),
+            content: "99.99% uptime commitment across all regions.".to_string(),
+        }],
+        signatures: vec![
+            SignatureBlock {
+                signer_name: "Daniel Hallman".to_string(),
+                signer_title: Some("Managing Principal".to_string()),
+                date: Some("2026-11-02".to_string()),
+                signature_data: None,
+            },
+            SignatureBlock {
+                signer_name: "Alexandria Vance".to_string(),
+                signer_title: Some("VP Finance".to_string()),
+                date: Some("2026-11-02".to_string()),
+                signature_data: None,
+            },
+        ],
+        show_signature: Some(true),
+        ..Default::default()
+    };
+
+    let combos = [
+        ("standard", "badged", "compact_strip", "minimal_lines", "card_highlight", "banner", "left_accent", "callout_card", "framed_box"),
+        ("boxed_grid", "editorial_split", "ledger_table", "bordered_ledger", "banner_bar", "minimal_inline", "callout_card", "left_accent", "formal_deed"),
+        ("stacked_banner", "stacked_banner", "minimal_list", "modern_cards", "compact", "standard", "numbered_legal", "numbered_legal", "minimal_compact"),
+        ("minimal", "boxed_grid", "standard", "compact_mono", "split_ledger", "banner", "standard", "standard", "standard"),
+    ];
+
+    for (from_s, to_s, fields_s, table_s, totals_s, pay_s, notes_s, sec_s, sig_s) in combos {
+        let mut req = base_req.clone();
+        req.parties_style = Some(from_s.to_string());
+        req.from_style = Some(from_s.to_string());
+        req.to_style = Some(to_s.to_string());
+        req.fields_style = Some(fields_s.to_string());
+        req.table_style = Some(table_s.to_string());
+        req.totals_style = Some(totals_s.to_string());
+        req.payment_style = Some(pay_s.to_string());
+        req.notes_style = Some(notes_s.to_string());
+        req.sections_style = Some(sec_s.to_string());
+        req.signature_style = Some(sig_s.to_string());
+
+        let markup = generate_typst_markup(&req);
+        assert!(markup.contains(&format!("from-style: \"{}\"", from_s)));
+        assert!(markup.contains(&format!("to-style: \"{}\"", to_s)));
+        assert!(markup.contains(&format!("style: \"{}\"", sig_s)));
+
+        let (pdf_bytes, _) = generate_pdf(&req).unwrap_or_else(|e| {
+            panic!("PDF compilation failed for block style combo {:?}: {}", (from_s, to_s, fields_s, table_s, totals_s, pay_s, notes_s, sec_s, sig_s), e)
+        });
+        assert!(pdf_bytes.starts_with(b"%PDF"), "Output must be valid PDF");
+    }
+}
+
+
 
 
 

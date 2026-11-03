@@ -967,6 +967,26 @@ pub struct DocumentRequest {
     pub show_remittance_stub: Option<bool>,
     pub show_line_numbers: Option<bool>,
     pub layout_style: Option<String>,
+    #[serde(default, alias = "party_style")]
+    pub parties_style: Option<String>,
+    #[serde(default, alias = "issuer_style", alias = "landlord_style", alias = "sender_style")]
+    pub from_style: Option<String>,
+    #[serde(default, alias = "recipient_style", alias = "billed_to_style", alias = "tenant_style", alias = "client_style")]
+    pub to_style: Option<String>,
+    #[serde(default, alias = "custom_fields_style", alias = "metadata_style", alias = "property_style")]
+    pub fields_style: Option<String>,
+    #[serde(default, alias = "items_style", alias = "line_items_style", alias = "schedule_style")]
+    pub table_style: Option<String>,
+    #[serde(default, alias = "summary_style")]
+    pub totals_style: Option<String>,
+    #[serde(default)]
+    pub notes_style: Option<String>,
+    #[serde(default, alias = "clauses_style", alias = "terms_style")]
+    pub sections_style: Option<String>,
+    #[serde(default, alias = "signatory_style")]
+    pub signature_style: Option<String>,
+    #[serde(default, alias = "qr_style", alias = "checkout_style")]
+    pub payment_style: Option<String>,
     pub spacing_density: Option<String>,
     pub execution_mode: Option<String>,
     pub branding_mode: Option<String>,

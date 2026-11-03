@@ -4124,5 +4124,61 @@ input:checked + .slider::before { transform: translateX(14px); }
   .nav-center .segmented-control { flex: 1; width: auto; }
 }
 
+/* =============================================================================
+   CONTENT BLOCK STYLE SELECTORS & DESIGN PANEL
+   ============================================================================= */
+.block-style-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  background: rgba(15, 23, 42, 0.035);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.block-style-select {
+  min-height: 30px;
+  padding: 4px 26px 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  background-color: #ffffff;
+  color: #1e293b;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.block-style-select:hover {
+  border-color: rgba(79, 70, 229, 0.45);
+}
+
+.block-style-select:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 1px;
+}
+
+.block-styles-panel {
+  margin: 12px 0 14px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.025);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+}
+
+.block-styles-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #4f46e5;
+  margin-bottom: 10px;
+}
+
+
 
 
