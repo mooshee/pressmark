@@ -17,6 +17,7 @@ pub mod openapi;
 pub mod pricing;
 pub mod rate_limit;
 pub mod server;
+pub mod server_discovery;
 pub mod state_laws;
 pub mod storage;
 pub mod stripe;

@@ -584,6 +584,82 @@ async fn test_agent_discovery_and_a2a_routes() {
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
     assert_eq!(res.headers().get("location").unwrap(), "/feedback");
+
+    // 14. GET /.well-known/sd-card/mcp -> 200 OK server card
+    let req = Request::builder()
+        .uri("/.well-known/sd-card/mcp")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 15. GET /.well-known/http-message-signatures-directory -> 200 OK JSON
+    let req = Request::builder()
+        .uri("/.well-known/http-message-signatures-directory")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 16. GET /SKILL.md -> 200 OK markdown with Daniel Hallman attribution
+    let req = Request::builder()
+        .uri("/SKILL.md")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    let text = String::from_utf8(bytes.to_vec()).unwrap();
+    assert!(text.contains("name: pressmark"));
+    assert!(text.contains("Daniel Hallman"));
+
+    // 17. GET /auth.md -> 200 OK markdown with authentication specs
+    let req = Request::builder()
+        .uri("/auth.md")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    let text = String::from_utf8(bytes.to_vec()).unwrap();
+    assert!(text.contains("Pressmark Authentication & Authorization"));
+
+    // 18. GET /join and /signup -> 308 Permanent Redirect to /#pricing
+    let req = Request::builder()
+        .uri("/join")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get("location").unwrap(), "/#pricing");
+
+    let req = Request::builder()
+        .uri("/signup")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get("location").unwrap(), "/#pricing");
+
+    // 19. GET /llms-full.txt -> 200 OK with 8 tools documented
+    let req = Request::builder()
+        .uri("/llms-full.txt")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    let text = String::from_utf8(bytes.to_vec()).unwrap();
+    assert!(text.contains("## MCP Tools (8 Tools)"));
+    assert!(text.contains("submit_feedback"));
+    assert!(text.contains("get_feedback_status"));
 }
 
 #[tokio::test]
@@ -591,6 +667,10 @@ async fn test_expanded_bot_and_probe_marker_classification() {
     use pressmark::storage::Storage;
 
     // Check newly added bot markers
+    assert!(Storage::is_crawler_bot_ua("AgentDrivesAgent/1.0 (+https://agent.agentdrives.com/bot)"));
+    assert!(Storage::is_crawler_bot_ua("AgentTrustBot/1.0 (+https://agenttru.st/crawler)"));
+    assert!(Storage::is_crawler_bot_ua("contextgate-reprobe/1.0 (+https://contextgate.ai)"));
+    assert!(Storage::is_crawler_bot_ua("mcprating-verifier/1.1.0 (+https://mcprating.io/methodology)"));
     assert!(Storage::is_crawler_bot_ua("AgentScout-Tasker/1.0 (research test; read-only questions)"));
     assert!(Storage::is_crawler_bot_ua("MCPHereBot/1.0 (+https://github.com/MoizAhmedd/mcp-here)"));
     assert!(Storage::is_crawler_bot_ua("ToolVetProbe/1.0 (+https://toolvet.app/methodology)"));

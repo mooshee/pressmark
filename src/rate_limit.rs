@@ -179,6 +179,10 @@ pub async fn rate_limit_middleware(
         || path == "/CLAUDE.md"
         || path == "/ads.txt"
         || path == "/sellers.json"
+        || path == "/SKILL.md"
+        || path == "/skill.md"
+        || path.starts_with("/skills/")
+        || path == "/auth.md"
         || path.starts_with("/docs/mcp")
     {
         return next.run(req).await;
