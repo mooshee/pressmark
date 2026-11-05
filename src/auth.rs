@@ -937,6 +937,23 @@ pub async fn handle_api_key_login(
         .into_response()
 }
 
+pub async fn handle_api_key_info() -> impl IntoResponse {
+    let mut resp_headers = HeaderMap::new();
+    resp_headers.insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
+    (
+        StatusCode::OK,
+        resp_headers,
+        Json(serde_json::json!({
+            "token_endpoint": "https://pressmark.dev/api/v1/auth/api-key",
+            "method": "POST",
+            "description": "Pressmark API Key authentication endpoint. Submit POST with JSON {\"api_key\": \"...\"}.",
+            "grant_types_supported": ["client_credentials"],
+            "token_endpoint_auth_methods_supported": ["client_secret_post", "none"]
+        })),
+    )
+        .into_response()
+}
+
 pub async fn handle_chatgpt_logout(
     State(auth_mgr): State<ChatGptAuthManager>,
     headers: HeaderMap,

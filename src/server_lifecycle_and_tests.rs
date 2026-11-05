@@ -724,6 +724,10 @@ pub(crate) async fn handle_api_key_login(
     auth::handle_api_key_login(State(state.auth_mgr.clone()), Json(payload)).await
 }
 
+pub(crate) async fn handle_api_key_info() -> impl IntoResponse {
+    auth::handle_api_key_info().await
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct LifecycleConvertRequest {
     pub target_type: String, // "invoice", "receipt", "estimate", "credit_note", "refund"

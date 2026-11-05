@@ -478,6 +478,7 @@ impl Storage {
             "alphaproxy-mcp-probe",
             "aptlynx",
             "brickbluebot",
+            "agentic-web",
             "agent-evidence-scanner",
             "agent-index-prober",
             "agent-tools.cloud",

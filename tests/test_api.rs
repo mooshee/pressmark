@@ -2519,6 +2519,7 @@ async fn test_production_error_audit_regressions() {
     assert_eq!(Storage::classify_usage_actor("BuiltWith-MCPRegistryScrape/1.0", None), "crawler_bot");
     assert_eq!(Storage::classify_usage_actor("agent2agent-hub/1.0", None), "crawler_bot");
     assert_eq!(Storage::classify_usage_actor("catalog-census/1.0", None), "crawler_bot");
+    assert_eq!(Storage::classify_usage_actor("BrickBlueBot/0.1 (+https://brick.blue/bot?h=www.pressmark.dev; agentic-web registry)", None), "crawler_bot");
 
     // 3. Router tests
     let storage = Arc::new(Storage::new(":memory:").unwrap());
@@ -2630,6 +2631,46 @@ async fn test_production_error_audit_regressions() {
     let req = Request::builder().uri("/about").body(Body::empty()).unwrap();
     let resp = router.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+
+    // Security disclosure redirects
+    for uri in &[
+        "/security-policy",
+        "/responsible-disclosure",
+        "/vulnerability-disclosure",
+        "/disclosure",
+        "/trust",
+        "/bug-bounty",
+        "/legal/security",
+    ] {
+        let req = Request::builder().uri(*uri).body(Body::empty()).unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT, "Failed redirect for URI: {}", uri);
+        assert_eq!(
+            resp.headers().get(header::LOCATION).unwrap().to_str().unwrap(),
+            "/.well-known/security.txt"
+        );
+    }
+
+    // Analytics summary endpoint
+    let req = Request::builder().uri("/analytics/summary").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body_bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert!(json.get("total_usage_events").is_some());
+
+    // Token endpoint GET / HEAD metadata
+    let req = Request::builder().uri("/api/v1/auth/api-key").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body_bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert_eq!(json["token_endpoint"], "https://pressmark.dev/api/v1/auth/api-key");
+    assert_eq!(json["method"], "POST");
+
+    let req = Request::builder().method("HEAD").uri("/api/v1/auth/api-key").body(Body::empty()).unwrap();
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
 
     let req = Request::builder().uri("/documentation").body(Body::empty()).unwrap();
     let resp = router.clone().oneshot(req).await.unwrap();
