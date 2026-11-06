@@ -97,6 +97,22 @@ pub struct CustomRenderOptions {
     pub custom_title: Option<String>,
     pub custom_org: Option<String>,
     pub custom_counterparty: Option<String>,
+    pub kpi0_lbl: Option<String>,
+    pub kpi0_val: Option<String>,
+    pub kpi1_lbl: Option<String>,
+    pub kpi1_val: Option<String>,
+    pub kpi2_lbl: Option<String>,
+    pub kpi2_val: Option<String>,
+    pub kpi3_lbl: Option<String>,
+    pub kpi3_val: Option<String>,
+    pub item0_desc: Option<String>,
+    pub item0_amt: Option<String>,
+    pub item1_desc: Option<String>,
+    pub item1_amt: Option<String>,
+    pub item2_desc: Option<String>,
+    pub item2_amt: Option<String>,
+    pub item3_desc: Option<String>,
+    pub item3_amt: Option<String>,
 }
 
 /// Complete catalog of 100 Nano Banana Profession & Archetype Concepts across 10 verticals.
@@ -5284,29 +5300,67 @@ pub fn render_concept_typst_markup(
         )
     };
 
+    let kpi_lbl_overrides = [
+        opts.and_then(|o| o.kpi0_lbl.as_deref()),
+        opts.and_then(|o| o.kpi1_lbl.as_deref()),
+        opts.and_then(|o| o.kpi2_lbl.as_deref()),
+        opts.and_then(|o| o.kpi3_lbl.as_deref()),
+    ];
+    let kpi_val_overrides = [
+        opts.and_then(|o| o.kpi0_val.as_deref()),
+        opts.and_then(|o| o.kpi1_val.as_deref()),
+        opts.and_then(|o| o.kpi2_val.as_deref()),
+        opts.and_then(|o| o.kpi3_val.as_deref()),
+    ];
     let kpi_tuple_str = spec
         .kpi_metrics
         .iter()
-        .map(|(k, v)| {
+        .enumerate()
+        .map(|(i, (k, v))| {
+            let eff_k = kpi_lbl_overrides[i]
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(k);
+            let eff_v = kpi_val_overrides[i]
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(v);
             format!(
                 "(\"{}\", \"{}\")",
-                escape_typst_string_literal(k),
-                escape_typst_string_literal(v)
+                escape_typst_string_literal(eff_k),
+                escape_typst_string_literal(eff_v)
             )
         })
         .collect::<Vec<_>>()
         .join(", ");
 
+    let item_desc_overrides = [
+        opts.and_then(|o| o.item0_desc.as_deref()),
+        opts.and_then(|o| o.item1_desc.as_deref()),
+        opts.and_then(|o| o.item2_desc.as_deref()),
+        opts.and_then(|o| o.item3_desc.as_deref()),
+    ];
+    let item_amt_overrides = [
+        opts.and_then(|o| o.item0_amt.as_deref()),
+        opts.and_then(|o| o.item1_amt.as_deref()),
+        opts.and_then(|o| o.item2_amt.as_deref()),
+        opts.and_then(|o| o.item3_amt.as_deref()),
+    ];
     let rows_tuple_str = spec
         .line_items
         .iter()
-        .map(|(code, desc, qty, amt)| {
+        .enumerate()
+        .map(|(i, (code, desc, qty, amt))| {
+            let eff_desc = item_desc_overrides[i]
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(desc);
+            let eff_amt = item_amt_overrides[i]
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(amt);
             format!(
                 "(\"{}\", \"{}\", \"{}\", \"{}\")",
                 escape_typst_string_literal(code),
-                escape_typst_string_literal(desc),
+                escape_typst_string_literal(eff_desc),
                 escape_typst_string_literal(qty),
-                escape_typst_string_literal(amt)
+                escape_typst_string_literal(eff_amt)
             )
         })
         .collect::<Vec<_>>()
@@ -6042,6 +6096,35 @@ mod tests {
         }
         let showcase = render_element_showcase_sheet_typst("page_layouts", "/templates/assets/seals");
         assert!(showcase.contains("10 STRUCTURAL PAGE ARCHETYPE BLUEPRINTS"));
+
+        let custom = CustomRenderOptions {
+            custom_title: Some("Custom Executive Contract Schedule".to_string()),
+            kpi0_lbl: Some("TOTAL RETAINED".to_string()),
+            kpi0_val: Some("$2,500,000.00".to_string()),
+            item0_desc: Some("Phase 1 Foundation & Site Grading Complete".to_string()),
+            item0_amt: Some("$415,000.00".to_string()),
+            ..Default::default()
+        };
+        let customized_markup =
+            render_concept_typst_markup(&ARCHETYPE_CONCEPTS_50[0], Some(&custom), "/templates/assets/seals");
+        assert!(customized_markup.contains("Custom Executive Contract Schedule"));
+        assert!(customized_markup.contains("TOTAL RETAINED"));
+        assert!(customized_markup.contains("$2,500,000.00"));
+        assert!(customized_markup.contains("Phase 1 Foundation & Site Grading Complete"));
+        assert!(customized_markup.contains("$415,000.00"));
+    }
+
+    #[test]
+    fn test_pressmark_and_untax_doc_engine_crate_parity() {
+        let untax_dir = std::path::Path::new("/Users/dhallman/Codes/personal/untax/crates/hallman-doc-engine");
+        let pressmark_dir = std::path::Path::new("/Users/dhallman/Codes/personal/pressmark/crates/hallman-doc-engine");
+        if untax_dir.exists() && pressmark_dir.exists() {
+            for rel in ["Cargo.toml", "src/lib.rs", "src/graphics.rs", "src/catalog.rs"] {
+                let a = std::fs::read_to_string(untax_dir.join(rel)).expect("read untax file");
+                let b = std::fs::read_to_string(pressmark_dir.join(rel)).expect("read pressmark file");
+                assert_eq!(a, b, "hallman-doc-engine drift detected in {rel} between untax and pressmark");
+            }
+        }
     }
 }
 

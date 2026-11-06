@@ -963,7 +963,9 @@ async fn handle_llms_txt() -> impl IntoResponse {
         "".to_string(),
         "## Core Endpoints & Agent Integration".to_string(),
         "- [Interactive Studio](https://pressmark.dev/): Design, preview, and export 57 business, billing, legal, and real estate document archetypes in sub-25ms.".to_string(),
-        "- [Remote MCP Endpoint](https://pressmark.dev/mcp): Streamable HTTP MCP server (`io.github.mooshee/pressmark`) exposing `generate_document`, `preview_document`, `calculate_totals`, `get_pricing`, `convert_document`, and `record_payment`.".to_string(),
+        "- [100 Profession Concepts & 10 Page Layouts Studio](https://pressmark.dev/elements): Live customizer for 100 profession document concepts across 10 structural page archetypes, 10 SVG schematics, and /AcroForm fillable signatures.".to_string(),
+        "- [100 Concepts JSON Catalog API](https://pressmark.dev/api/v1/concepts/catalog.json): Machine-readable catalog of all 100 profession archetypes and layout defaults.".to_string(),
+        "- [Remote MCP Endpoint](https://pressmark.dev/mcp): Streamable HTTP MCP server (`io.github.mooshee/pressmark`) exposing `generate_document`, `preview_document` (including `concept_slug` for all 100 profession concepts & 10 page layouts), `calculate_totals`, `get_pricing`, `convert_document`, and `record_payment`.".to_string(),
         "- [OpenAPI 3.1 Specification](https://pressmark.dev/api/v1/openapi.json): REST API schema for `/api/v1/generate`, `/api/v1/preview`, `/api/v1/templates`, `/api/v1/states`, and `/api/v1/pricing`.".to_string(),
         "- [Pricing & Single Unlock Passes](https://pressmark.dev/pricing): Free community tier, $2.99 Single Document Pass, and $15/mo Solo Pro unlimited exports.".to_string(),
         "- [Full LLM Corpus](https://pressmark.dev/llms-full.txt): Complete 57-archetype catalog and MCP tool documentation.".to_string(),
@@ -977,6 +979,19 @@ async fn handle_llms_txt() -> impl IntoResponse {
             dt.display_title(),
             dt.url_slug(),
             desc
+        ));
+    }
+    lines.push("".to_string());
+    lines.push("## 100 Profession & Archetype Concepts (10 Structural Page Layouts)".to_string());
+    for concept in hallman_doc_engine::catalog::ARCHETYPE_CONCEPTS_50 {
+        lines.push(format!(
+            "- [#{:02} {}](https://pressmark.dev/concepts/{}) — {} | Layout: `{}` | Citation: {}",
+            concept.id,
+            concept.title,
+            concept.slug,
+            concept.target_profession,
+            concept.default_page_layout,
+            concept.statutory_citation
         ));
     }
     (
@@ -998,9 +1013,9 @@ async fn handle_llms_full_txt() -> impl IntoResponse {
         "MCP Registry ID: io.github.mooshee/pressmark".to_string(),
         "OpenAPI Spec: https://pressmark.dev/api/v1/openapi.json".to_string(),
         "".to_string(),
-        "## MCP Tools (6 Tools)".to_string(),
-        "1. `generate_document`: Synthesizes a publication-grade vector PDF with embedded 1-scan SVG QR code mobile payments and returns `pdf_base64`, `checkout_url`, and `pricing_url`.".to_string(),
-        "2. `preview_document`: Renders a 144-PPI PNG preview as a Base64 Data URI for immediate visual inspection in chat.".to_string(),
+        "## MCP Tools (6 Core + 2 Support Tools)".to_string(),
+        "1. `generate_document`: Synthesizes a publication-grade vector PDF with embedded 1-scan SVG QR code mobile payments (or any of the 100 profession concepts via `concept_slug` and 10 structural page layouts via `page_layout`) and returns `pdf_base64`, `checkout_url`, and `pricing_url`.".to_string(),
+        "2. `preview_document`: Renders a 144-PPI PNG preview (including all 100 profession concepts via `concept_slug`) as a Base64 Data URI for immediate visual inspection in chat.".to_string(),
         "3. `calculate_totals`: Computes line-item subtotals, tax rates, discounts, and currency-specific grand totals.".to_string(),
         "4. `get_pricing`: Returns subscription tiers ($15/mo Solo Pro, $49/mo Business, $149/mo Enterprise) and microtransaction passes ($2.99 Single Unlock).".to_string(),
         "5. `convert_document`: Transitions documents across their billing lifecycle (`estimate` -> `invoice` -> `receipt` / `credit_note`).".to_string(),
@@ -1017,6 +1032,23 @@ async fn handle_llms_full_txt() -> impl IntoResponse {
             dt.url_slug(),
             title,
             desc
+        ));
+    }
+    lines.push("".to_string());
+    lines.push("## All 100 Profession & Archetype Concepts".to_string());
+    for concept in hallman_doc_engine::catalog::ARCHETYPE_CONCEPTS_50 {
+        lines.push(format!(
+            "### #{:02} — {} (`{}`)\n- URL: https://pressmark.dev/concepts/{}\n- Vertical: {} (`{}`)\n- Target Profession: {}\n- Default Layout: `{}`\n- Citation: {}\n- Demand Signal: {}\n",
+            concept.id,
+            concept.title,
+            concept.slug,
+            concept.slug,
+            concept.vertical,
+            concept.vertical_slug,
+            concept.target_profession,
+            concept.default_page_layout,
+            concept.statutory_citation,
+            concept.demand_signal
         ));
     }
     (

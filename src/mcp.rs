@@ -76,6 +76,8 @@ impl McpHandler {
     fn document_input_properties() -> Value {
         json!({
             "doc_type": { "type": "string", "description": "Archetype slug (invoice, receipt, residential_lease, nda, etc.)." },
+            "concept_slug": { "type": "string", "description": "Optional 100-Concept Hallman Document Engine slug or ID (1..100, e.g. 'aia-g702-g703-progress-billing-draw-schedule', 'yc-post-money-safe-financing-instrument-valuation-cap', 'hotel-group-sales-room-block-attrition-agreement')." },
+            "page_layout": { "type": "string", "description": "Optional structural page archetype for 100-concept documents (asymmetric_sidebar, pleading_caption, three_tier_packages, inspection_checklist, blueprint_schematic, split_settlement, clinical_box_grid, certificate_broadsheet, dark_tactile_brief, executive_draw_ledger)." },
             "doc_number": { "type": "string", "description": "Document number. Left blank when omitted." },
             "issue_date": { "type": "string", "description": "Issue date (YYYY-MM-DD)." },
             "due_date": { "type": "string", "description": "Payment due date (YYYY-MM-DD)." },
@@ -612,6 +614,48 @@ impl McpHandler {
 
                 match tool_name {
                     "generate_document" => {
+                        if let Some(concept_slug) = arguments
+                            .get("concept_slug")
+                            .and_then(|v| v.as_str())
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                        {
+                            if let Some(spec) = hallman_doc_engine::catalog::find_concept_by_slug(concept_slug) {
+                                let opts = hallman_doc_engine::catalog::CustomRenderOptions {
+                                    layout: arguments.get("page_layout").and_then(|v| v.as_str()).map(str::to_string),
+                                    custom_org: arguments.get("from").and_then(|f| f.get("name")).and_then(|v| v.as_str()).map(str::to_string),
+                                    custom_counterparty: arguments.get("to").and_then(|t| t.get("name")).and_then(|v| v.as_str()).map(str::to_string),
+                                    item0_desc: arguments.get("items").and_then(|a| a.get(0)).and_then(|i| i.get("description")).and_then(|v| v.as_str()).map(str::to_string),
+                                    ..Default::default()
+                                };
+                                let t0 = std::time::Instant::now();
+                                let markup = hallman_doc_engine::catalog::render_concept_typst_markup(spec, Some(&opts), "");
+                                if let Ok(pdf_bytes) = hallman_doc_engine::compile_typst_to_pdf_bytes(&markup, None) {
+                                    let ms = t0.elapsed().as_millis();
+                                    let b64 = BASE64.encode(&pdf_bytes);
+                                    return JsonRpcResponse {
+                                        jsonrpc: "2.0",
+                                        id: req.id,
+                                        result: Some(json!({
+                                            "content": [
+                                                {
+                                                    "type": "text",
+                                                    "text": format!("### Generated {} (Concept #{:02})\n- **Layout:** `{}`\n- **Citation:** {}", spec.title, spec.id, opts.layout.as_deref().unwrap_or(spec.default_page_layout), spec.statutory_citation)
+                                                },
+                                                pdf_resource(&pdf_bytes, &b64)
+                                            ],
+                                            "pdf_base64": b64,
+                                            "doc_number": format!("HDE-{:03}", spec.id),
+                                            "grand_total": 0.0,
+                                            "compile_time_ms": ms,
+                                            "unlock_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true",
+                                            "pro_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
+                                        })),
+                                        error: None,
+                                    };
+                                }
+                            }
+                        }
                         match serde_json::from_value::<DocumentRequest>(arguments) {
                             Ok(mut doc_req) => {
                                 if let Err(msg) = Self::validate_document_request(&doc_req)
@@ -710,6 +754,47 @@ impl McpHandler {
                         }
                     }
                     "preview_document" => {
+                        if let Some(concept_slug) = arguments
+                            .get("concept_slug")
+                            .and_then(|v| v.as_str())
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                        {
+                            if let Some(spec) = hallman_doc_engine::catalog::find_concept_by_slug(concept_slug) {
+                                let opts = hallman_doc_engine::catalog::CustomRenderOptions {
+                                    layout: arguments.get("page_layout").and_then(|v| v.as_str()).map(str::to_string),
+                                    custom_org: arguments.get("from").and_then(|f| f.get("name")).and_then(|v| v.as_str()).map(str::to_string),
+                                    custom_counterparty: arguments.get("to").and_then(|t| t.get("name")).and_then(|v| v.as_str()).map(str::to_string),
+                                    item0_desc: arguments.get("items").and_then(|a| a.get(0)).and_then(|i| i.get("description")).and_then(|v| v.as_str()).map(str::to_string),
+                                    ..Default::default()
+                                };
+                                let t0 = std::time::Instant::now();
+                                let markup = hallman_doc_engine::catalog::render_concept_typst_markup(spec, Some(&opts), "");
+                                if let Ok(png_bytes) = hallman_doc_engine::compile_typst_to_png_bytes(&markup, None, 144) {
+                                    let ms = t0.elapsed().as_millis();
+                                    let b64 = BASE64.encode(&png_bytes);
+                                    let uri = format!("data:image/png;base64,{}", b64);
+                                    return JsonRpcResponse {
+                                        jsonrpc: "2.0",
+                                        id: req.id,
+                                        result: Some(json!({
+                                            "content": [
+                                                {
+                                                    "type": "image",
+                                                    "data": b64,
+                                                    "mimeType": "image/png"
+                                                }
+                                            ],
+                                            "image_data_uri": uri,
+                                            "compile_time_ms": ms,
+                                            "unlock_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true",
+                                            "pro_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
+                                        })),
+                                        error: None,
+                                    };
+                                }
+                            }
+                        }
                         match serde_json::from_value::<DocumentRequest>(arguments) {
                             Ok(mut doc_req) => {
                                 if let Err(msg) = Self::validate_document_request(&doc_req)

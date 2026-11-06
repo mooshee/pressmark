@@ -175,7 +175,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
 
     for spec in ARCHETYPE_CONCEPTS_50 {
         concept_options_html.push_str(&format!(
-            r#"<option value="{slug}" data-layout="{layout}" data-masthead="{masthead}" data-kpi="{kpi}" data-table="{table}" data-diagram="{diagram}" data-preset="{preset}" data-exec="{exec}" data-org="{org}" data-counterparty="{cp}" data-stamp="{stamp}">#{id:02} — {title} ({vertical})</option>"#,
+            r#"<option value="{slug}" data-layout="{layout}" data-masthead="{masthead}" data-kpi="{kpi}" data-table="{table}" data-diagram="{diagram}" data-preset="{preset}" data-exec="{exec}" data-title="{title}" data-org="{org}" data-counterparty="{cp}" data-stamp="{stamp}" data-kpi0-val="{kpi0_val}" data-item0-desc="{item0_desc}" data-item0-amt="{item0_amt}">#{id:02} — {title} ({vertical})</option>"#,
             slug = spec.slug,
             layout = spec.default_page_layout,
             masthead = spec.default_masthead,
@@ -187,6 +187,9 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
             org = html_escape(spec.sample_org),
             cp = html_escape(spec.sample_counterparty),
             stamp = html_escape(spec.stamp_label),
+            kpi0_val = html_escape(spec.kpi_metrics[0].1),
+            item0_desc = html_escape(spec.line_items[0].1),
+            item0_amt = html_escape(spec.line_items[0].3),
             id = spec.id,
             title = html_escape(spec.title),
             vertical = html_escape(spec.vertical),
@@ -406,18 +409,36 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
           </div>
         </div>
         <div class="pm-field">
-          <label for="pm-org">9. Issuing Organization</label>
+          <label for="pm-title">9. Document Title Override</label>
+          <input type="text" id="pm-title" value="AIA G702/G703 Style Progress Billing &amp; Schedule of Values">
+        </div>
+        <div class="pm-field">
+          <label for="pm-org">10. Issuing Organization</label>
           <input type="text" id="pm-org" value="Lookout Valley Commercial Builders LLC">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="pm-field">
-            <label for="pm-cp">10. Counterparty / Client</label>
+            <label for="pm-cp">11. Counterparty / Client</label>
             <input type="text" id="pm-cp" value="Riverfront Mixed-Use DevelopmentSPE LLC">
           </div>
           <div class="pm-field">
-            <label for="pm-stamp">11. Vector Rubber Stamp</label>
+            <label for="pm-stamp">12. Vector Rubber Stamp</label>
             <input type="text" id="pm-stamp" value="DRAW #04 APPROVED">
           </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="pm-field">
+            <label for="pm-kpi0-val">13. Primary KPI Value</label>
+            <input type="text" id="pm-kpi0-val" value="$1,480,000.00">
+          </div>
+          <div class="pm-field">
+            <label for="pm-item0-amt">14. Line-Item #1 Amount</label>
+            <input type="text" id="pm-item0-amt" value="$240,000.00">
+          </div>
+        </div>
+        <div class="pm-field">
+          <label for="pm-item0-desc">15. Line-Item #1 Description</label>
+          <input type="text" id="pm-item0-desc" value="Div 03 — Cast-in-Place Structural Concrete &amp; Post-Tension Slabs (100% Complete)">
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
           <button type="button" id="pm-render-btn" class="pm-btn pm-btn--primary" style="flex:1;">Update Preview</button>
@@ -444,26 +465,26 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
         </div>
         <div class="pm-showcase-card">
           <span class="pm-badge">SHEET 01 · 6 MASTHEAD ARCHITECTURES</span>
-          <a href="/assets/seals/showcase_sheet_mastheads.png" target="_blank" rel="noopener">
-            <img src="/assets/seals/showcase_sheet_mastheads.png" alt="6 Masthead Variations" loading="lazy">
+          <a href="/api/v1/concepts/showcase-mastheads/preview.png" target="_blank" rel="noopener">
+            <img src="/api/v1/concepts/showcase-mastheads/preview.png" alt="6 Masthead Variations" loading="lazy">
           </a>
         </div>
         <div class="pm-showcase-card">
           <span class="pm-badge">SHEET 02 · KPI STRIPS, TABLES &amp; CHARTS</span>
-          <a href="/assets/seals/showcase_sheet_tables_and_kpis.png" target="_blank" rel="noopener">
-            <img src="/assets/seals/showcase_sheet_tables_and_kpis.png" alt="KPI Strips and Tables" loading="lazy">
+          <a href="/api/v1/concepts/showcase-tables/preview.png" target="_blank" rel="noopener">
+            <img src="/api/v1/concepts/showcase-tables/preview.png" alt="KPI Strips and Tables" loading="lazy">
           </a>
         </div>
         <div class="pm-showcase-card">
           <span class="pm-badge">SHEET 03 · 10 SVG SCHEMATICS &amp; STAMPS</span>
-          <a href="/assets/seals/showcase_sheet_diagrams_and_stamps.png" target="_blank" rel="noopener">
-            <img src="/assets/seals/showcase_sheet_diagrams_and_stamps.png" alt="SVG Schematics and Stamps" loading="lazy">
+          <a href="/api/v1/concepts/showcase-diagrams/preview.png" target="_blank" rel="noopener">
+            <img src="/api/v1/concepts/showcase-diagrams/preview.png" alt="SVG Schematics and Stamps" loading="lazy">
           </a>
         </div>
         <div class="pm-showcase-card">
           <span class="pm-badge">SHEET 04 · 14 SEALS &amp; 3 EXECUTION MODES</span>
-          <a href="/assets/seals/showcase_sheet_signatures_and_seals.png" target="_blank" rel="noopener">
-            <img src="/assets/seals/showcase_sheet_signatures_and_seals.png" alt="Vertical Seals and 3 Execution Modes" loading="lazy">
+          <a href="/api/v1/concepts/showcase-seals/preview.png" target="_blank" rel="noopener">
+            <img src="/api/v1/concepts/showcase-seals/preview.png" alt="Vertical Seals and 3 Execution Modes" loading="lazy">
           </a>
         </div>
       </div>
@@ -501,9 +522,13 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
       const tableSel = document.getElementById('pm-table');
       const presetSel = document.getElementById('pm-preset');
       const execSel = document.getElementById('pm-exec');
+      const titleInp = document.getElementById('pm-title');
       const orgInp = document.getElementById('pm-org');
       const cpInp = document.getElementById('pm-cp');
       const stampInp = document.getElementById('pm-stamp');
+      const kpi0ValInp = document.getElementById('pm-kpi0-val');
+      const item0DescInp = document.getElementById('pm-item0-desc');
+      const item0AmtInp = document.getElementById('pm-item0-amt');
       const renderBtn = document.getElementById('pm-render-btn');
       const previewImg = document.getElementById('pm-preview-img');
       const pdfLink = document.getElementById('pm-pdf-link');
@@ -519,9 +544,13 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
         p.set('table', tableSel.value);
         p.set('preset', presetSel.value);
         p.set('execution', execSel.value);
+        if (titleInp.value.trim()) p.set('custom_title', titleInp.value.trim());
         if (orgInp.value.trim()) p.set('custom_org', orgInp.value.trim());
         if (cpInp.value.trim()) p.set('custom_counterparty', cpInp.value.trim());
         if (stampInp.value.trim()) p.set('stamp', stampInp.value.trim());
+        if (kpi0ValInp.value.trim()) p.set('kpi0_val', kpi0ValInp.value.trim());
+        if (item0DescInp.value.trim()) p.set('item0_desc', item0DescInp.value.trim());
+        if (item0AmtInp.value.trim()) p.set('item0_amt', item0AmtInp.value.trim());
         const qs = p.toString();
         statusSpan.textContent = 'COMPILING VECTOR PREVIEW...';
         previewImg.onload = function() {{ statusSpan.textContent = 'LIVE 144-DPI VECTOR PREVIEW · PAGE 1 OF 1'; }};
@@ -539,9 +568,13 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
           diagramSel.value = opt.getAttribute('data-diagram') || 'floorplan_spec';
           presetSel.value = opt.getAttribute('data-preset') || 'standard';
           execSel.value = opt.getAttribute('data-exec') || 'wet-ink';
+          titleInp.value = opt.getAttribute('data-title') || '';
           orgInp.value = opt.getAttribute('data-org') || '';
           cpInp.value = opt.getAttribute('data-counterparty') || '';
           stampInp.value = opt.getAttribute('data-stamp') || '';
+          kpi0ValInp.value = opt.getAttribute('data-kpi0-val') || '';
+          item0DescInp.value = opt.getAttribute('data-item0-desc') || '';
+          item0AmtInp.value = opt.getAttribute('data-item0-amt') || '';
         }}
         refresh();
       }});
@@ -591,6 +624,59 @@ pub async fn handle_pressmark_concept_detail(Path(slug): Path<String>) -> Respon
 }
 
 fn render_pressmark_concept_detail_html(spec: &ArchetypeConceptSpec) -> Html<String> {
+    let related_html = ARCHETYPE_CONCEPTS_50
+        .iter()
+        .filter(|c| c.vertical_slug == spec.vertical_slug && c.id != spec.id)
+        .map(|c| {
+            format!(
+                r#"<li style="margin-bottom:8px;"><a href="/concepts/{slug}" style="font-weight:700;color:#1e3a8a;text-decoration:underline;">#{id:02} — {title}</a> <span style="font-family:monospace;font-size:0.78rem;color:#475569;">({citation})</span></li>"#,
+                slug = c.slug,
+                id = c.id,
+                title = html_escape(c.title),
+                citation = html_escape(c.statutory_citation),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let kpi_html = spec
+        .kpi_metrics
+        .iter()
+        .map(|(k, v)| {
+            format!(
+                r#"<div style="border:1px solid #cbd5e1;border-radius:8px;padding:12px;background:#f8fafc;">
+  <div style="font-family:monospace;font-size:0.7rem;font-weight:800;color:#475569;">{k}</div>
+  <div style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-top:4px;">{v}</div>
+</div>"#,
+                k = html_escape(k),
+                v = html_escape(v),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let line_items_html = spec
+        .line_items
+        .iter()
+        .map(|(code, desc, qty, amt)| {
+            format!(
+                r#"<tr>
+  <td style="font-family:monospace;font-weight:700;padding:8px;border-bottom:1px solid #e2e8f0;">{code}</td>
+  <td style="padding:8px;border-bottom:1px solid #e2e8f0;">{desc}</td>
+  <td style="font-family:monospace;padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">{qty}</td>
+  <td style="font-family:monospace;font-weight:800;padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">{amt}</td>
+</tr>"#,
+                code = html_escape(code),
+                desc = html_escape(desc),
+                qty = html_escape(qty),
+                amt = html_escape(amt),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let keywords_joined = spec.secondary_keywords.join(", ");
+
     let html = format!(
         r##"<!DOCTYPE html>
 <html lang="en">
@@ -598,57 +684,322 @@ fn render_pressmark_concept_detail_html(spec: &ArchetypeConceptSpec) -> Html<Str
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{title} — Fillable PDF Template &amp; Live Customizer | Pressmark</title>
-  <meta name="description" content="Customize and download a fillable PDF {title} ({citation}) for {profession}.">
+  <meta name="description" content="Download and customize a fillable PDF {title} ({citation}) for {profession}. Includes 10 structural page archetypes, embedded SVG schematics, and /AcroForm signature fields.">
   <link rel="canonical" href="https://pressmark.dev/concepts/{slug}">
   <meta property="og:type" content="article">
   <meta property="og:title" content="{title} — Fillable PDF Template | Pressmark">
   <meta property="og:description" content="{signal}">
   <meta property="og:url" content="https://pressmark.dev/concepts/{slug}">
   <meta property="og:image" content="https://pressmark.dev/api/v1/concepts/{slug}/preview.png">
+  <script type="application/ld+json">
+  {{
+    "@context": "https://schema.org",
+    "@graph": [
+      {{
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {{ "@type": "ListItem", "position": 1, "name": "Pressmark", "item": "https://pressmark.dev/" }},
+          {{ "@type": "ListItem", "position": 2, "name": "100 Document Concepts", "item": "https://pressmark.dev/elements" }},
+          {{ "@type": "ListItem", "position": 3, "name": "{title_json}", "item": "https://pressmark.dev/concepts/{slug}" }}
+        ]
+      }},
+      {{
+        "@type": "SoftwareApplication",
+        "name": "{title_json} Generator",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web, PDF 1.7 (/AcroForm)",
+        "description": "Fillable PDF and live layout customizer for {title_json} ({citation_json}) built for {prof_json}.",
+        "keywords": "{kw_json}",
+        "offers": {{ "@type": "Offer", "price": "0.00", "priceCurrency": "USD" }}
+      }}
+    ]
+  }}
+  </script>
   <style>
-    body {{ background:#f8fafc; color:#0f172a; font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif; margin:0; }}
-    .pm-shell {{ max-width:1180px; margin:0 auto; padding:28px 16px 64px; }}
-    .pm-btn {{ display:inline-block; padding:9px 16px; border-radius:6px; font-weight:700; font-size:0.85rem; text-decoration:none; background:#1e3a8a; color:#fff; }}
+    body {{ background:#f8fafc; color:#0f172a; font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif; margin:0; line-height:1.5; }}
+    .pm-shell {{ max-width:1240px; margin:0 auto; padding:28px 16px 64px; }}
+    .pm-grid-2 {{ display:grid; grid-template-columns:400px 1fr; gap:24px; align-items:start; }}
+    @media (max-width: 960px) {{ .pm-grid-2 {{ grid-template-columns:1fr; }} }}
+    .pm-field {{ margin-bottom:10px; }}
+    .pm-field label {{ display:block; font-family:monospace; font-size:0.74rem; font-weight:700; text-transform:uppercase; margin-bottom:4px; color:#334155; }}
+    .pm-field select, .pm-field input {{ width:100%; padding:8px 10px; border:1.5px solid #94a3b8; border-radius:6px; font-weight:600; font-size:0.86rem; box-sizing:border-box; }}
+    .pm-btn {{ display:inline-block; padding:9px 16px; border-radius:6px; font-weight:700; font-size:0.85rem; text-decoration:none; cursor:pointer; border:none; }}
+    .pm-btn--primary {{ background:#1e3a8a; color:#fff; }}
+    .pm-btn--secondary {{ background:#0284c7; color:#fff; }}
   </style>
 </head>
 <body>
   <header style="background:#0f172a;color:#fff;padding:14px 20px;">
-    <div style="max-width:1180px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;">
+    <div style="max-width:1240px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
       <a href="/elements" style="color:#38bdf8;font-weight:800;text-decoration:none;">← All 100 Profession Concepts</a>
       <a href="/api/v1/concepts/{slug}/sample.pdf" target="_blank" rel="noopener" style="color:#fff;font-family:monospace;font-weight:700;">Download Fillable PDF ↗</a>
     </div>
   </header>
   <main class="pm-shell">
-    <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:24px;margin-bottom:24px;">
+    <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:24px;margin-bottom:24px;box-shadow:0 4px 12px rgba(15,23,42,0.05);">
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-        <img src="/assets/seals/{seal}" alt="{vertical} seal" width="56" height="56">
+        <img src="/assets/seals/{seal}" alt="{vertical} seal" width="56" height="56" style="border:1.5px solid #cbd5e1;border-radius:50%;background:#fff;">
         <div>
-          <span style="background:#dbeafe;color:#1e3a8a;font-family:monospace;font-size:0.74rem;font-weight:800;padding:3px 8px;border-radius:4px;">CONCEPT #{id:02} OF 100 · {vertical} · LAYOUT: {layout}</span>
-          <h1 style="margin:8px 0 4px;font-size:1.75rem;">{title}</h1>
+          <span style="background:#dbeafe;color:#1e3a8a;font-family:monospace;font-size:0.74rem;font-weight:800;padding:3px 8px;border-radius:4px;">CONCEPT #{id:02} OF 100 · {vertical} · LAYOUT: {def_layout}</span>
+          <h1 style="margin:8px 0 4px;font-size:clamp(1.45rem, 2.8vw, 2.05rem);">{title}</h1>
           <div style="font-family:monospace;font-size:0.82rem;color:#475569;">{citation} · Built for {profession}</div>
         </div>
       </div>
-      <p style="margin:14px 0 16px;color:#334155;">{signal}</p>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;">
-        <a href="/api/v1/concepts/{slug}/sample.pdf" target="_blank" rel="noopener" class="pm-btn">Download Fillable PDF (/AcroForm) ↗</a>
-        <a href="/elements" class="pm-btn" style="background:#0f766e;">Open Live Element Customizer</a>
+      <p style="margin:14px 0 0;color:#334155;max-width:78ch;"><strong>Why professionals use this template:</strong> {signal}</p>
+    </div>
+
+    <div class="pm-grid-2" style="margin-bottom:32px;">
+      <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:20px;box-shadow:0 4px 12px rgba(15,23,42,0.05);">
+        <h2 style="margin:0 0 12px;font-size:1.1rem;font-weight:800;">Customize Layout &amp; Line Items Live</h2>
+        <div class="pm-field">
+          <label for="dt-layout">Structural Page Layout Blueprint (10 Archetypes)</label>
+          <select id="dt-layout">
+            <option value="{def_layout}">Default ({def_layout})</option>
+            <option value="asymmetric_sidebar">01 · Asymmetric Sidebar Ledger</option>
+            <option value="pleading_caption">02 · Numbered Legal Pleading Caption</option>
+            <option value="three_tier_packages">03 · 3-Tier Package Comparison Cards</option>
+            <option value="inspection_checklist">04 · Multi-Point Inspection Checklist</option>
+            <option value="blueprint_schematic">05 · Engineering Blueprint &amp; CAD Sheet</option>
+            <option value="split_settlement">06 · Bilateral T-Account Split Settlement</option>
+            <option value="clinical_box_grid">07 · Clinical / Regulatory Boxed Form Grid</option>
+            <option value="certificate_broadsheet">08 · Ceremonial Certificate Broadsheet</option>
+            <option value="dark_tactile_brief">09 · Dark Tactile 3D Depth Brief</option>
+            <option value="executive_draw_ledger">10 · Executive Draw &amp; SOV Ledger</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="pm-field">
+            <label for="dt-masthead">Masthead Style</label>
+            <select id="dt-masthead">
+              <option value="{def_masthead}">Default ({def_masthead})</option>
+              <option value="trade_banner">Trade Command (Dark)</option>
+              <option value="neo_brutalist">Neo-Brutalist (#FFE500)</option>
+              <option value="judicial_caption">Judicial Caption</option>
+              <option value="swiss_grid">Swiss Precision Grid</option>
+              <option value="editorial_serif">Editorial Serif</option>
+              <option value="executive_split">Clinical / Executive Split</option>
+            </select>
+          </div>
+          <div class="pm-field">
+            <label for="dt-kpi">KPI Strip Style</label>
+            <select id="dt-kpi">
+              <option value="{def_kpi}">Default ({def_kpi})</option>
+              <option value="metric_cards">Executive Metric Cards</option>
+              <option value="dark_terminal">Dark Terminal Telemetry</option>
+              <option value="neo_brutalist">Neo-Brutalist Hard Border</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="pm-field">
+            <label for="dt-diagram">Embedded SVG Schematic</label>
+            <select id="dt-diagram">
+              <option value="{def_diagram}">Default ({def_diagram})</option>
+              <option value="parcel_lot">Cadastral Parcel &amp; Setback Plat</option>
+              <option value="roof_pitch">Roof Pitch &amp; Hail Impact</option>
+              <option value="hvac_diagnostic">HVAC Superheat &amp; Airflow</option>
+              <option value="solar_array">Solar PV + LFP Storage</option>
+              <option value="vehicle_inspection">Fleet Chassis Diagnostic</option>
+              <option value="floorplan_spec">Commercial Suite RSF Zoning</option>
+              <option value="soil_topography">Soil Horizon &amp; LiDAR Slope</option>
+              <option value="cap_table_waterfall">Cap Table &amp; SAFE Waterfall</option>
+              <option value="chain_of_custody">ISO Lab Chain of Custody</option>
+              <option value="logistics_route">Intermodal Freight Corridor</option>
+            </select>
+          </div>
+          <div class="pm-field">
+            <label for="dt-table">Schedule Table Style</label>
+            <select id="dt-table">
+              <option value="{def_table}">Default ({def_table})</option>
+              <option value="dark_header">Dark Header + Zebra</option>
+              <option value="striped">Primary Header + Striped</option>
+              <option value="minimal_lines">Minimal Editorial Rules</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="pm-field">
+            <label for="dt-preset">Readability Preset</label>
+            <select id="dt-preset">
+              <option value="{def_preset}">Default ({def_preset})</option>
+              <option value="standard">Standard (9.5pt Body)</option>
+              <option value="high_legibility">High-Legibility (10.4pt Large)</option>
+              <option value="executive_compact">Executive Compact (8.8pt)</option>
+              <option value="judicial_formal">Judicial Formal (9.5pt)</option>
+            </select>
+          </div>
+          <div class="pm-field">
+            <label for="dt-exec">Signature Execution Mode</label>
+            <select id="dt-exec">
+              <option value="{def_exec}">Default ({def_exec})</option>
+              <option value="wet-ink">Fillable PDF (/AcroForm)</option>
+              <option value="esign">Electronic Counter-Sign (/s/)</option>
+              <option value="notary_jurat">Sworn Notary Public Jurat</option>
+            </select>
+          </div>
+        </div>
+        <div class="pm-field">
+          <label for="dt-title">Document Title Override</label>
+          <input type="text" id="dt-title" value="{title}">
+        </div>
+        <div class="pm-field">
+          <label for="dt-org">Issuing Organization / Firm</label>
+          <input type="text" id="dt-org" value="{org}">
+        </div>
+        <div class="pm-field">
+          <label for="dt-cp">Counterparty / Client / Recipient</label>
+          <input type="text" id="dt-cp" value="{cp}">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="pm-field">
+            <label for="dt-stamp">Vector Rubber Stamp Text</label>
+            <input type="text" id="dt-stamp" value="{stamp}">
+          </div>
+          <div class="pm-field">
+            <label for="dt-kpi0-val">Primary KPI Value ({kpi0_lbl})</label>
+            <input type="text" id="dt-kpi0-val" value="{kpi0_val}">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
+          <div class="pm-field">
+            <label for="dt-item0-desc">Schedule Line-Item #1 Description</label>
+            <input type="text" id="dt-item0-desc" value="{item0_desc}">
+          </div>
+          <div class="pm-field">
+            <label for="dt-item0-amt">Line-Item #1 Amount</label>
+            <input type="text" id="dt-item0-amt" value="{item0_amt}">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+          <button type="button" id="dt-render-btn" class="pm-btn pm-btn--primary" style="flex:1;">Update Preview</button>
+          <a id="dt-pdf-btn" href="/api/v1/concepts/{slug}/sample.pdf" target="_blank" rel="noopener" class="pm-btn pm-btn--secondary">Download Fillable PDF ↗</a>
+        </div>
+      </div>
+
+      <div style="background:#0f172a;border-radius:10px;padding:16px;display:flex;flex-direction:column;align-items:center;">
+        <div style="width:100%;display:flex;justify-content:space-between;color:#cbd5e1;font-family:monospace;font-size:0.76rem;margin-bottom:10px;">
+          <span id="dt-status">144-DPI VECTOR PREVIEW · PAGE 1 OF 1</span>
+          <span style="color:#38bdf8;">ACROFORM READY</span>
+        </div>
+        <img id="dt-preview-img" src="/api/v1/concepts/{slug}/preview.png" alt="{title} preview" style="max-width:100%;height:auto;border-radius:4px;background:#fff;">
       </div>
     </div>
-    <div style="background:#0f172a;border-radius:10px;padding:20px;text-align:center;">
-      <img src="/api/v1/concepts/{slug}/preview.png" alt="{title} preview" style="max-width:100%;height:auto;border-radius:4px;background:#fff;">
-    </div>
+
+    <section style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:24px;margin-bottom:24px;">
+      <h2 style="margin:0 0 10px;font-size:1.25rem;font-weight:800;">Included Financial Metrics &amp; Line-Item Schedule</h2>
+      <p style="margin:0 0 14px;color:#475569;font-size:0.9rem;"><strong>Target Roles:</strong> {profession} · <strong>Search Keywords:</strong> {primary_kw}, {secondary_kws}</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:12px;margin-bottom:20px;">
+        {kpi_html}
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;border:1px solid #cbd5e1;font-size:0.88rem;">
+          <thead>
+            <tr style="background:#0f172a;color:#fff;text-align:left;font-family:monospace;font-size:0.76rem;">
+              <th style="padding:8px;">CODE</th>
+              <th style="padding:8px;">DESCRIPTION &amp; TECHNICAL SPECIFICATION</th>
+              <th style="padding:8px;text-align:right;">BASIS / QTY</th>
+              <th style="padding:8px;text-align:right;">AMOUNT / DELTA</th>
+            </tr>
+          </thead>
+          <tbody>
+            {line_items_html}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:24px;">
+      <h2 style="margin:0 0 10px;font-size:1.15rem;font-weight:800;">Related {vertical} Templates</h2>
+      <ul style="margin:0;padding-left:20px;">
+        {related_html}
+      </ul>
+    </section>
   </main>
+
+  <script>
+    (function() {{
+      const slug = "{slug}";
+      const layout = document.getElementById('dt-layout');
+      const masthead = document.getElementById('dt-masthead');
+      const kpi = document.getElementById('dt-kpi');
+      const diagram = document.getElementById('dt-diagram');
+      const table = document.getElementById('dt-table');
+      const preset = document.getElementById('dt-preset');
+      const exec = document.getElementById('dt-exec');
+      const titleInp = document.getElementById('dt-title');
+      const org = document.getElementById('dt-org');
+      const cp = document.getElementById('dt-cp');
+      const stamp = document.getElementById('dt-stamp');
+      const kpi0Val = document.getElementById('dt-kpi0-val');
+      const item0Desc = document.getElementById('dt-item0-desc');
+      const item0Amt = document.getElementById('dt-item0-amt');
+      const btn = document.getElementById('dt-render-btn');
+      const img = document.getElementById('dt-preview-img');
+      const pdf = document.getElementById('dt-pdf-btn');
+      const status = document.getElementById('dt-status');
+
+      function update() {{
+        const p = new URLSearchParams();
+        p.set('layout', layout.value);
+        p.set('masthead', masthead.value);
+        p.set('kpi', kpi.value);
+        p.set('diagram', diagram.value);
+        p.set('table', table.value);
+        p.set('preset', preset.value);
+        p.set('execution', exec.value);
+        if (titleInp.value.trim()) p.set('custom_title', titleInp.value.trim());
+        if (org.value.trim()) p.set('custom_org', org.value.trim());
+        if (cp.value.trim()) p.set('custom_counterparty', cp.value.trim());
+        if (stamp.value.trim()) p.set('stamp', stamp.value.trim());
+        if (kpi0Val.value.trim()) p.set('kpi0_val', kpi0Val.value.trim());
+        if (item0Desc.value.trim()) p.set('item0_desc', item0Desc.value.trim());
+        if (item0Amt.value.trim()) p.set('item0_amt', item0Amt.value.trim());
+        const qs = p.toString();
+        status.textContent = 'RENDERING LIVE PREVIEW...';
+        img.onload = function() {{ status.textContent = '144-DPI VECTOR PREVIEW · PAGE 1 OF 1'; }};
+        img.src = '/api/v1/concepts/' + slug + '/preview.png?' + qs;
+        pdf.href = '/api/v1/concepts/' + slug + '/sample.pdf?' + qs;
+      }}
+
+      [layout, masthead, kpi, diagram, table, preset, exec].forEach(function(el) {{
+        el.addEventListener('change', update);
+      }});
+      btn.addEventListener('click', update);
+    }})();
+  </script>
 </body>
 </html>"##,
         title = html_escape(spec.title),
+        title_json = spec.title.replace('"', "\\\""),
         citation = html_escape(spec.statutory_citation),
+        citation_json = spec.statutory_citation.replace('"', "\\\""),
         profession = html_escape(spec.target_profession),
+        prof_json = spec.target_profession.replace('"', "\\\""),
         slug = spec.slug,
         signal = html_escape(spec.demand_signal),
+        kw_json = format!("{}, {}", spec.primary_keyword, keywords_joined).replace('"', "\\\""),
         seal = spec.seal_filename,
         vertical = html_escape(spec.vertical),
         id = spec.id,
-        layout = spec.default_page_layout,
+        def_layout = spec.default_page_layout,
+        def_masthead = spec.default_masthead,
+        def_kpi = spec.default_kpi_style,
+        def_diagram = spec.default_diagram_kind,
+        def_table = spec.default_table_style,
+        def_preset = spec.default_readability.as_typst_id(),
+        def_exec = spec.default_execution_mode,
+        org = html_escape(spec.sample_org),
+        cp = html_escape(spec.sample_counterparty),
+        stamp = html_escape(spec.stamp_label),
+        kpi0_lbl = html_escape(spec.kpi_metrics[0].0),
+        kpi0_val = html_escape(spec.kpi_metrics[0].1),
+        item0_desc = html_escape(spec.line_items[0].1),
+        item0_amt = html_escape(spec.line_items[0].3),
+        primary_kw = html_escape(spec.primary_keyword),
+        secondary_kws = html_escape(&keywords_joined),
+        kpi_html = kpi_html,
+        line_items_html = line_items_html,
+        related_html = related_html,
     );
     Html(html)
 }
