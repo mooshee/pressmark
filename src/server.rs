@@ -1327,6 +1327,7 @@ async fn handle_openai_apps_challenge() -> impl IntoResponse {
 }
 
 async fn handle_mcp_get() -> impl IntoResponse {
+    let tools_sha256 = McpHandler::tools_sha256();
     (
         StatusCode::OK,
         [
@@ -1340,6 +1341,7 @@ async fn handle_mcp_get() -> impl IntoResponse {
             "protocolVersion": "2026-07-28",
             "supportedProtocols": crate::mcp::SUPPORTED_MCP_PROTOCOLS,
             "transport": "streamable-http",
+            "tools_sha256": tools_sha256,
             "endpoints": {
                 "mcp": "/mcp",
                 "mcp_v1": "/api/v1/mcp",
@@ -1350,12 +1352,22 @@ async fn handle_mcp_get() -> impl IntoResponse {
 }
 
 async fn handle_mcp_tools() -> impl IntoResponse {
+    let tools = McpHandler::get_tools();
+    let tools_count = tools.as_array().map(|a| a.len()).unwrap_or(0);
+    let tools_sha256 = McpHandler::tools_sha256();
+    let mut headers = HeaderMap::new();
+    if let Ok(etag) = format!("\"sha256-{}\"", tools_sha256).parse() {
+        headers.insert(header::ETAG, etag);
+    }
     (
         StatusCode::OK,
+        headers,
         Json(serde_json::json!({
             "name": "pressmark",
             "version": crate::mcp::MCP_SERVER_VERSION,
-            "tools": McpHandler::get_tools()
+            "tools_count": tools_count,
+            "tools_sha256": tools_sha256,
+            "tools": tools
         })),
     )
 }

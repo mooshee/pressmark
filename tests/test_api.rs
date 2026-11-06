@@ -2672,6 +2672,20 @@ async fn test_production_error_audit_regressions() {
     let resp = router.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
+    // MCP tools.json SHA-256 baseline & ETag
+    for uri in &["/mcp/tools.json", "/api/v1/mcp/tools.json"] {
+        let req = Request::builder().uri(*uri).body(Body::empty()).unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let etag = resp.headers().get(header::ETAG).unwrap().to_str().unwrap().to_string();
+        let body_bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        let sha = json["tools_sha256"].as_str().unwrap();
+        assert_eq!(sha.len(), 64);
+        assert_eq!(etag, format!("\"sha256-{}\"", sha));
+        assert_eq!(json["tools_count"], serde_json::json!(8));
+    }
+
     let req = Request::builder().uri("/documentation").body(Body::empty()).unwrap();
     let resp = router.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);

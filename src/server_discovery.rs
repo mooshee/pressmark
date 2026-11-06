@@ -498,6 +498,7 @@ pub fn run_setup_check(storage: Option<&crate::storage::Storage>) -> serde_json:
                 "mcp_version": crate::mcp::MCP_SERVER_VERSION,
                 "supported_protocols": crate::mcp::SUPPORTED_MCP_PROTOCOLS,
                 "tools_count": tools_count,
+                "tools_sha256": McpHandler::tools_sha256(),
                 "archetypes_count": DocumentType::all().len(),
                 "openai_challenge_configured": challenge_ok
             },

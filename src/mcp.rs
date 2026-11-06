@@ -178,6 +178,16 @@ impl McpHandler {
         Self::get_tools()
     }
 
+    /// Deterministic SHA-256 digest of the canonical sorted-key compact JSON `tools` array.
+    pub fn tools_sha256() -> String {
+        use sha2::{Digest, Sha256};
+        let tools = Self::get_tools();
+        let canonical = serde_json::to_vec(&tools).unwrap_or_default();
+        let mut hasher = Sha256::new();
+        hasher.update(&canonical);
+        hex::encode(hasher.finalize())
+    }
+
     pub fn get_tools() -> Value {
         let doc_props = Self::document_input_properties();
         let preview_props = Self::preview_input_properties();
