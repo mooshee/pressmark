@@ -84,6 +84,7 @@ pub async fn handle_pressmark_concept_preview_png(
     let (root, seal_prefix) = resolve_pressmark_root_dir();
 
     let markup = match clean_slug {
+        "showcase-layouts" => render_element_showcase_sheet_typst("page_layouts", seal_prefix),
         "showcase-mastheads" => render_element_showcase_sheet_typst("mastheads", seal_prefix),
         "showcase-tables" => render_element_showcase_sheet_typst("tables_and_kpis", seal_prefix),
         "showcase-diagrams" => {
@@ -169,13 +170,14 @@ pub async fn handle_pressmark_concept_sample_pdf(
 
 /// Main `/elements` & `/concepts` Hub on Pressmark.
 pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
-    let mut concept_options_html = String::with_capacity(8192);
-    let mut cards_html = String::with_capacity(32768);
+    let mut concept_options_html = String::with_capacity(16384);
+    let mut cards_html = String::with_capacity(65536);
 
     for spec in ARCHETYPE_CONCEPTS_50 {
         concept_options_html.push_str(&format!(
-            r#"<option value="{slug}" data-masthead="{masthead}" data-kpi="{kpi}" data-table="{table}" data-diagram="{diagram}" data-preset="{preset}" data-exec="{exec}" data-org="{org}" data-counterparty="{cp}" data-stamp="{stamp}">#{id:02} — {title} ({vertical})</option>"#,
+            r#"<option value="{slug}" data-layout="{layout}" data-masthead="{masthead}" data-kpi="{kpi}" data-table="{table}" data-diagram="{diagram}" data-preset="{preset}" data-exec="{exec}" data-org="{org}" data-counterparty="{cp}" data-stamp="{stamp}">#{id:02} — {title} ({vertical})</option>"#,
             slug = spec.slug,
+            layout = spec.default_page_layout,
             masthead = spec.default_masthead,
             kpi = spec.default_kpi_style,
             table = spec.default_table_style,
@@ -203,6 +205,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
   <p style="margin:0 0 6px;font-size:0.82rem;color:#334155;"><strong>Profession:</strong> {profession}</p>
   <p style="margin:0 0 12px;font-size:0.8rem;color:#475569;line-height:1.45;">{signal}</p>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
+    <span class="pm-pill" style="background:#dbeafe;color:#1e3a8a;font-weight:700;">Layout: {layout}</span>
     <span class="pm-pill">Masthead: {masthead}</span>
     <span class="pm-pill">Diagram: {diagram}</span>
     <span class="pm-pill">Preset: {preset}</span>
@@ -214,12 +217,13 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
 </article>"#,
             vslug = spec.vertical_slug,
             search_blob = html_escape(&format!(
-                "{} {} {} {} {}",
+                "{} {} {} {} {} {}",
                 spec.title.to_lowercase(),
                 spec.vertical.to_lowercase(),
                 spec.target_profession.to_lowercase(),
                 spec.primary_keyword.to_lowercase(),
-                spec.statutory_citation.to_lowercase()
+                spec.statutory_citation.to_lowercase(),
+                spec.default_page_layout.to_lowercase()
             )),
             seal = spec.seal_filename,
             vertical = html_escape(spec.vertical),
@@ -229,6 +233,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
             title = html_escape(spec.title),
             profession = html_escape(spec.target_profession),
             signal = html_escape(spec.demand_signal),
+            layout = spec.default_page_layout,
             masthead = spec.default_masthead,
             diagram = spec.default_diagram_kind,
             preset = spec.default_readability.as_typst_id(),
@@ -241,14 +246,14 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>50 Profession Document Concepts &amp; Element Variations Studio | Pressmark</title>
-  <meta name="description" content="Interactive vector PDF element customizer and 50-profession template library across construction, real estate, property tax, SaaS, creative, legal, medical, logistics, solar, and GovCon.">
+  <title>100 Profession Document Concepts &amp; 10 Page Layout Blueprints Studio | Pressmark</title>
+  <meta name="description" content="Interactive vector PDF element customizer and 100-profession template library across 10 structural page archetypes and 10 verticals.">
   <link rel="canonical" href="https://pressmark.dev/elements">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="50 Profession Document Concepts &amp; Element Variations Studio | Pressmark">
-  <meta property="og:description" content="Switch mastheads, KPI strips, embedded technical SVG schematics, readability presets, and fillable /AcroForm signatures live.">
+  <meta property="og:title" content="100 Profession Document Concepts &amp; 10 Page Layout Blueprints Studio | Pressmark">
+  <meta property="og:description" content="Switch between 10 structural page layouts, 6 mastheads, KPI strips, 10 embedded technical SVG schematics, readability presets, and fillable /AcroForm signatures live.">
   <meta property="og:url" content="https://pressmark.dev/elements">
-  <meta property="og:image" content="https://pressmark.dev/assets/seals/showcase_sheet_mastheads.png">
+  <meta property="og:image" content="https://pressmark.dev/assets/seals/showcase_sheet_page_layouts.png">
   <script type="application/ld+json">
   {{
     "@context": "https://schema.org",
@@ -257,8 +262,8 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
         "@type": "CollectionPage",
         "@id": "https://pressmark.dev/elements#webpage",
         "url": "https://pressmark.dev/elements",
-        "name": "50 Profession Document Concepts & Element Variations Studio",
-        "description": "Vector PDF synthesis library spanning 50 profession archetypes with embedded SVG schematics and interactive /AcroForm signature blocks."
+        "name": "100 Profession Document Concepts & 10 Page Layout Blueprints Studio",
+        "description": "Vector PDF synthesis library spanning 100 profession archetypes, 10 structural page layouts, embedded SVG schematics, and interactive /AcroForm signature blocks."
       }},
       {{
         "@type": "SoftwareApplication",
@@ -275,14 +280,14 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
     .pm-shell {{ max-width:1280px; margin:0 auto; padding:28px 16px 64px; }}
     .pm-hero {{ background:#0f172a; color:#fff; border-radius:10px; padding:32px; margin-bottom:32px; border-bottom:4px solid #0284c7; }}
     .pm-badge {{ background:#dbeafe; color:#1e3a8a; font-family:monospace; font-size:0.7rem; font-weight:800; padding:2px 8px; border-radius:4px; text-transform:uppercase; }}
-    .pm-studio {{ display:grid; grid-template-columns:380px 1fr; gap:24px; background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:24px; margin-bottom:40px; box-shadow:0 4px 16px rgba(15,23,42,0.06); }}
+    .pm-studio {{ display:grid; grid-template-columns:390px 1fr; gap:24px; background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:24px; margin-bottom:40px; box-shadow:0 4px 16px rgba(15,23,42,0.06); }}
     @media (max-width: 960px) {{ .pm-studio {{ grid-template-columns:1fr; }} }}
-    .pm-field {{ margin-bottom:12px; }}
-    .pm-field label {{ display:block; font-family:monospace; font-size:0.75rem; font-weight:700; text-transform:uppercase; margin-bottom:4px; color:#334155; }}
-    .pm-field select, .pm-field input {{ width:100%; padding:8px 10px; border:1.5px solid #94a3b8; border-radius:6px; font-size:0.88rem; font-weight:600; box-sizing:border-box; }}
+    .pm-field {{ margin-bottom:11px; }}
+    .pm-field label {{ display:block; font-family:monospace; font-size:0.74rem; font-weight:700; text-transform:uppercase; margin-bottom:4px; color:#334155; }}
+    .pm-field select, .pm-field input {{ width:100%; padding:8px 10px; border:1.5px solid #94a3b8; border-radius:6px; font-size:0.86rem; font-weight:600; box-sizing:border-box; }}
     .pm-preview {{ background:#0f172a; border-radius:8px; padding:16px; display:flex; flex-direction:column; align-items:center; }}
     .pm-preview img {{ max-width:100%; height:auto; border-radius:4px; background:#fff; }}
-    .pm-showcase-grid {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:20px; margin-bottom:40px; }}
+    .pm-showcase-grid {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:18px; margin-bottom:40px; }}
     .pm-showcase-card {{ background:#fff; border:1px solid #cbd5e1; border-radius:8px; padding:14px; }}
     .pm-showcase-card img {{ width:100%; height:auto; border:1px solid #e2e8f0; border-radius:4px; display:block; margin-top:8px; }}
     .pm-grid {{ display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:18px; }}
@@ -301,7 +306,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
       <a href="/" style="color:#fff;font-weight:900;font-size:1.2rem;text-decoration:none;">PRESSMARK STUDIO</a>
       <nav style="display:flex;gap:18px;font-size:0.85rem;font-weight:700;">
         <a href="/" style="color:#cbd5e1;text-decoration:none;">Interactive Builder (57 Archetypes)</a>
-        <a href="/elements" style="color:#38bdf8;text-decoration:underline;">50 Profession Concepts &amp; Elements</a>
+        <a href="/elements" style="color:#38bdf8;text-decoration:underline;">100 Profession Concepts &amp; 10 Page Layouts</a>
         <a href="/pricing" style="color:#cbd5e1;text-decoration:none;">Pricing</a>
       </nav>
     </div>
@@ -309,20 +314,35 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
 
   <main class="pm-shell">
     <section class="pm-hero">
-      <span style="background:#0284c7;color:#fff;font-family:monospace;font-size:0.76rem;font-weight:800;padding:3px 10px;border-radius:4px;">SHARED HALLMAN DOC ENGINE · 50 PROFESSION CONCEPTS</span>
-      <h1 style="font-size:clamp(1.8rem, 3.2vw, 2.5rem);margin:12px 0 8px;">Multi-Style Document Elements, Embedded SVG Schematics &amp; 50 Profession Templates</h1>
-      <p style="max-width:74ch;color:#cbd5e1;line-height:1.55;margin:0;">Switch between 6 masthead architectures, 3 KPI metric strips, 6 domain SVG technical diagrams, 3 schedule table styles, 4 readability presets, and fillable /AcroForm signature widgets in real time.</p>
+      <span style="background:#0284c7;color:#fff;font-family:monospace;font-size:0.76rem;font-weight:800;padding:3px 10px;border-radius:4px;">SHARED HALLMAN DOC ENGINE · 100 PROFESSION CONCEPTS · 10 PAGE LAYOUTS</span>
+      <h1 style="font-size:clamp(1.8rem, 3.2vw, 2.5rem);margin:12px 0 8px;">10 Structural Page Archetype Blueprints, Embedded SVG Schematics &amp; 100 Profession Templates</h1>
+      <p style="max-width:74ch;color:#cbd5e1;line-height:1.55;margin:0;">Switch between 10 structural page layouts (Asymmetric Sidebar, Pleading Caption, 3-Tier Packages, Inspection Checklist, Blueprint Schematic, Split Settlement, Clinical Box Grid, Certificate Broadsheet, Dark Tactile Brief, and Executive Draw Ledger), 6 masthead architectures, 10 domain SVG diagrams, and fillable /AcroForm signature widgets in real time.</p>
     </section>
 
     <section class="pm-studio">
       <div>
         <div class="pm-field">
-          <label for="pm-concept">1. Profession Concept (1–50)</label>
+          <label for="pm-concept">1. Profession Concept (1–100)</label>
           <select id="pm-concept">{concept_options_html}</select>
+        </div>
+        <div class="pm-field">
+          <label for="pm-layout">2. Structural Page Layout Blueprint (10 Archetypes)</label>
+          <select id="pm-layout">
+            <option value="executive_draw_ledger">10 · Executive Draw &amp; SOV Ledger</option>
+            <option value="asymmetric_sidebar">01 · Asymmetric Sidebar Ledger</option>
+            <option value="pleading_caption">02 · Numbered Legal Pleading Caption</option>
+            <option value="three_tier_packages">03 · 3-Tier Package Comparison Cards</option>
+            <option value="inspection_checklist">04 · Multi-Point Inspection Checklist</option>
+            <option value="blueprint_schematic">05 · Engineering Blueprint &amp; CAD Sheet</option>
+            <option value="split_settlement">06 · Bilateral T-Account Split Settlement</option>
+            <option value="clinical_box_grid">07 · Clinical / Regulatory Boxed Form Grid</option>
+            <option value="certificate_broadsheet">08 · Ceremonial Certificate Broadsheet</option>
+            <option value="dark_tactile_brief">09 · Dark Tactile 3D Depth Brief</option>
+          </select>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="pm-field">
-            <label for="pm-masthead">2. Masthead Style</label>
+            <label for="pm-masthead">3. Masthead Style</label>
             <select id="pm-masthead">
               <option value="trade_banner">Trade Command (Dark)</option>
               <option value="neo_brutalist">Neo-Brutalist (#FFE500)</option>
@@ -333,7 +353,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
             </select>
           </div>
           <div class="pm-field">
-            <label for="pm-kpi">3. KPI Strip Style</label>
+            <label for="pm-kpi">4. KPI Strip Style</label>
             <select id="pm-kpi">
               <option value="metric_cards">Executive Metric Cards</option>
               <option value="dark_terminal">Dark Terminal Telemetry</option>
@@ -343,7 +363,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="pm-field">
-            <label for="pm-diagram">4. Embedded SVG Diagram</label>
+            <label for="pm-diagram">5. Embedded SVG Diagram</label>
             <select id="pm-diagram">
               <option value="floorplan_spec">Commercial Suite RSF Zoning</option>
               <option value="parcel_lot">Cadastral Parcel &amp; Setback Plat</option>
@@ -351,10 +371,14 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
               <option value="hvac_diagnostic">HVAC Superheat &amp; Airflow</option>
               <option value="solar_array">Solar PV + LFP Storage</option>
               <option value="vehicle_inspection">Fleet Chassis Diagnostic</option>
+              <option value="soil_topography">Soil Horizon &amp; LiDAR Slope</option>
+              <option value="cap_table_waterfall">Cap Table &amp; SAFE Waterfall</option>
+              <option value="chain_of_custody">ISO Lab Chain of Custody</option>
+              <option value="logistics_route">Intermodal Freight Corridor</option>
             </select>
           </div>
           <div class="pm-field">
-            <label for="pm-table">5. Schedule Table Style</label>
+            <label for="pm-table">6. Schedule Table Style</label>
             <select id="pm-table">
               <option value="dark_header">Dark Header + Zebra</option>
               <option value="striped">Primary Header + Striped</option>
@@ -364,7 +388,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="pm-field">
-            <label for="pm-preset">6. Readability Preset</label>
+            <label for="pm-preset">7. Readability Preset</label>
             <select id="pm-preset">
               <option value="standard">Standard (9.5pt Body)</option>
               <option value="high_legibility">High-Legibility (10.4pt Large)</option>
@@ -373,7 +397,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
             </select>
           </div>
           <div class="pm-field">
-            <label for="pm-exec">7. Signature Mode</label>
+            <label for="pm-exec">8. Signature Mode</label>
             <select id="pm-exec">
               <option value="wet-ink">Fillable PDF (/AcroForm)</option>
               <option value="esign">Electronic Counter-Sign (/s/)</option>
@@ -382,16 +406,16 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
           </div>
         </div>
         <div class="pm-field">
-          <label for="pm-org">8. Issuing Organization</label>
+          <label for="pm-org">9. Issuing Organization</label>
           <input type="text" id="pm-org" value="Lookout Valley Commercial Builders LLC">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="pm-field">
-            <label for="pm-cp">9. Counterparty / Client</label>
+            <label for="pm-cp">10. Counterparty / Client</label>
             <input type="text" id="pm-cp" value="Riverfront Mixed-Use DevelopmentSPE LLC">
           </div>
           <div class="pm-field">
-            <label for="pm-stamp">10. Vector Rubber Stamp</label>
+            <label for="pm-stamp">11. Vector Rubber Stamp</label>
             <input type="text" id="pm-stamp" value="DRAW #04 APPROVED">
           </div>
         </div>
@@ -410,8 +434,14 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
     </section>
 
     <section style="margin-bottom:44px;">
-      <h2 style="font-size:1.45rem;font-weight:800;margin:0 0 14px;">4 Multi-Variant Element Comparison Sheets</h2>
+      <h2 style="font-size:1.45rem;font-weight:800;margin:0 0 14px;">5 Structural Page Layout &amp; Element Comparison Sheets</h2>
       <div class="pm-showcase-grid">
+        <div class="pm-showcase-card">
+          <span class="pm-badge">SHEET 00 · 10 PAGE ARCHETYPES</span>
+          <a href="/api/v1/concepts/showcase-layouts/preview.png" target="_blank" rel="noopener">
+            <img src="/api/v1/concepts/showcase-layouts/preview.png" alt="10 Structural Page Archetype Blueprints" loading="lazy">
+          </a>
+        </div>
         <div class="pm-showcase-card">
           <span class="pm-badge">SHEET 01 · 6 MASTHEAD ARCHITECTURES</span>
           <a href="/assets/seals/showcase_sheet_mastheads.png" target="_blank" rel="noopener">
@@ -425,35 +455,35 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
           </a>
         </div>
         <div class="pm-showcase-card">
-          <span class="pm-badge">SHEET 03 · 6 SVG SCHEMATICS &amp; STAMPS</span>
+          <span class="pm-badge">SHEET 03 · 10 SVG SCHEMATICS &amp; STAMPS</span>
           <a href="/assets/seals/showcase_sheet_diagrams_and_stamps.png" target="_blank" rel="noopener">
-            <img src="/assets/seals/showcase_sheet_diagrams_and_stamps.png" alt="6 SVG Schematics and Stamps" loading="lazy">
+            <img src="/assets/seals/showcase_sheet_diagrams_and_stamps.png" alt="SVG Schematics and Stamps" loading="lazy">
           </a>
         </div>
         <div class="pm-showcase-card">
-          <span class="pm-badge">SHEET 04 · 10 SEALS &amp; 3 EXECUTION MODES</span>
+          <span class="pm-badge">SHEET 04 · 14 SEALS &amp; 3 EXECUTION MODES</span>
           <a href="/assets/seals/showcase_sheet_signatures_and_seals.png" target="_blank" rel="noopener">
-            <img src="/assets/seals/showcase_sheet_signatures_and_seals.png" alt="10 Vertical Seals and 3 Execution Modes" loading="lazy">
+            <img src="/assets/seals/showcase_sheet_signatures_and_seals.png" alt="Vertical Seals and 3 Execution Modes" loading="lazy">
           </a>
         </div>
       </div>
     </section>
 
     <section>
-      <h2 style="font-size:1.45rem;font-weight:800;margin:0 0 12px;">All 50 Profession &amp; Archetype Concepts</h2>
+      <h2 style="font-size:1.45rem;font-weight:800;margin:0 0 12px;">All 100 Profession &amp; Archetype Concepts</h2>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
-        <input type="search" id="pm-search" placeholder="Search 50 concepts by job, keyword, or statutory citation..." style="flex:1;min-width:250px;padding:8px 12px;border:1.5px solid #94a3b8;border-radius:6px;">
-        <button type="button" class="pm-filter-btn active" data-filter="all">All (50)</button>
-        <button type="button" class="pm-filter-btn" data-filter="construction-trades">Construction</button>
-        <button type="button" class="pm-filter-btn" data-filter="real-estate-leasing">Real Estate</button>
-        <button type="button" class="pm-filter-btn" data-filter="property-tax-appeals">Property Tax</button>
-        <button type="button" class="pm-filter-btn" data-filter="software-saas-ai">SaaS &amp; AI</button>
-        <button type="button" class="pm-filter-btn" data-filter="creative-events">Creative</button>
-        <button type="button" class="pm-filter-btn" data-filter="legal-cpa-advisory">Legal &amp; CPA</button>
-        <button type="button" class="pm-filter-btn" data-filter="medical-clinical">Medical</button>
-        <button type="button" class="pm-filter-btn" data-filter="logistics-freight">Logistics</button>
-        <button type="button" class="pm-filter-btn" data-filter="solar-inspection">Solar &amp; Appraisal</button>
-        <button type="button" class="pm-filter-btn" data-filter="consulting-govcon">HR &amp; GovCon</button>
+        <input type="search" id="pm-search" placeholder="Search 100 concepts by job, layout, keyword, or statutory citation..." style="flex:1;min-width:250px;padding:8px 12px;border:1.5px solid #94a3b8;border-radius:6px;">
+        <button type="button" class="pm-filter-btn active" data-filter="all">All (100)</button>
+        <button type="button" class="pm-filter-btn" data-filter="construction-trades">Construction (10)</button>
+        <button type="button" class="pm-filter-btn" data-filter="real-estate-leasing">Real Estate (10)</button>
+        <button type="button" class="pm-filter-btn" data-filter="property-tax-appeals">Property Tax &amp; Ag (10)</button>
+        <button type="button" class="pm-filter-btn" data-filter="software-saas-ai">SaaS &amp; Startup (10)</button>
+        <button type="button" class="pm-filter-btn" data-filter="creative-events">Creative &amp; Hospitality (10)</button>
+        <button type="button" class="pm-filter-btn" data-filter="legal-cpa-advisory">Legal &amp; Estate (10)</button>
+        <button type="button" class="pm-filter-btn" data-filter="medical-clinical">Medical &amp; Biotech (10)</button>
+        <button type="button" class="pm-filter-btn" data-filter="logistics-freight">Logistics, Aviation &amp; Auto (10)</button>
+        <button type="button" class="pm-filter-btn" data-filter="solar-inspection">Solar &amp; Engineering (10)</button>
+        <button type="button" class="pm-filter-btn" data-filter="consulting-govcon">Education, Non-Profit &amp; GovCon (10)</button>
       </div>
       <div class="pm-grid">
         {cards_html}
@@ -464,6 +494,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
   <script>
     (function() {{
       const conceptSel = document.getElementById('pm-concept');
+      const layoutSel = document.getElementById('pm-layout');
       const mastheadSel = document.getElementById('pm-masthead');
       const kpiSel = document.getElementById('pm-kpi');
       const diagramSel = document.getElementById('pm-diagram');
@@ -481,6 +512,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
       function refresh() {{
         const slug = conceptSel.value;
         const p = new URLSearchParams();
+        p.set('layout', layoutSel.value);
         p.set('masthead', mastheadSel.value);
         p.set('kpi', kpiSel.value);
         p.set('diagram', diagramSel.value);
@@ -500,6 +532,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
       conceptSel.addEventListener('change', function() {{
         const opt = conceptSel.options[conceptSel.selectedIndex];
         if (opt) {{
+          layoutSel.value = opt.getAttribute('data-layout') || 'executive_draw_ledger';
           mastheadSel.value = opt.getAttribute('data-masthead') || 'executive_split';
           kpiSel.value = opt.getAttribute('data-kpi') || 'metric_cards';
           tableSel.value = opt.getAttribute('data-table') || 'dark_header';
@@ -512,7 +545,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
         }}
         refresh();
       }});
-      [mastheadSel, kpiSel, diagramSel, tableSel, presetSel, execSel].forEach(function(el) {{
+      [layoutSel, mastheadSel, kpiSel, diagramSel, tableSel, presetSel, execSel].forEach(function(el) {{
         el.addEventListener('change', refresh);
       }});
       renderBtn.addEventListener('click', refresh);
@@ -549,7 +582,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
     Html(html)
 }
 
-/// Dedicated SEO Landing Page for each of the 50 concepts on Pressmark (`/concepts/:slug`).
+/// Dedicated SEO Landing Page for each of the 100 concepts on Pressmark (`/concepts/:slug`).
 pub async fn handle_pressmark_concept_detail(Path(slug): Path<String>) -> Response {
     let Some(spec) = find_concept_by_slug(&slug) else {
         return (StatusCode::NOT_FOUND, "Concept not found").into_response();
@@ -581,7 +614,7 @@ fn render_pressmark_concept_detail_html(spec: &ArchetypeConceptSpec) -> Html<Str
 <body>
   <header style="background:#0f172a;color:#fff;padding:14px 20px;">
     <div style="max-width:1180px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;">
-      <a href="/elements" style="color:#38bdf8;font-weight:800;text-decoration:none;">← All 50 Profession Concepts</a>
+      <a href="/elements" style="color:#38bdf8;font-weight:800;text-decoration:none;">← All 100 Profession Concepts</a>
       <a href="/api/v1/concepts/{slug}/sample.pdf" target="_blank" rel="noopener" style="color:#fff;font-family:monospace;font-weight:700;">Download Fillable PDF ↗</a>
     </div>
   </header>
@@ -590,7 +623,7 @@ fn render_pressmark_concept_detail_html(spec: &ArchetypeConceptSpec) -> Html<Str
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <img src="/assets/seals/{seal}" alt="{vertical} seal" width="56" height="56">
         <div>
-          <span style="background:#dbeafe;color:#1e3a8a;font-family:monospace;font-size:0.74rem;font-weight:800;padding:3px 8px;border-radius:4px;">CONCEPT #{id:02} · {vertical}</span>
+          <span style="background:#dbeafe;color:#1e3a8a;font-family:monospace;font-size:0.74rem;font-weight:800;padding:3px 8px;border-radius:4px;">CONCEPT #{id:02} OF 100 · {vertical} · LAYOUT: {layout}</span>
           <h1 style="margin:8px 0 4px;font-size:1.75rem;">{title}</h1>
           <div style="font-family:monospace;font-size:0.82rem;color:#475569;">{citation} · Built for {profession}</div>
         </div>
@@ -615,6 +648,7 @@ fn render_pressmark_concept_detail_html(spec: &ArchetypeConceptSpec) -> Html<Str
         seal = spec.seal_filename,
         vertical = html_escape(spec.vertical),
         id = spec.id,
+        layout = spec.default_page_layout,
     );
     Html(html)
 }

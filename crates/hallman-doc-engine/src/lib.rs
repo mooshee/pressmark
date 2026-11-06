@@ -180,9 +180,11 @@ pub fn escape_typst_string_literal(input: &str) -> String {
 
 fn document_body_slice(typst_markup: &str) -> &str {
     typst_markup
-        .rfind("#let recording-header-block(")
+        .rfind("#set page(")
+        .or_else(|| typst_markup.rfind("#let hde-render-page-archetype("))
+        .or_else(|| typst_markup.rfind("#let recording-header-block("))
         .or_else(|| typst_markup.rfind("#let jurat-box("))
-        .map(|idx| &typst_markup[idx + 15..])
+        .map(|idx| &typst_markup[idx..])
         .unwrap_or(typst_markup)
 }
 
@@ -190,12 +192,18 @@ fn document_body_slice(typst_markup: &str) -> &str {
 /// that should receive fillable `/AcroForm` widgets.
 pub fn should_inject_signature_acroform(typst_markup: &str) -> bool {
     let body = document_body_slice(typst_markup);
-    let has_wet_jurat = (body.contains("#jurat-box(") || body.contains("jurat-box("))
+    let is_esign =
+        body.contains("signature-type: \"esign\"") || body.contains("sig-type: \"esign\"");
+    let has_wet_jurat = (body.contains("#jurat-box(")
+        || body.contains("jurat-box(")
+        || body.contains("#hde-render-page-archetype("))
         && (body.contains("signature-type: \"wet-ink\"")
             || body.contains("signature-type: \"wet_ink\"")
+            || body.contains("sig-type: \"wet-ink\"")
+            || body.contains("sig-type: \"wet_ink\"")
             || body.contains("signature-type: \"ron\"")
             || body.contains("notary-required: true")
-            || !body.contains("signature-type: \"esign\""));
+            || !is_esign);
     let has_pressmark_sig_grid = (body.contains("#signature-grid(")
         || body.contains("#signature-block("))
         && body.contains("signature-path: none");
