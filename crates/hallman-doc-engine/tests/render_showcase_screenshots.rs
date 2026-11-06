@@ -20,6 +20,18 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn resolve_seal_prefix(root: &std::path::Path) -> &'static str {
+    if root.join("templates/assets/seals").exists() {
+        "/templates/assets/seals"
+    } else if root.join("web/assets/seals").exists() {
+        "/web/assets/seals"
+    } else if root.join("static/assets/seals").exists() {
+        "/static/assets/seals"
+    } else {
+        "/assets/seals"
+    }
+}
+
 #[test]
 fn test_compile_all_4_element_showcase_sheets_and_15_flagship_concept_pngs() {
     if find_typst_executable().is_none() {
@@ -27,6 +39,7 @@ fn test_compile_all_4_element_showcase_sheets_and_15_flagship_concept_pngs() {
     }
 
     let root = workspace_root();
+    let seal_prefix = resolve_seal_prefix(&root);
     let out_dir = std::env::var("HDE_SCREENSHOT_OUT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| root.join("target/hde_screenshots"));
@@ -47,7 +60,17 @@ fn test_compile_all_4_element_showcase_sheets_and_15_flagship_concept_pngs() {
     ];
 
     for (kind, filename) in sheets {
-        let markup = render_element_showcase_sheet_typst(kind, "/templates/assets/seals");
+        let markup = render_element_showcase_sheet_typst(kind, seal_prefix);
+        let pdf = compile_typst_to_pdf_bytes(&markup, Some(&root))
+            .unwrap_or_else(|e| panic!("Failed to compile showcase sheet PDF {}: {}", kind, e));
+        let parsed = lopdf::Document::load_mem(&pdf).expect("valid lopdf showcase document");
+        assert_eq!(
+            parsed.get_pages().len(),
+            1,
+            "Showcase sheet {} must fit on 1 page, got {} pages",
+            kind,
+            parsed.get_pages().len()
+        );
         let png = compile_typst_to_png_bytes(&markup, Some(&root), 144)
             .unwrap_or_else(|e| panic!("Failed to compile showcase sheet {}: {}", kind, e));
         assert!(
@@ -93,7 +116,7 @@ fn test_compile_all_4_element_showcase_sheets_and_15_flagship_concept_pngs() {
 
     for (id_str, filename) in flagship_concepts {
         let spec = find_concept_by_slug(id_str).expect("find flagship concept");
-        let markup = render_concept_typst_markup(spec, None, "/templates/assets/seals");
+        let markup = render_concept_typst_markup(spec, None, seal_prefix);
         let png = compile_typst_to_png_bytes(&markup, Some(&root), 144)
             .unwrap_or_else(|e| panic!("Failed to compile concept {} PNG: {}", spec.slug, e));
         assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
@@ -120,9 +143,10 @@ fn test_all_50_concepts_compile_to_valid_pdf() {
     }
 
     let root = workspace_root();
+    let seal_prefix = resolve_seal_prefix(&root);
     let mut overflows = Vec::new();
     for spec in ARCHETYPE_CONCEPTS_50 {
-        let markup = render_concept_typst_markup(spec, None, "/templates/assets/seals");
+        let markup = render_concept_typst_markup(spec, None, seal_prefix);
         let pdf = compile_typst_to_pdf_bytes(&markup, Some(&root)).unwrap_or_else(|e| {
             panic!(
                 "Concept #{} ({}) failed Typst PDF compilation: {}",
@@ -147,5 +171,33 @@ fn test_all_50_concepts_compile_to_valid_pdf() {
         overflows.is_empty(),
         "All 100 concepts must fit cleanly on 1 page, but found overflows:\n{}",
         overflows.join("\n")
+    );
+
+    // Also stress-test all 10 Structural Page Archetypes under worst-case overrides:
+    // preset=high_legibility + execution=notary_jurat
+    let stress_ids = ["51", "11", "52", "4", "57", "6", "31", "12", "91", "1"];
+    let mut stress_overflows = Vec::new();
+    for id_str in stress_ids {
+        let spec = find_concept_by_slug(id_str).expect("find stress concept");
+        let opts = hallman_doc_engine::catalog::CustomRenderOptions {
+            preset: Some("high_legibility".to_string()),
+            execution: Some("notary_jurat".to_string()),
+            ..Default::default()
+        };
+        let markup = render_concept_typst_markup(spec, Some(&opts), seal_prefix);
+        let pdf = compile_typst_to_pdf_bytes(&markup, Some(&root)).expect("compile stress PDF");
+        let parsed = lopdf::Document::load_mem(&pdf).expect("valid stress lopdf");
+        let pages = parsed.get_pages().len();
+        if pages != 1 {
+            stress_overflows.push(format!(
+                "#{} ({}, layout={}) under high_legibility+notary_jurat -> {} pages",
+                spec.id, spec.slug, spec.default_page_layout, pages
+            ));
+        }
+    }
+    assert!(
+        stress_overflows.is_empty(),
+        "All 10 layouts must fit on 1 page under high_legibility+notary_jurat, but found overflows:\n{}",
+        stress_overflows.join("\n")
     );
 }

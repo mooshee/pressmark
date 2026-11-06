@@ -5409,32 +5409,40 @@ pub fn render_concept_typst_markup(
         "wet-ink"
     };
 
+    let short_citation = spec
+        .statutory_citation
+        .split(" · ")
+        .next()
+        .unwrap_or(spec.statutory_citation);
+
     format!(
         r##"{graphics_lib}
 
 #set page(
   paper: "us-letter",
-  margin: (top: 0.44in, bottom: 0.46in, left: 0.48in, right: 0.48in),
+  margin: (top: 0.40in, bottom: 0.44in, left: 0.46in, right: 0.46in),
+  footer-descent: 5pt,
   footer: context [
     #line(length: 100%, stroke: 0.5pt + rgb("#cbd5e1"))
-    #v(3pt)
+    #v(2pt)
     #grid(
-      columns: (1fr, auto, 1fr),
+      columns: (auto, 1fr, auto),
+      gutter: 8pt,
       align: (left + horizon, center + horizon, right + horizon),
-      text(font: hde-font-mono, size: 6.5pt, fill: rgb("#475569"))[
-        CONCEPT #{id_num:02} · {layout_label} · {slug}
+      text(font: hde-font-mono, size: 6.3pt, weight: "bold", fill: rgb("#475569"))[
+        CONCEPT \#{id_num:02} · {layout_label} · HDE-2026-C{id_num:02}
       ],
-      text(font: hde-font-sans, size: 6.5pt, weight: "bold", fill: rgb("{primary_hex}"))[
+      text(font: hde-font-sans, size: 6.3pt, weight: "bold", fill: rgb("{primary_hex}"))[
         {citation_text}
       ],
-      text(font: hde-font-mono, size: 6.5pt, weight: "bold", fill: rgb("#0f172a"))[
+      text(font: hde-font-mono, size: 6.3pt, weight: "bold", fill: rgb("#0f172a"))[
         Page #counter(page).display("1 of 1", both: true) · {preset_id}
       ]
     )
   ]
 )
 #set text(font: hde-font-sans, size: {font_size}, fill: rgb("#0f172a"))
-#set par(leading: 0.58em)
+#set par(leading: 0.55em)
 
 #hde-render-page-archetype(
   page-layout: "{page_layout}",
@@ -5467,10 +5475,9 @@ pub fn render_concept_typst_markup(
         graphics_lib = HALLMAN_EMBEDDED_GRAPHICS_TYP,
         id_num = spec.id,
         layout_label = escape_typst_text(page_layout),
-        slug = escape_typst_text(spec.slug),
         primary_hex = primary_hex,
         accent_hex = accent_hex,
-        citation_text = escape_typst_text(spec.statutory_citation),
+        citation_text = escape_typst_text(short_citation),
         preset_id = readability.as_typst_id(),
         font_size = readability.base_font_size(),
         page_layout = escape_typst_string_literal(page_layout),
@@ -5814,85 +5821,127 @@ pub fn render_element_showcase_sheet_typst(sheet_kind: &str, seal_dir_prefix: &s
 
         "diagrams_and_stamps" => format!(
             r##"{graphics_lib}
-#set page(paper: "us-letter", margin: 0.38in)
-#set text(font: hde-font-sans, size: 8.5pt)
+#set page(paper: "us-letter", margin: 0.34in)
+#set text(font: hde-font-sans, size: 8pt)
 
-#rect(width: 100%, fill: rgb("#0f172a"), inset: (x: 12pt, y: 7pt), radius: 4pt)[
-  #text(font: hde-font-sans, size: 11.5pt, weight: "black", fill: rgb("#ffe500"))[
-    HALLMAN DOC ENGINE — 6 EMBEDDED SVG TECHNICAL DIAGRAMS & VECTOR RUBBER STAMPS
+#rect(width: 100%, fill: rgb("#0f172a"), inset: (x: 10pt, y: 6pt), radius: 4pt)[
+  #text(font: hde-font-sans, size: 11pt, weight: "black", fill: rgb("#ffe500"))[
+    HALLMAN DOC ENGINE — 10 EMBEDDED SVG TECHNICAL SCHEMATICS & 6 VECTOR RUBBER STAMPS
   ]
 ]
-#v(3pt)
+#v(2pt)
 
 #grid(
   columns: (1fr, 1fr),
-  gutter: 8pt,
+  gutter: 5pt,
   svg-architectural-diagram(
     kind: "parcel_lot",
-    title: "1. CADASTRAL PARCEL & SETBACK PLAT",
+    title: "01 · CADASTRAL PARCEL & SETBACK PLAT",
     primary-hex: "#1e3a8a",
     accent-hex: "#d97706",
     metric-a: "2,200 SF GLA",
     metric-b: "NAD83 PLAT",
+    hero-height: 46pt,
   ),
   svg-architectural-diagram(
     kind: "roof_pitch",
-    title: "2. ROOF PITCH & HAIL IMPACT SCHEMATIC",
+    title: "02 · ROOF PITCH & HAIL IMPACT SCHEMATIC",
     primary-hex: "#1e3a8a",
     accent-hex: "#dc2626",
     metric-a: "34.2 SQUARES",
     metric-b: "IRC R905 DRIP",
+    hero-height: 46pt,
   ),
   svg-architectural-diagram(
     kind: "hvac_diagnostic",
-    title: "3. HVAC AIRFLOW & SUPERHEAT TELEMETRY",
+    title: "03 · HVAC AIRFLOW & SUPERHEAT TELEMETRY",
     primary-hex: "#0f172a",
     accent-hex: "#059669",
     metric-a: "DELTA-T 19.6°F",
     metric-b: "R-410A PASS",
+    hero-height: 46pt,
   ),
   svg-architectural-diagram(
     kind: "solar_array",
-    title: "4. SOLAR PV ARRAY & LFP STORAGE TOPOLOGY",
+    title: "04 · SOLAR PV ARRAY & LFP STORAGE TOPOLOGY",
     primary-hex: "#1e3a8a",
     accent-hex: "#059669",
     metric-a: "10.56 kW DC",
     metric-b: "15,840 kWh/YR",
+    hero-height: 46pt,
   ),
   svg-architectural-diagram(
     kind: "vehicle_inspection",
-    title: "5. AUTOMOTIVE & FLEET CHASSIS DIAGNOSTIC",
+    title: "05 · AUTOMOTIVE & FLEET CHASSIS DIAGNOSTIC",
     primary-hex: "#0f172a",
     accent-hex: "#d97706",
     metric-a: "DOT 49 CFR",
     metric-b: "740 CCA PASS",
+    hero-height: 46pt,
   ),
   svg-architectural-diagram(
     kind: "floorplan_spec",
-    title: "6. COMMERCIAL BOMA RSF SUITE ZONING",
+    title: "06 · COMMERCIAL BOMA RSF SUITE ZONING",
     primary-hex: "#1e3a8a",
     accent-hex: "#b45309",
     metric-a: "3,610 RSF",
     metric-b: "14% LOAD FAC",
+    hero-height: 46pt,
+  ),
+  svg-architectural-diagram(
+    kind: "chain_of_custody",
+    title: "07 · ISO-17025 LAB & FORENSIC CHAIN OF CUSTODY",
+    primary-hex: "#0f766e",
+    accent-hex: "#059669",
+    metric-a: "21 CFR PT 11",
+    metric-b: "99.84% PURITY",
+    hero-height: 46pt,
+  ),
+  svg-architectural-diagram(
+    kind: "cap_table_waterfall",
+    title: "08 · YC POST-MONEY SAFE & 409A WATERFALL",
+    primary-hex: "#1e3a8a",
+    accent-hex: "#d97706",
+    metric-a: "10M SHARES",
+    metric-b: "IRC § 409A",
+    hero-height: 46pt,
+  ),
+  svg-architectural-diagram(
+    kind: "logistics_route",
+    title: "09 · INTERMODAL CORRIDOR & CUSTOMS ROUTE",
+    primary-hex: "#0f172a",
+    accent-hex: "#059669",
+    metric-a: "SEAL VERIFIED",
+    metric-b: "GPS TELEMETRY",
+    hero-height: 46pt,
+  ),
+  svg-architectural-diagram(
+    kind: "soil_topography",
+    title: "10 · USDA SSURGO SOIL & 3DEP LIDAR SLOPE",
+    primary-hex: "#15803d",
+    accent-hex: "#b45309",
+    metric-a: "CLASS II / VI",
+    metric-b: "USGS 3DEP",
+    hero-height: 46pt,
   ),
 )
 
-#v(6pt)
-#rect(width: 100%, stroke: 0.75pt + rgb("#cbd5e1"), radius: 4pt, fill: rgb("#f8fafc"), inset: 10pt)[
-  #text(font: hde-font-sans, size: 8pt, weight: "bold", fill: rgb("#0f172a"))[
+#v(3pt)
+#rect(width: 100%, stroke: 0.75pt + rgb("#cbd5e1"), radius: 4pt, fill: rgb("#f8fafc"), inset: (x: 8pt, y: 6pt))[
+  #text(font: hde-font-sans, size: 7.4pt, weight: "bold", fill: rgb("#0f172a"))[
     EMBEDDED VECTOR SVG RUBBER STAMPS (ZERO RASTER BLUR AT ANY ZOOM)
   ]
-  #v(8pt)
+  #v(4pt)
   #grid(
     columns: (1fr, 1fr, 1fr),
-    gutter: 12pt,
+    gutter: 8pt,
     align: center + horizon,
-    svg-rubber-stamp(label: "PAID IN FULL", sublabel: "ACH SETTLED · $0 DUE", color-hex: "#059669", angle: -5deg),
-    svg-rubber-stamp(label: "PRO SE PETITION", sublabel: "T.C.A. § 67-5-1407", color-hex: "#1e3a8a", angle: -4deg),
-    svg-rubber-stamp(label: "$0.00 PRO-BONO", sublabel: "100% P&T VETERAN", color-hex: "#b45309", angle: -6deg),
-    svg-rubber-stamp(label: "CONDITIONAL WAIVER", sublabel: "UPON GOOD FUNDS", color-hex: "#d97706", angle: -4deg),
-    svg-rubber-stamp(label: "IRC R905 CODE", sublabel: "SUPPLEMENT APPROVED", color-hex: "#dc2626", angle: -5deg),
-    svg-rubber-stamp(label: "SOC2 / HIPAA", sublabel: "0 CRITICAL / 0 HIGH", color-hex: "#0f766e", angle: -5deg),
+    svg-rubber-stamp(label: "PAID IN FULL", sublabel: "ACH SETTLED · $0 DUE", color-hex: "#059669", angle: -4deg, width-in: 1.38in),
+    svg-rubber-stamp(label: "PRO SE PETITION", sublabel: "T.C.A. § 67-5-1407", color-hex: "#1e3a8a", angle: -3deg, width-in: 1.38in),
+    svg-rubber-stamp(label: "$0.00 PRO-BONO", sublabel: "100% P&T VETERAN", color-hex: "#b45309", angle: -5deg, width-in: 1.38in),
+    svg-rubber-stamp(label: "CONDITIONAL WAIVER", sublabel: "UPON GOOD FUNDS", color-hex: "#d97706", angle: -3deg, width-in: 1.38in),
+    svg-rubber-stamp(label: "IRC R905 CODE", sublabel: "SUPPLEMENT APPROVED", color-hex: "#dc2626", angle: -4deg, width-in: 1.38in),
+    svg-rubber-stamp(label: "SOC2 / HIPAA", sublabel: "0 CRITICAL / 0 HIGH", color-hex: "#0f766e", angle: -4deg, width-in: 1.38in),
   )
 ]
 "##,
@@ -5906,59 +5955,75 @@ pub fn render_element_showcase_sheet_typst(sheet_kind: &str, seal_dir_prefix: &s
 
 #rect(width: 100%, fill: rgb("#0f172a"), inset: (x: 10pt, y: 6pt), radius: 4pt)[
   #text(font: hde-font-sans, size: 11pt, weight: "black", fill: rgb("#00f0ff"))[
-    HALLMAN DOC ENGINE — 10 NANO BANANA VERTICAL SEALS & 3 EXECUTION MODES
+    HALLMAN DOC ENGINE — 14 NANO BANANA VERTICAL SEALS & 3 EXECUTION MODES
   ]
 ]
-#v(4pt)
+#v(3pt)
 
-#rect(width: 100%, stroke: 0.75pt + rgb("#cbd5e1"), radius: 4pt, fill: white, inset: 6pt)[
-  #text(font: hde-font-sans, size: 7.4pt, weight: "bold", fill: rgb("#1e3a8a"))[
-    NANO BANANA DIE-CUT VECTOR-STYLE CERTIFICATION SEALS ACROSS ALL 10 PROFESSION VERTICALS
+#rect(width: 100%, stroke: 0.75pt + rgb("#cbd5e1"), radius: 4pt, fill: white, inset: (x: 6pt, y: 5pt))[
+  #text(font: hde-font-sans, size: 7.2pt, weight: "bold", fill: rgb("#1e3a8a"))[
+    NANO BANANA DIE-CUT VECTOR-STYLE CERTIFICATION SEALS ACROSS ALL 14 INDUSTRY & PROFESSION EMBLEMS
   ]
   #v(4pt)
   #grid(
-    columns: (1fr, 1fr, 1fr, 1fr, 1fr),
-    gutter: 6pt,
+    columns: (1fr, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+    gutter: 5pt,
     align: center + top,
     [
-      #image("{s1}", width: 42pt, height: 42pt) \
-      #text(size: 6.2pt, weight: "bold")[1. Construction & Trades]
+      #image("{s1}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[01 · Construction]
     ],
     [
-      #image("{s2}", width: 42pt, height: 42pt) \
-      #text(size: 6.2pt, weight: "bold")[2. Real Estate & Title]
+      #image("{s2}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[02 · Real Estate]
     ],
     [
-      #image("{s3}", width: 42pt, height: 42pt) \
-      #text(size: 6.2pt, weight: "bold")[3. Property Tax & CAD]
+      #image("{s3}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[03 · Property Tax]
     ],
     [
-      #image("{s4}", width: 42pt, height: 42pt) \
-      #text(size: 6.2pt, weight: "bold")[4. SaaS & Cybersecurity]
+      #image("{s4}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[04 · SaaS & Cyber]
     ],
     [
-      #image("{s5}", width: 42pt, height: 42pt) \
-      #text(size: 6.2pt, weight: "bold")[5. Creative & Events]
+      #image("{s5}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[05 · Creative Media]
     ],
     [
-      #image("{s6}", width: 42pt, height: 42pt) \
-      #text(size: 6.2pt, weight: "bold")[6. Legal, CPA & Advisory]
+      #image("{s6}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[06 · Legal & CPA]
     ],
     [
-      #image("{s7}", width: 42pt, height: 42pt) \
-      #text(size: 6.2pt, weight: "bold")[7. Medical & Clinical]
+      #image("{s7}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[07 · Medical Care]
     ],
     [
-      #image("{s8}", width: 42pt, height: 42pt) \
-      #text(size: 6.2pt, weight: "bold")[8. Logistics & Freight]
+      #image("{s8}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[08 · Logistics]
     ],
     [
-      #image("{s9}", width: 42pt, height: 42pt) \
-      #text(size: 6.2pt, weight: "bold")[9. Solar & Inspection]
+      #image("{s9}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[09 · Solar & Field]
     ],
     [
-      #image("{s10}", width: 42pt, height: 42pt) \
-      #text(size: 6.2pt, weight: "bold")[10. Consulting & GovCon]
+      #image("{s10}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[10 · GovCon & Non]
+    ],
+    [
+      #image("{s11}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[11 · Hospitality]
+    ],
+    [
+      #image("{s12}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[12 · Aviation & Marine]
+    ],
+    [
+      #image("{s13}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[13 · Biotech & Lab]
+    ],
+    [
+      #image("{s14}", width: 35pt, height: 35pt) \
+      #text(size: 5.8pt, weight: "bold")[14 · Agriculture]
     ],
   )
 ]
@@ -6014,6 +6079,10 @@ pub fn render_element_showcase_sheet_typst(sheet_kind: &str, seal_dir_prefix: &s
             s8 = escape_typst_string_literal(&sp("seal_logistics_freight.png")),
             s9 = escape_typst_string_literal(&sp("seal_solar_inspection.png")),
             s10 = escape_typst_string_literal(&sp("seal_consulting_govcon.png")),
+            s11 = escape_typst_string_literal(&sp("seal_hospitality_events.png")),
+            s12 = escape_typst_string_literal(&sp("seal_aviation_marine.png")),
+            s13 = escape_typst_string_literal(&sp("seal_biotech_lab.png")),
+            s14 = escape_typst_string_literal(&sp("seal_agriculture_land.png")),
         ),
     }
 }

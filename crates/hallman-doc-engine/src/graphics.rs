@@ -14,9 +14,9 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
 // Author: Daniel Hallman
 // =============================================================================
 
-#let hde-font-sans  = ("Helvetica Neue", "Arial")
-#let hde-font-serif = ("Georgia", "Libertinus Serif", "Times New Roman")
-#let hde-font-mono  = ("Menlo", "Courier New")
+#let hde-font-sans  = ("Helvetica Neue", "Arial", "Inter", "Liberation Sans", "DejaVu Sans")
+#let hde-font-serif = ("Georgia", "Libertinus Serif", "Times New Roman", "Liberation Serif", "DejaVu Serif")
+#let hde-font-mono  = ("Menlo", "Courier New", "Liberation Mono", "DejaVu Sans Mono")
 
 // -----------------------------------------------------------------------------
 // 1. EMBEDDED VECTOR RUBBER STAMPS & TACTILE STICKERS (SVG + TYPST)
@@ -125,11 +125,11 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
       + "<polygon points='40,86 175,22 300,86' fill='#e0f2fe' stroke='" + primary-hex + "' stroke-width='2'/>"
       + "<polygon points='175,22 375,22 465,86 300,86' fill='#fef3c7' stroke='" + accent-hex + "' stroke-width='2'/>"
       + "<line x1='175' y1='22' x2='175' y2='86' stroke='#64748b' stroke-width='1.2' stroke-dasharray='4 3'/>"
-      + "<circle cx='285' cy='46' r='6' fill='#dc2626' fill-opacity='0.25' stroke='#dc2626' stroke-width='1.5'/>"
-      + "<circle cx='330' cy='58' r='7' fill='#dc2626' fill-opacity='0.25' stroke='#dc2626' stroke-width='1.5'/>"
-      + "<circle cx='368' cy='44' r='5.5' fill='#dc2626' fill-opacity='0.25' stroke='#dc2626' stroke-width='1.5'/>"
-      + "<text x='135' y='68' text-anchor='middle' font-family='Arial, sans-serif' font-size='8.8' font-weight='bold' fill='" + primary-hex + "'>FACET A (7/12 PITCH)</text>"
-      + "<text x='325' y='76' text-anchor='middle' font-family='Arial, sans-serif' font-size='8.8' font-weight='bold' fill='#92400e'>FACET B — HAIL IMPACT ZONE (12 SQ)</text>"
+      + "<circle cx='286' cy='38' r='5.5' fill='#dc2626' fill-opacity='0.22' stroke='#dc2626' stroke-width='1.5'/>"
+      + "<circle cx='336' cy='46' r='6' fill='#dc2626' fill-opacity='0.22' stroke='#dc2626' stroke-width='1.5'/>"
+      + "<circle cx='378' cy='38' r='5' fill='#dc2626' fill-opacity='0.22' stroke='#dc2626' stroke-width='1.5'/>"
+      + "<text x='162' y='76' text-anchor='middle' font-family='Arial, sans-serif' font-size='8.2' font-weight='bold' fill='" + primary-hex + "'>FACET A (7/12 PITCH)</text>"
+      + "<text x='364' y='76' text-anchor='middle' font-family='Arial, sans-serif' font-size='8.0' font-weight='bold' fill='#92400e'>FACET B — HAIL IMPACT (12 SQ)</text>"
       + "<text x='275' y='15' text-anchor='middle' font-family='Courier New, monospace' font-size='8.2' font-weight='bold' fill='#0f172a'>RIDGE VENT: 48 LF • DRIP EDGE &amp; ICE/WATER SHIELD</text>"
       + "<text x='275' y='102' text-anchor='middle' font-family='Courier New, monospace' font-size='8' fill='#334155'>TOTAL ROOF AREA: 3,420 SQ FT (34.2 SQUARES) + 12% WASTE FACTOR</text>"
       + "</svg>"
@@ -740,101 +740,101 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
   stamp-color: "#059669",
   primary-color: rgb("#1e3a8a"),
 ) = {
-  block(breakable: false, width: 100%, above: 4pt)[
+  block(breakable: false, width: 100%, above: 3pt)[
     #rect(
       width: 100%,
       stroke: 0.85pt + primary-color,
       radius: 4pt,
       fill: rgb("#f8fafc"),
-      inset: (x: 10pt, y: 6.5pt),
+      inset: (x: 9pt, y: if notary-required { 4.5pt } else { 6pt }),
       [
         #grid(
           columns: (1fr, auto),
           gutter: 10pt,
           align: (left + top, right + horizon),
           [
-            #text(font: hde-font-sans, size: 7.2pt, weight: "bold", tracking: 0.5pt, fill: primary-color)[
+            #text(font: hde-font-sans, size: 7pt, weight: "bold", tracking: 0.5pt, fill: primary-color)[
               EXECUTION • ATTESTATION & INTERACTIVE SIGNATURE BLOCK (#upper(signature-type))
             ]
-            #v(2pt)
-            #text(font: hde-font-sans, size: 7.2pt, fill: rgb("#334155"))[
+            #v(1.5pt)
+            #text(font: hde-font-sans, size: 7pt, fill: rgb("#334155"))[
               I hereby certify and affirm that the schedules, technical specifications, and monetary figures stated herein are true, accurate, and complete.
             ]
-            #v(4.5pt)
+            #v(if notary-required { 3pt } else { 4pt })
             #grid(
               columns: (1.35fr, 0.9fr),
               gutter: 12pt,
               [
                 #if signature-type == "esign" [
-                  #text(font: hde-font-serif, size: 12pt, style: "italic", weight: "bold", fill: primary-color)[/s/ #signer-name]
-                  #v(2pt)
+                  #text(font: hde-font-serif, size: 11.5pt, style: "italic", weight: "bold", fill: primary-color)[/s/ #signer-name]
+                  #v(1.5pt)
                 ] else [
                   #rect(
                     width: 100%,
-                    height: 20pt,
+                    height: if notary-required { 16.5pt } else { 19pt },
                     fill: white,
                     stroke: (bottom: 1.2pt + rgb("#0f172a"), rest: 0.5pt + rgb("#94a3b8")),
                     radius: 2pt,
-                    inset: (x: 6pt, y: 3pt),
+                    inset: (x: 6pt, y: 2.5pt),
                     align(left + horizon)[
-                      #text(font: hde-font-mono, size: 6.6pt, fill: rgb("#64748b"))[SIGN OR TYPE HERE (INTERACTIVE /ACROFORM FIELD)]
+                      #text(font: hde-font-mono, size: 6.4pt, fill: rgb("#64748b"))[SIGN OR TYPE HERE (INTERACTIVE /ACROFORM FIELD)]
                     ]
                   )
                 ]
-                #v(2pt)
-                #text(font: hde-font-sans, size: 7.2pt, weight: "bold", fill: rgb("#0f172a"))[#signer-name]
-                #text(font: hde-font-sans, size: 6.8pt, fill: rgb("#475569"))[ — #signer-role]
+                #v(1.5pt)
+                #text(font: hde-font-sans, size: 7pt, weight: "bold", fill: rgb("#0f172a"))[#signer-name]
+                #text(font: hde-font-sans, size: 6.6pt, fill: rgb("#475569"))[ — #signer-role]
               ],
               [
                 #if signature-type == "esign" [
-                  #text(font: hde-font-mono, size: 9pt, weight: "bold", fill: rgb("#0f172a"))[2026-11-06 · ESIGN-SHA256]
-                  #v(2pt)
+                  #text(font: hde-font-mono, size: 8.8pt, weight: "bold", fill: rgb("#0f172a"))[2026-11-06 · ESIGN-SHA256]
+                  #v(1.5pt)
                 ] else [
                   #rect(
                     width: 100%,
-                    height: 20pt,
+                    height: if notary-required { 16.5pt } else { 19pt },
                     fill: white,
                     stroke: (bottom: 1.2pt + rgb("#0f172a"), rest: 0.5pt + rgb("#94a3b8")),
                     radius: 2pt,
-                    inset: (x: 6pt, y: 3pt),
+                    inset: (x: 6pt, y: 2.5pt),
                     align(left + horizon)[
-                      #text(font: hde-font-mono, size: 6.6pt, fill: rgb("#64748b"))[DATE (MM/DD/YYYY)]
+                      #text(font: hde-font-mono, size: 6.4pt, fill: rgb("#64748b"))[DATE (MM/DD/YYYY)]
                     ]
                   )
                 ]
-                #v(2pt)
-                #text(font: hde-font-sans, size: 7pt, weight: "bold", fill: rgb("#334155"))[Counterparty: #counterparty-name]
+                #v(1.5pt)
+                #text(font: hde-font-sans, size: 6.8pt, weight: "bold", fill: rgb("#334155"))[Counterparty: #counterparty-name]
               ]
             )
             #if notary-required [
-              #v(5pt)
+              #v(3pt)
               #line(length: 100%, stroke: 0.5pt + rgb("#cbd5e1"))
-              #v(3.5pt)
+              #v(2.5pt)
               #grid(
-                columns: (1fr, 108pt),
+                columns: (1fr, 104pt),
                 gutter: 8pt,
                 align: (left + horizon, center + horizon),
                 [
-                  #text(font: hde-font-serif, size: 7pt, weight: "bold", fill: rgb("#0f172a"))[
+                  #text(font: hde-font-serif, size: 6.6pt, weight: "bold", fill: rgb("#0f172a"))[
                     STATE OF RECORD · COUNTY OF RECORD — NOTARY PUBLIC JURAT:
                   ] \
-                  #text(font: hde-font-serif, size: 6.8pt, fill: rgb("#334155"))[
-                    Subscribed and sworn to before me in 2026. Notary Signature & Commission Exp: #box(line(length: 80pt, stroke: 0.5pt + rgb("#475569")))
+                  #text(font: hde-font-serif, size: 6.4pt, fill: rgb("#334155"))[
+                    Subscribed and sworn to before me in 2026. Notary Signature & Commission Exp: #box(line(length: 76pt, stroke: 0.5pt + rgb("#475569")))
                   ]
                 ],
                 rect(
                   width: 100%,
-                  height: 22pt,
+                  height: 18pt,
                   stroke: (dash: "dashed", paint: rgb("#64748b"), thickness: 0.75pt),
                   radius: 2pt,
                   align(center + horizon)[
-                    #text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: rgb("#475569"))[OFFICIAL NOTARY SEAL]
+                    #text(font: hde-font-mono, size: 6pt, weight: "bold", fill: rgb("#475569"))[OFFICIAL NOTARY SEAL]
                   ]
                 )
               )
             ]
           ],
-          svg-rubber-stamp(label: stamp-label, sublabel: stamp-sublabel, color-hex: stamp-color, angle: -5deg)
+          svg-rubber-stamp(label: stamp-label, sublabel: stamp-sublabel, color-hex: stamp-color, angle: -5deg, width-in: if notary-required { 1.38in } else { 1.48in })
         )
       ]
     )
