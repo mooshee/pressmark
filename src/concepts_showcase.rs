@@ -243,20 +243,20 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>50 Profession Document Concepts &amp; Element Variations Studio | Pressmark</title>
   <meta name="description" content="Interactive vector PDF element customizer and 50-profession template library across construction, real estate, property tax, SaaS, creative, legal, medical, logistics, solar, and GovCon.">
-  <link rel="canonical" href="https://pressmark.io/elements">
+  <link rel="canonical" href="https://pressmark.dev/elements">
   <meta property="og:type" content="website">
   <meta property="og:title" content="50 Profession Document Concepts &amp; Element Variations Studio | Pressmark">
   <meta property="og:description" content="Switch mastheads, KPI strips, embedded technical SVG schematics, readability presets, and fillable /AcroForm signatures live.">
-  <meta property="og:url" content="https://pressmark.io/elements">
-  <meta property="og:image" content="https://pressmark.io/assets/seals/showcase_sheet_mastheads.png">
+  <meta property="og:url" content="https://pressmark.dev/elements">
+  <meta property="og:image" content="https://pressmark.dev/assets/seals/showcase_sheet_mastheads.png">
   <script type="application/ld+json">
   {{
     "@context": "https://schema.org",
     "@graph": [
       {{
         "@type": "CollectionPage",
-        "@id": "https://pressmark.io/elements#webpage",
-        "url": "https://pressmark.io/elements",
+        "@id": "https://pressmark.dev/elements#webpage",
+        "url": "https://pressmark.dev/elements",
         "name": "50 Profession Document Concepts & Element Variations Studio",
         "description": "Vector PDF synthesis library spanning 50 profession archetypes with embedded SVG schematics and interactive /AcroForm signature blocks."
       }},
@@ -566,12 +566,12 @@ fn render_pressmark_concept_detail_html(spec: &ArchetypeConceptSpec) -> Html<Str
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{title} — Fillable PDF Template &amp; Live Customizer | Pressmark</title>
   <meta name="description" content="Customize and download a fillable PDF {title} ({citation}) for {profession}.">
-  <link rel="canonical" href="https://pressmark.io/concepts/{slug}">
+  <link rel="canonical" href="https://pressmark.dev/concepts/{slug}">
   <meta property="og:type" content="article">
   <meta property="og:title" content="{title} — Fillable PDF Template | Pressmark">
   <meta property="og:description" content="{signal}">
-  <meta property="og:url" content="https://pressmark.io/concepts/{slug}">
-  <meta property="og:image" content="https://pressmark.io/api/v1/concepts/{slug}/preview.png">
+  <meta property="og:url" content="https://pressmark.dev/concepts/{slug}">
+  <meta property="og:image" content="https://pressmark.dev/api/v1/concepts/{slug}/preview.png">
   <style>
     body {{ background:#f8fafc; color:#0f172a; font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif; margin:0; }}
     .pm-shell {{ max-width:1180px; margin:0 auto; padding:28px 16px 64px; }}
