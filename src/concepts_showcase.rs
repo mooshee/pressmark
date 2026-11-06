@@ -56,11 +56,16 @@ pub async fn handle_pressmark_seal_asset(Path(filename): Path<String>) -> Respon
     }
     let (root, _) = resolve_pressmark_root_dir();
     let file_path = root.join("static/assets/seals").join(&filename);
+    let content_type = if filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
+        "image/jpeg"
+    } else {
+        "image/png"
+    };
     match tokio::fs::read(&file_path).await {
         Ok(bytes) => (
             StatusCode::OK,
             [
-                (header::CONTENT_TYPE, "image/png"),
+                (header::CONTENT_TYPE, content_type),
                 (header::CACHE_CONTROL, "public, max-age=86400"),
             ],
             bytes,
@@ -92,6 +97,9 @@ pub async fn handle_pressmark_concept_preview_png(
         }
         "showcase-seals" => {
             render_element_showcase_sheet_typst("signatures_and_seals", seal_prefix)
+        }
+        "showcase-headers" => {
+            render_element_showcase_sheet_typst("headers_and_alignments", seal_prefix)
         }
         _ => {
             let Some(spec) = find_concept_by_slug(clean_slug) else {
@@ -175,10 +183,12 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
 
     for spec in ARCHETYPE_CONCEPTS_50 {
         concept_options_html.push_str(&format!(
-            r#"<option value="{slug}" data-layout="{layout}" data-masthead="{masthead}" data-kpi="{kpi}" data-table="{table}" data-diagram="{diagram}" data-preset="{preset}" data-exec="{exec}" data-title="{title}" data-org="{org}" data-counterparty="{cp}" data-stamp="{stamp}" data-kpi0-val="{kpi0_val}" data-item0-desc="{item0_desc}" data-item0-amt="{item0_amt}">#{id:02} — {title} ({vertical})</option>"#,
+            r#"<option value="{slug}" data-layout="{layout}" data-masthead="{masthead}" data-section-header="{sec_hdr}" data-text-alignment="{txt_align}" data-kpi="{kpi}" data-table="{table}" data-diagram="{diagram}" data-preset="{preset}" data-exec="{exec}" data-title="{title}" data-org="{org}" data-counterparty="{cp}" data-stamp="{stamp}" data-kpi0-val="{kpi0_val}" data-item0-desc="{item0_desc}" data-item0-amt="{item0_amt}">#{id:02} — {title} ({vertical})</option>"#,
             slug = spec.slug,
             layout = spec.default_page_layout,
             masthead = spec.default_masthead,
+            sec_hdr = spec.default_section_header(),
+            txt_align = spec.default_text_alignment(),
             kpi = spec.default_kpi_style,
             table = spec.default_table_style,
             diagram = spec.default_diagram_kind,
@@ -366,6 +376,29 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="pm-field">
+            <label for="pm-sechdr">4B. Section Header Style (6)</label>
+            <select id="pm-sechdr">
+              <option value="numbered_pill_rule">§ 01 Numbered Pill + Rule</option>
+              <option value="editorial_accent_bar">Editorial Left Bar + Italic</option>
+              <option value="dark_command_ribbon">Dark Command Ribbon + Tag</option>
+              <option value="centered_double_rule">Ceremonial Double-Rule Serif</option>
+              <option value="neo_brutalist_tab">Neo-Brutalist Tab (#FFE500)</option>
+              <option value="swiss_index_grid">Swiss Index Grid (01 / 04)</option>
+            </select>
+          </div>
+          <div class="pm-field">
+            <label for="pm-txtalign">4C. Text Alignment &amp; Prose (5)</label>
+            <select id="pm-txtalign">
+              <option value="two_column_justified">2-Column Justified Covenants</option>
+              <option value="hanging_indent_clauses">Hanging-Indent Recitals (¶ 01)</option>
+              <option value="asymmetric_callout_split">62%/38% Split + Folded Brief</option>
+              <option value="tabular_dot_leader_ledger">Tabular Dot-Leader Ledger</option>
+              <option value="centered_recital_quote">Centered Statutory Quote</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="pm-field">
             <label for="pm-diagram">5. Embedded SVG Diagram</label>
             <select id="pm-diagram">
               <option value="floorplan_spec">Commercial Suite RSF Zoning</option>
@@ -487,6 +520,40 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
             <img src="/api/v1/concepts/showcase-seals/preview.png" alt="Vertical Seals and 3 Execution Modes" loading="lazy">
           </a>
         </div>
+        <div class="pm-showcase-card">
+          <span class="pm-badge">SHEET 05 · 6 SECTION HEADERS &amp; 5 TEXT ALIGNMENTS</span>
+          <a href="/api/v1/concepts/showcase-headers/preview.png" target="_blank" rel="noopener">
+            <img src="/api/v1/concepts/showcase-headers/preview.png" alt="6 Section Header Architectures and 5 Text Alignment Systems" loading="lazy">
+          </a>
+        </div>
+      </div>
+      <h3 style="font-size:1.25rem;font-weight:800;margin:24px 0 8px;">Nano Banana ImageGen-to-Typst Design Studio Boards (Mock → Build)</h3>
+      <p style="margin:0 0 14px;color:#475569;font-size:0.9rem;">Conceptualized by Nano Banana ImageGen first, then engineered into 100% native, editable, parameterized Typst primitives (`#hde-section-header`, `#hde-text-alignment-block`, `#hde-folded-brief-card`, `#hde-comparison-lanes`).</p>
+      <div class="pm-showcase-grid">
+        <div class="pm-showcase-card">
+          <span class="pm-badge">CONCEPT BOARD 01 · SECTION HEADERS</span>
+          <a href="/assets/seals/mock_board_section_headers.jpg" target="_blank" rel="noopener">
+            <img src="/assets/seals/mock_board_section_headers.jpg" alt="Nano Banana Section Header Concept Board" loading="lazy">
+          </a>
+        </div>
+        <div class="pm-showcase-card">
+          <span class="pm-badge">CONCEPT BOARD 02 · TEXT ALIGNMENTS</span>
+          <a href="/assets/seals/mock_board_text_alignments.jpg" target="_blank" rel="noopener">
+            <img src="/assets/seals/mock_board_text_alignments.jpg" alt="Nano Banana Text Alignment Concept Board" loading="lazy">
+          </a>
+        </div>
+        <div class="pm-showcase-card">
+          <span class="pm-badge">CONCEPT BOARD 03 · DATA PRIMITIVES</span>
+          <a href="/assets/seals/mock_board_data_elements.jpg" target="_blank" rel="noopener">
+            <img src="/assets/seals/mock_board_data_elements.jpg" alt="Nano Banana Multi-Type Data Primitives Concept Board" loading="lazy">
+          </a>
+        </div>
+        <div class="pm-showcase-card">
+          <span class="pm-badge">CONCEPT BOARD 04 · PAGE COMPOSITIONS</span>
+          <a href="/assets/seals/mock_board_page_layouts.jpg" target="_blank" rel="noopener">
+            <img src="/assets/seals/mock_board_page_layouts.jpg" alt="Nano Banana Full Page Compositions Concept Board" loading="lazy">
+          </a>
+        </div>
       </div>
     </section>
 
@@ -517,6 +584,8 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
       const conceptSel = document.getElementById('pm-concept');
       const layoutSel = document.getElementById('pm-layout');
       const mastheadSel = document.getElementById('pm-masthead');
+      const secHdrSel = document.getElementById('pm-sechdr');
+      const txtAlignSel = document.getElementById('pm-txtalign');
       const kpiSel = document.getElementById('pm-kpi');
       const diagramSel = document.getElementById('pm-diagram');
       const tableSel = document.getElementById('pm-table');
@@ -539,6 +608,8 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
         const p = new URLSearchParams();
         p.set('layout', layoutSel.value);
         p.set('masthead', mastheadSel.value);
+        p.set('section_header', secHdrSel.value);
+        p.set('text_alignment', txtAlignSel.value);
         p.set('kpi', kpiSel.value);
         p.set('diagram', diagramSel.value);
         p.set('table', tableSel.value);
@@ -563,6 +634,8 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
         if (opt) {{
           layoutSel.value = opt.getAttribute('data-layout') || 'executive_draw_ledger';
           mastheadSel.value = opt.getAttribute('data-masthead') || 'executive_split';
+          secHdrSel.value = opt.getAttribute('data-section-header') || 'numbered_pill_rule';
+          txtAlignSel.value = opt.getAttribute('data-text-alignment') || 'two_column_justified';
           kpiSel.value = opt.getAttribute('data-kpi') || 'metric_cards';
           tableSel.value = opt.getAttribute('data-table') || 'dark_header';
           diagramSel.value = opt.getAttribute('data-diagram') || 'floorplan_spec';
@@ -578,7 +651,7 @@ pub async fn handle_pressmark_elements_hub() -> impl IntoResponse {
         }}
         refresh();
       }});
-      [layoutSel, mastheadSel, kpiSel, diagramSel, tableSel, presetSel, execSel].forEach(function(el) {{
+      [layoutSel, mastheadSel, secHdrSel, txtAlignSel, kpiSel, diagramSel, tableSel, presetSel, execSel].forEach(function(el) {{
         el.addEventListener('change', refresh);
       }});
       renderBtn.addEventListener('click', refresh);
@@ -792,6 +865,31 @@ fn render_pressmark_concept_detail_html(spec: &ArchetypeConceptSpec) -> Html<Str
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="pm-field">
+            <label for="dt-sechdr">Section Header (6 Styles)</label>
+            <select id="dt-sechdr">
+              <option value="{def_sechdr}">Default ({def_sechdr})</option>
+              <option value="numbered_pill_rule">§ 01 Numbered Pill + Rule</option>
+              <option value="editorial_accent_bar">Editorial Left Bar + Italic</option>
+              <option value="dark_command_ribbon">Dark Command Ribbon + Tag</option>
+              <option value="centered_double_rule">Ceremonial Double-Rule Serif</option>
+              <option value="neo_brutalist_tab">Neo-Brutalist Tab (#FFE500)</option>
+              <option value="swiss_index_grid">Swiss Index Grid (01 / 04)</option>
+            </select>
+          </div>
+          <div class="pm-field">
+            <label for="dt-txtalign">Text Alignment &amp; Prose (5)</label>
+            <select id="dt-txtalign">
+              <option value="{def_txtalign}">Default ({def_txtalign})</option>
+              <option value="two_column_justified">2-Column Justified Covenants</option>
+              <option value="hanging_indent_clauses">Hanging-Indent Recitals (¶ 01)</option>
+              <option value="asymmetric_callout_split">62%/38% Split + Folded Brief</option>
+              <option value="tabular_dot_leader_ledger">Tabular Dot-Leader Ledger</option>
+              <option value="centered_recital_quote">Centered Statutory Quote</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="pm-field">
             <label for="dt-diagram">Embedded SVG Schematic</label>
             <select id="dt-diagram">
               <option value="{def_diagram}">Default ({def_diagram})</option>
@@ -921,6 +1019,8 @@ fn render_pressmark_concept_detail_html(spec: &ArchetypeConceptSpec) -> Html<Str
       const slug = "{slug}";
       const layout = document.getElementById('dt-layout');
       const masthead = document.getElementById('dt-masthead');
+      const sechdr = document.getElementById('dt-sechdr');
+      const txtalign = document.getElementById('dt-txtalign');
       const kpi = document.getElementById('dt-kpi');
       const diagram = document.getElementById('dt-diagram');
       const table = document.getElementById('dt-table');
@@ -942,6 +1042,8 @@ fn render_pressmark_concept_detail_html(spec: &ArchetypeConceptSpec) -> Html<Str
         const p = new URLSearchParams();
         p.set('layout', layout.value);
         p.set('masthead', masthead.value);
+        p.set('section_header', sechdr.value);
+        p.set('text_alignment', txtalign.value);
         p.set('kpi', kpi.value);
         p.set('diagram', diagram.value);
         p.set('table', table.value);
@@ -961,7 +1063,7 @@ fn render_pressmark_concept_detail_html(spec: &ArchetypeConceptSpec) -> Html<Str
         pdf.href = '/api/v1/concepts/' + slug + '/sample.pdf?' + qs;
       }}
 
-      [layout, masthead, kpi, diagram, table, preset, exec].forEach(function(el) {{
+      [layout, masthead, sechdr, txtalign, kpi, diagram, table, preset, exec].forEach(function(el) {{
         el.addEventListener('change', update);
       }});
       btn.addEventListener('click', update);
@@ -983,6 +1085,8 @@ fn render_pressmark_concept_detail_html(spec: &ArchetypeConceptSpec) -> Html<Str
         id = spec.id,
         def_layout = spec.default_page_layout,
         def_masthead = spec.default_masthead,
+        def_sechdr = spec.default_section_header(),
+        def_txtalign = spec.default_text_alignment(),
         def_kpi = spec.default_kpi_style,
         def_diagram = spec.default_diagram_kind,
         def_table = spec.default_table_style,

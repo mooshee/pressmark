@@ -81,6 +81,34 @@ pub struct ArchetypeConceptSpec {
     pub milestones: [(&'static str, &'static str, &'static str); 4],
 }
 
+impl ArchetypeConceptSpec {
+    /// Default architectural section header system (`numbered_pill_rule`, `editorial_accent_bar`,
+    /// `dark_command_ribbon`, `centered_double_rule`, `neo_brutalist_tab`, `swiss_index_grid`).
+    pub const fn default_section_header(&self) -> &'static str {
+        match self.id % 6 {
+            1 => "numbered_pill_rule",
+            2 => "editorial_accent_bar",
+            3 => "dark_command_ribbon",
+            4 => "centered_double_rule",
+            5 => "neo_brutalist_tab",
+            _ => "swiss_index_grid",
+        }
+    }
+
+    /// Default document text alignment & prose/ledger block (`two_column_justified`,
+    /// `hanging_indent_clauses`, `asymmetric_callout_split`, `tabular_dot_leader_ledger`,
+    /// `centered_recital_quote`).
+    pub const fn default_text_alignment(&self) -> &'static str {
+        match self.id % 5 {
+            1 => "two_column_justified",
+            2 => "asymmetric_callout_split",
+            3 => "hanging_indent_clauses",
+            4 => "tabular_dot_leader_ledger",
+            _ => "centered_recital_quote",
+        }
+    }
+}
+
 /// Live interactive override parameters for customizing any of the 100 concepts in the browser.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CustomRenderOptions {
@@ -89,6 +117,8 @@ pub struct CustomRenderOptions {
     pub kpi: Option<String>,
     pub table: Option<String>,
     pub diagram: Option<String>,
+    pub section_header: Option<String>,
+    pub text_alignment: Option<String>,
     pub preset: Option<String>,
     pub execution: Option<String>,
     pub stamp: Option<String>,
@@ -5254,6 +5284,14 @@ pub fn render_concept_typst_markup(
         .and_then(|o| o.diagram.as_deref())
         .filter(|s| !s.is_empty())
         .unwrap_or(spec.default_diagram_kind);
+    let section_header = opts
+        .and_then(|o| o.section_header.as_deref())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| spec.default_section_header());
+    let text_alignment = opts
+        .and_then(|o| o.text_alignment.as_deref())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| spec.default_text_alignment());
     let execution_mode = opts
         .and_then(|o| o.execution.as_deref())
         .filter(|s| !s.is_empty())
@@ -5450,6 +5488,8 @@ pub fn render_concept_typst_markup(
   kpi-variant: "{kpi_style}",
   table-variant: "{table_style}",
   diagram-kind: "{diagram_kind}",
+  section-header-variant: "{section_header}",
+  text-alignment-variant: "{text_alignment}",
   title: "{title}",
   org-name: "{org}",
   counterparty: "{counterparty}",
@@ -5485,6 +5525,8 @@ pub fn render_concept_typst_markup(
         kpi_style = escape_typst_string_literal(kpi_style),
         table_style = escape_typst_string_literal(table_style),
         diagram_kind = escape_typst_string_literal(diagram_kind),
+        section_header = escape_typst_string_literal(section_header),
+        text_alignment = escape_typst_string_literal(text_alignment),
         title = escape_typst_string_literal(title_str),
         org = escape_typst_string_literal(org_str),
         counterparty = escape_typst_string_literal(counterparty_str),
@@ -5731,22 +5773,182 @@ pub fn render_element_showcase_sheet_typst(sheet_kind: &str, seal_dir_prefix: &s
             seal_med = escape_typst_string_literal(&sp("seal_medical_clinical.png")),
         ),
 
+        "headers_and_alignments" => format!(
+            r##"{graphics_lib}
+#set page(paper: "us-letter", margin: 0.36in)
+#set text(font: hde-font-sans, size: 8pt, fill: rgb("#0f172a"))
+#set par(leading: 0.5em)
+
+#rect(width: 100%, fill: rgb("#0f172a"), inset: (x: 10pt, y: 6.5pt), radius: 4pt)[
+  #grid(
+    columns: (1fr, auto),
+    align: (left + horizon, right + horizon),
+    [
+      #text(font: hde-font-sans, size: 11.2pt, weight: "black", fill: rgb("#ffe500"))[
+        NANO BANANA IMAGEGEN-TO-TYPST — 6 SECTION HEADERS & 5 TEXT ALIGNMENT SYSTEMS
+      ] \
+      #v(1.5pt)
+      #text(font: hde-font-mono, size: 6.8pt, fill: white)[
+        100% Native Editable Typst Primitives · Justified Covenants · Hanging Recitals · Dot-Leader Ledgers · Folded Brief Cards
+      ]
+    ],
+    hde-sticker-badge(label: "MOCK -> BUILD", angle: -2deg, bg: rgb("#00f0ff"), fg: rgb("#0f172a"))
+  )
+]
+#v(3pt)
+
+#text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: rgb("#1e3a8a"))[PART I: 6 ARCHITECTURAL & EDITORIAL SECTION HEADER SYSTEMS (`#hde-section-header`)]
+
+#hde-section-header(
+  variant: "numbered_pill_rule",
+  sec-num: "01",
+  title: "01 · NUMBERED PILL + EXTENDING RULE + RIGHT META TAG",
+  right-tag: "T.C.A. § 67-5-1407",
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#059669"),
+)
+
+#hde-section-header(
+  variant: "editorial_accent_bar",
+  sec-num: "02",
+  kicker: "SECTION B.04 · ASSESSMENT & METHODOLOGY",
+  title: "02 · Editorial Left Accent Bar + Asymmetric Italic Subtitle",
+  subtitle: "Confidential · County Assessor",
+  right-tag: "DOC-2026-02",
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#dc2626"),
+)
+
+#hde-section-header(
+  variant: "dark_command_ribbon",
+  sec-num: "03",
+  title: "03 · DARK COMMAND RIBBON WITH ACCENT EDGE & STATUS PILL",
+  right-tag: "COMPLIANT",
+  primary-color: rgb("#2563eb"),
+  accent-color: rgb("#059669"),
+)
+
+#hde-section-header(
+  variant: "centered_double_rule",
+  sec-num: "04",
+  title: "04 · IN THE CHANCERY COURT — CEREMONIAL DOUBLE-RULE SERIF",
+  right-tag: "DOCKET #114",
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#b45309"),
+)
+
+#hde-section-header(
+  variant: "neo_brutalist_tab",
+  sec-num: "05",
+  title: "05 · NEO-BRUTALIST FOLDER TAB // EXHIBIT A",
+  right-tag: "LOC: 36.1627° N, 86.7816° W",
+  primary-color: rgb("#0f172a"),
+  accent-color: rgb("#d97706"),
+)
+
+#hde-section-header(
+  variant: "swiss_index_grid",
+  sec-num: "06",
+  title: "06 · SWISS NUMERICAL INDEX GRID & SUMMARY CELL",
+  right-tag: "$142,850.00",
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#059669"),
+)
+
+#v(3pt)
+#text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: rgb("#0f766e"))[PART II: 5 DOCUMENT TEXT ALIGNMENTS, PROSE FLOWS & DOT-LEADER LEDGERS (`#hde-text-alignment-block`)]
+
+#hde-text-alignment-block(
+  variant: "two_column_justified",
+  org-name: "Lookout Valley Commercial Builders LLC",
+  counterparty: "Riverfront Mixed-Use SPE LLC",
+  profession: "Licensed General Contractor",
+  citation: "AIA G702 / T.C.A. § 66-34-104",
+  demand-signal: "Mode 1: Two-Column Justified Covenants (`#set par(justify: true)`) with vertical gutter rule and bold uppercase lead-ins.",
+  metrics: (("CONTRACT SUM", "$1,480,000.00"), ("WORK IN PLACE", "$962,000.00"), ("RETAINAGE (5%)", "$48,100.00"), ("CURRENT DRAW DUE", "$184,350.00")),
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#059669"),
+)
+
+#hde-text-alignment-block(
+  variant: "hanging_indent_clauses",
+  org-name: "Untax Property Tax Audit Engine",
+  counterparty: "Hamilton County Board of Equalization",
+  profession: "Pro Se Petitioner",
+  citation: "Tenn. Code Ann. § 67-5-1407",
+  demand-signal: "Mode 2: Hanging-Indent Numbered Recitals (`¶ 01`, `¶ 02`) with justified findings and right-aligned bracketed statutory citations.",
+  metrics: (("COUNTY ROLL", "$485,000.00"), ("MEDIAN $/SF", "$184.10/SF"), ("EQUITY DELTA", "-25.2%"), ("CONTENDED FMV", "$362,500.00")),
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#059669"),
+)
+
+#hde-text-alignment-block(
+  variant: "asymmetric_callout_split",
+  org-name: "VectorPulse Cloud Systems Inc.",
+  counterparty: "Meridian Enterprise Holdings",
+  profession: "Enterprise SaaS Provider",
+  citation: "ASC 606 / SOC2 Type II",
+  demand-signal: "Mode 3: Asymmetric 62%/38% Split pairing left-aligned executive narrative with a right-aligned Folded-Corner Brief Card.",
+  metrics: (("ANNUAL ARR", "$148,000.00"), ("IMPLEMENTATION", "$12,500.00"), ("NET DISCOUNT", "-$14,800.00"), ("TOTAL COMMIT", "$145,700.00")),
+  primary-color: rgb("#0f766e"),
+  accent-color: rgb("#059669"),
+)
+
+#hde-text-alignment-block(
+  variant: "tabular_dot_leader_ledger",
+  org-name: "Chattanooga Title & Escrow Co.",
+  counterparty: "Vance Commercial Acquisition LLC",
+  profession: "Licensed Settlement Agent",
+  citation: "ALTA Bilateral Settlement Standard",
+  demand-signal: "Mode 4: Tabular Dot-Leader Financial Ledger connecting left line labels via `. . .` leaders to right-aligned tabular figures.",
+  metrics: (("GROSS PURCHASE PRICE", "$1,248,500.00"), ("EARNEST MONEY & CREDITS", "-$246,500.00"), ("SENIOR DEBT PAYOFF", "$639,500.00"), ("NET CASH TO CLOSE", "$362,500.00")),
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#b45309"),
+)
+
+#hde-text-alignment-block(
+  variant: "centered_recital_quote",
+  org-name: "Untax Founder Veteran Shield Charter",
+  counterparty: "100% P&T Disabled Veteran Taxpayer",
+  profession: "Statutory Relief Certification",
+  citation: "38 U.S.C. § 1155 · T.C.A. § 67-5-704",
+  demand-signal: "Mode 5: Centered Serif Statutory Proclamation framed by top and bottom horizontal rules with small-caps attribution.",
+  metrics: (("STATUTORY BASIS", "$210,000.00"), ("EXEMPT RATIO", "100% P&T"), ("OUR FEE", "$0.00 FOREVER"), ("ANNUAL TAX RELIEF", "$2,845.00/YR")),
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#b45309"),
+)
+
+#hde-comparison-lanes(
+  left-label: "COUNTY CERTIFIED ROLL",
+  left-val: "$485,000.00",
+  left-sub: "Prior Unadjusted Assessment",
+  right-label: "CONTENDED AUDIT VALUATION",
+  right-val: "$362,500.00",
+  right-sub: "Certified Equity Median",
+  delta-badge: "-25.2% SAVINGS",
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#059669"),
+)
+"##,
+            graphics_lib = HALLMAN_EMBEDDED_GRAPHICS_TYP,
+        ),
+
         "tables_and_kpis" => format!(
             r##"{graphics_lib}
-#set page(paper: "us-letter", margin: 0.42in)
+#set page(paper: "us-letter", margin: 0.40in)
 #set text(font: hde-font-sans, size: 9pt)
 
-#rect(width: 100%, fill: rgb("#0f172a"), inset: (x: 12pt, y: 8pt), radius: 4pt)[
-  #text(font: hde-font-sans, size: 12pt, weight: "black", fill: rgb("#00f0ff"))[
-    HALLMAN DOC ENGINE — KPI STRIPS, TABLES, CHARTS & TIMELINE VARIATIONS
+#rect(width: 100%, fill: rgb("#0f172a"), inset: (x: 12pt, y: 7pt), radius: 4pt)[
+  #text(font: hde-font-sans, size: 11.5pt, weight: "black", fill: rgb("#00f0ff"))[
+    HALLMAN DOC ENGINE — KPI STRIPS, STATUS-PILL TABLES, FOOTERS & TIMELINES
   ] \
-  #text(font: hde-font-mono, size: 7.5pt, fill: white)[
-    Multi-Style Financial Strips · Schedule Tables · Comparative Bar Charts · Phase Timelines
+  #text(font: hde-font-mono, size: 7.2pt, fill: white)[
+    Multi-Style Financial Strips · Status Badges · Right-Aligned Summary Footers · Comparative Bar Charts
   ]
 ]
-#v(4pt)
+#v(3pt)
 
-#text(font: hde-font-mono, size: 7.5pt, weight: "bold", fill: rgb("#1e3a8a"))[A. KPI STRIP VARIATION 1: EXECUTIVE METRIC CARDS]
+#text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: rgb("#1e3a8a"))[A. KPI STRIP VARIATION 1: EXECUTIVE METRIC CARDS]
 #hde-kpi-strip-variation(
   variant: "metric_cards",
   metrics: (("CONTRACT SUM", "$1,480,000"), ("BILLED TO DATE", "$962,000 (65%)"), ("RETAINAGE (5%)", "$48,100"), ("CURRENT DRAW DUE", "$184,350")),
@@ -5754,7 +5956,7 @@ pub fn render_element_showcase_sheet_typst(sheet_kind: &str, seal_dir_prefix: &s
   accent-color: rgb("#059669"),
 )
 
-#text(font: hde-font-mono, size: 7.5pt, weight: "bold", fill: rgb("#0f172a"))[B. KPI STRIP VARIATION 2: DARK TERMINAL TELEMETRY STRIP]
+#text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: rgb("#0f172a"))[B. KPI STRIP VARIATION 2: DARK TERMINAL TELEMETRY STRIP]
 #hde-kpi-strip-variation(
   variant: "dark_terminal",
   metrics: (("EQUIP SERIAL", "TRANE 4TWX80"), ("DELTA-T SPLIT", "19.6°F PASS"), ("R-410A SUBCOOL", "11.4°F SPEC"), ("PLATINUM REPAIR", "$1,185.00")),
@@ -5762,7 +5964,7 @@ pub fn render_element_showcase_sheet_typst(sheet_kind: &str, seal_dir_prefix: &s
   accent-color: rgb("#059669"),
 )
 
-#text(font: hde-font-mono, size: 7.5pt, weight: "bold", fill: rgb("#000000"))[C. KPI STRIP VARIATION 3: NEO-BRUTALIST HARD-BORDER STRIP]
+#text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: rgb("#000000"))[C. KPI STRIP VARIATION 3: NEO-BRUTALIST HARD-BORDER STRIP]
 #hde-kpi-strip-variation(
   variant: "neo_brutalist",
   metrics: (("COUNTY APPRAISAL", "$482,500"), ("PEER MEDIAN $/SF", "$184.10/SF"), ("CONTENDED FMV", "$394,200"), ("ANNUAL SAVINGS", "$493.80 / YR")),
@@ -5770,7 +5972,7 @@ pub fn render_element_showcase_sheet_typst(sheet_kind: &str, seal_dir_prefix: &s
   accent-color: rgb("#00f0ff"),
 )
 
-#text(font: hde-font-mono, size: 7.5pt, weight: "bold", fill: rgb("#1e3a8a"))[D. SCHEDULE TABLE VARIATION 1: DARK INSTITUTIONAL HEADER + ZEBRA STRIPES]
+#text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: rgb("#1e3a8a"))[D. SCHEDULE TABLE VARIATION 1: DARK HEADER + STATUS PILLS + RIGHT-ALIGNED SUMMARY FOOTER]
 #hde-schedule-table-variation(
   variant: "dark_header",
   rows: (
@@ -5778,17 +5980,21 @@ pub fn render_element_showcase_sheet_typst(sheet_kind: &str, seal_dir_prefix: &s
     ("DIV-05", "Structural Steel Framing, Composite Decking & Moment Welds", "85% Complete", "$318,750.00"),
     ("DIV-23", "Commercial Rooftop VRF HVAC & Insulated Sheet Metal Ductwork", "60% Complete", "$234,000.00"),
   ),
+  summary-label: "CERTIFIED DRAW TOTAL",
+  summary-value: "$797,750.00",
   primary-color: rgb("#1e3a8a"),
   accent-color: rgb("#059669"),
 )
 
-#text(font: hde-font-mono, size: 7.5pt, weight: "bold", fill: rgb("#0f766e"))[E. SCHEDULE TABLE VARIATION 2: MINIMAL EDITORIAL HORIZONTAL RULES]
+#text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: rgb("#0f766e"))[E. SCHEDULE TABLE VARIATION 2: MINIMAL EDITORIAL RULES + DOUBLE-RULED SUMMARY FOOTER]
 #hde-schedule-table-variation(
   variant: "minimal_lines",
   rows: (
     ("CPT-97162", "Physical Therapy Evaluation: Moderate Complexity (45 Min 1-on-1)", "1 Unit · POS 11", "$145.00"),
     ("CPT-97110", "Therapeutic Exercise for Strength, Endurance & ROM (GP Mod)", "2 Units (30m)", "$80.00"),
   ),
+  summary-label: "PATIENT SUPERBILL TOTAL",
+  summary-value: "$225.00",
   primary-color: rgb("#0f766e"),
   accent-color: rgb("#059669"),
 )

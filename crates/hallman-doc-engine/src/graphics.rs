@@ -86,6 +86,418 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
 }
 
 // -----------------------------------------------------------------------------
+// 1B. NANO BANANA TYPOGRAPHIC SECTION HEADERS & ARCHITECTURAL DIVIDERS (6 MODES)
+// -----------------------------------------------------------------------------
+#let hde-section-header(
+  variant: "numbered_pill_rule",
+  sec-num: "01",
+  kicker: "SECTION 01 · VERIFIED SCHEDULE",
+  title: "SCOPE OF WORK & DELIVERABLES",
+  subtitle: "Certified Counterparty Record",
+  right-tag: "T.C.A. § 67-5-1407",
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#059669"),
+) = {
+  block(breakable: false, width: 100%, above: 3pt, below: 2.5pt)[
+    #if variant == "editorial_accent_bar" {
+      rect(
+        width: 100%,
+        stroke: (left: 4pt + accent-color, bottom: 0.6pt + rgb("#cbd5e1")),
+        fill: rgb("#f8fafc"),
+        inset: (left: 8pt, right: 6pt, y: 3.5pt),
+        grid(
+          columns: (1fr, auto),
+          gutter: 8pt,
+          align: (left + horizon, right + bottom),
+          [
+            #text(font: hde-font-mono, size: 5.8pt, weight: "bold", tracking: 0.6pt, fill: accent-color)[#upper(kicker)] \
+            #v(0.5pt)
+            #text(font: hde-font-sans, size: 8.6pt, weight: "black", fill: rgb("#0f172a"))[#title]
+          ],
+          text(font: hde-font-serif, size: 7.2pt, style: "italic", fill: rgb("#334155"))[#subtitle · #right-tag]
+        )
+      )
+    } else if variant == "dark_command_ribbon" {
+      rect(
+        width: 100%,
+        fill: rgb("#0f172a"),
+        stroke: (left: 4pt + primary-color),
+        radius: (right: 3pt),
+        inset: (x: 8pt, y: 4pt),
+        grid(
+          columns: (1fr, auto),
+          gutter: 8pt,
+          align: (left + horizon, right + horizon),
+          text(font: hde-font-sans, size: 7.8pt, weight: "black", tracking: 0.4pt, fill: white)[
+            § #sec-num · #upper(title)
+          ],
+          box(
+            fill: accent-color,
+            radius: 99pt,
+            inset: (x: 7pt, y: 2pt),
+            text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: white)[#upper(right-tag)]
+          )
+        )
+      )
+    } else if variant == "centered_double_rule" {
+      grid(
+        columns: (1fr, auto, 1fr),
+        gutter: 8pt,
+        align: (center + horizon, center + horizon, center + horizon),
+        stack(
+          spacing: 1.5pt,
+          line(length: 100%, stroke: 1.1pt + primary-color),
+          line(length: 100%, stroke: 0.5pt + accent-color),
+        ),
+        text(font: hde-font-serif, size: 7.8pt, weight: "bold", tracking: 0.7pt, fill: rgb("#0f172a"))[
+          ◇ #upper(title) ◇
+        ],
+        stack(
+          spacing: 1.5pt,
+          line(length: 100%, stroke: 1.1pt + primary-color),
+          line(length: 100%, stroke: 0.5pt + accent-color),
+        ),
+      )
+    } else if variant == "neo_brutalist_tab" {
+      stack(
+        dir: ttb,
+        spacing: 0pt,
+        grid(
+          columns: (auto, 1fr),
+          align: (left + bottom, right + bottom),
+          box(
+            fill: rgb("#ffe500"),
+            stroke: (top: 1.5pt + rgb("#0f172a"), left: 1.5pt + rgb("#0f172a"), right: 2.5pt + rgb("#0f172a")),
+            radius: (top: 4pt),
+            inset: (x: 8pt, y: 2.8pt),
+            text(font: hde-font-mono, size: 6.8pt, weight: "black", fill: rgb("#0f172a"))[
+              SEC #sec-num // #upper(title)
+            ]
+          ),
+          box(inset: (bottom: 2pt))[
+            #text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: rgb("#334155"))[[REF: #right-tag]]
+          ]
+        ),
+        line(length: 100%, stroke: 1.6pt + rgb("#0f172a"))
+      )
+    } else if variant == "swiss_index_grid" {
+      table(
+        columns: (42pt, 1fr, auto),
+        stroke: 0.7pt + rgb("#0f172a"),
+        inset: (x: 7pt, y: 3.2pt),
+        fill: (x, _) => if x == 0 { rgb("#f1f5f9") } else if x == 2 { rgb("#ecfdf5") } else { white },
+        align: (center + horizon, left + horizon, right + horizon),
+        text(font: hde-font-mono, size: 7.4pt, weight: "black", fill: primary-color)[#sec-num / 04],
+        text(font: hde-font-sans, size: 7.6pt, weight: "black", tracking: 0.35pt, fill: rgb("#0f172a"))[#upper(title)],
+        text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: accent-color)[#right-tag],
+      )
+    } else {
+      // Default: "numbered_pill_rule"
+      grid(
+        columns: (auto, auto, 1fr, auto),
+        gutter: 6pt,
+        align: (left + horizon, left + horizon, center + horizon, right + horizon),
+        box(
+          fill: rgb("#0f172a"),
+          radius: 99pt,
+          inset: (x: 6.5pt, y: 2.2pt),
+          text(font: hde-font-mono, size: 6.6pt, weight: "bold", fill: white)[§ #sec-num]
+        ),
+        text(font: hde-font-sans, size: 7.8pt, weight: "black", tracking: 0.3pt, fill: rgb("#0f172a"))[
+          #upper(title)
+        ],
+        line(length: 100%, stroke: 0.85pt + primary-color),
+        box(
+          fill: primary-color,
+          radius: 99pt,
+          inset: (x: 6.5pt, y: 2pt),
+          text(font: hde-font-mono, size: 6pt, weight: "bold", fill: white)[#right-tag]
+        ),
+      )
+    }
+  ]
+}
+
+// -----------------------------------------------------------------------------
+// 1C. TACTILE FOLDED-CORNER BRIEF CARD & SIDE-BY-SIDE COMPARISON LANES
+// -----------------------------------------------------------------------------
+#let hde-folded-brief-card(
+  kicker: "VERIFIED BRIEF",
+  headline: "$184,350.00",
+  items: (),
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#059669"),
+) = {
+  let fold-size = 11pt
+  block(
+    width: 100%,
+    fill: rgb("#f8fafc"),
+    stroke: 0.75pt + primary-color,
+    radius: (top-left: 4pt, bottom-left: 4pt, bottom-right: 4pt, top-right: 0pt),
+    inset: (x: 8pt, y: 5pt),
+  )[
+    #place(top + right, dx: 8pt, dy: -5pt)[
+      #polygon(
+        fill: rgb("#cbd5e1"),
+        stroke: 0.5pt + primary-color,
+        (0pt, 0pt),
+        (0pt, fold-size),
+        (fold-size, fold-size),
+      )
+    ]
+    #text(font: hde-font-mono, size: 5.8pt, weight: "bold", tracking: 0.5pt, fill: primary-color)[#upper(kicker)] \
+    #v(1pt)
+    #text(font: hde-font-mono, size: 9pt, weight: "black", fill: accent-color)[#headline]
+    #v(2pt)
+    #line(length: 100%, stroke: 0.5pt + rgb("#cbd5e1"))
+    #v(2pt)
+    #for item in items [
+      #grid(
+        columns: (1fr, auto),
+        gutter: 4pt,
+        align: (left + horizon, right + horizon),
+        text(font: hde-font-sans, size: 6.4pt, fill: rgb("#334155"))[
+          #text(fill: accent-color, weight: "bold")[✓] #item.at(0)
+        ],
+        text(font: hde-font-mono, size: 6.5pt, weight: "bold", fill: rgb("#0f172a"))[#item.at(1)]
+      )
+      #v(1pt)
+    ]
+  ]
+}
+
+#let hde-comparison-lanes(
+  left-label: "BASELINE / GROSS RECORD",
+  left-val: "$485,000.00",
+  left-sub: "Prior / Unadjusted Basis",
+  right-label: "CONTENDED / NET CERTIFIED",
+  right-val: "$362,500.00",
+  right-sub: "Verified Audit Position",
+  delta-badge: "VERIFIED DELTA",
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#059669"),
+) = {
+  block(breakable: false, width: 100%, above: 2.5pt, below: 2.5pt)[
+    #grid(
+      columns: (1fr, auto, 1fr),
+      gutter: 6pt,
+      align: (left + horizon, center + horizon, right + horizon),
+      rect(
+        width: 100%,
+        fill: rgb("#f1f5f9"),
+        stroke: (top: 2.2pt + rgb("#64748b"), rest: 0.6pt + rgb("#cbd5e1")),
+        radius: 3.5pt,
+        inset: (x: 8pt, y: 4.5pt),
+        grid(
+          columns: (1fr, auto),
+          align: (left + horizon, right + horizon),
+          [
+            #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: rgb("#475569"))[#upper(left-label)] \
+            #text(font: hde-font-sans, size: 6.3pt, fill: rgb("#64748b"))[#left-sub]
+          ],
+          text(font: hde-font-mono, size: 8.8pt, weight: "bold", fill: rgb("#1e293b"))[#left-val]
+        )
+      ),
+      box(
+        fill: accent-color,
+        radius: 99pt,
+        inset: (x: 6.5pt, y: 3pt),
+        text(font: hde-font-mono, size: 6pt, weight: "black", fill: white)[⇄ #delta-badge]
+      ),
+      rect(
+        width: 100%,
+        fill: rgb("#ecfdf5"),
+        stroke: (top: 2.2pt + accent-color, rest: 0.6pt + accent-color),
+        radius: 3.5pt,
+        inset: (x: 8pt, y: 4.5pt),
+        grid(
+          columns: (1fr, auto),
+          align: (left + horizon, right + horizon),
+          [
+            #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: accent-color)[#upper(right-label)] \
+            #text(font: hde-font-sans, size: 6.3pt, fill: rgb("#047857"))[#right-sub]
+          ],
+          text(font: hde-font-mono, size: 8.8pt, weight: "black", fill: accent-color)[#right-val]
+        )
+      )
+    )
+  ]
+}
+
+// -----------------------------------------------------------------------------
+// 1D. NANO BANANA TEXT ALIGNMENT, PROSE FLOW & DOT-LEADER ENGINE (5 MODES)
+// -----------------------------------------------------------------------------
+#let hde-text-alignment-block(
+  variant: "two_column_justified",
+  org-name: "Issuing Organization",
+  counterparty: "Counterparty of Record",
+  profession: "Authorized Practitioner",
+  citation: "Statutory Standard",
+  demand-signal: "Verified operational scope and technical compliance.",
+  metrics: (),
+  primary-color: rgb("#1e3a8a"),
+  accent-color: rgb("#059669"),
+) = {
+  let m0-lbl = if metrics.len() > 0 { metrics.at(0).at(0) } else { "PRIMARY BASIS" }
+  let m0-val = if metrics.len() > 0 { metrics.at(0).at(1) } else { "$0.00" }
+  let m1-lbl = if metrics.len() > 1 { metrics.at(1).at(0) } else { "ALLOCATION" }
+  let m1-val = if metrics.len() > 1 { metrics.at(1).at(1) } else { "$0.00" }
+  let m2-lbl = if metrics.len() > 2 { metrics.at(2).at(0) } else { "ADJUSTMENT" }
+  let m2-val = if metrics.len() > 2 { metrics.at(2).at(1) } else { "$0.00" }
+  let m3-lbl = if metrics.len() > 3 { metrics.at(3).at(0) } else { "NET CERTIFIED" }
+  let m3-val = if metrics.len() > 3 { metrics.at(3).at(1) } else { "$0.00" }
+
+  block(breakable: false, width: 100%, above: 2.5pt, below: 2.5pt)[
+    #if variant == "hanging_indent_clauses" {
+      // Mode 2: Hanging-Indent Numbered Recitals + Right-Aligned Margin Citations
+      rect(
+        width: 100%,
+        fill: rgb("#ffffff"),
+        stroke: 0.6pt + rgb("#cbd5e1"),
+        radius: 3.5pt,
+        inset: (x: 8pt, y: 5pt),
+        [
+          #grid(
+            columns: (26pt, 1fr, 108pt),
+            row-gutter: 4pt,
+            column-gutter: 6pt,
+            align: (left + top, left + top, right + top),
+            text(font: hde-font-mono, size: 6.8pt, weight: "black", fill: primary-color)[¶ 01],
+            par(justify: true, leading: 0.44em)[
+              #text(font: hde-font-sans, size: 6.8pt, fill: rgb("#1e293b"))[
+                *JURISDICTIONAL & TECHNICAL BASIS:* *#org-name* (#profession) certifies that all line items and measurements for *#counterparty* conform to governing authority.
+              ]
+            ],
+            box(fill: rgb("#f1f5f9"), radius: 2.5pt, inset: (x: 5pt, y: 2pt))[
+              #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: primary-color)[[#citation]]
+            ],
+            text(font: hde-font-mono, size: 6.8pt, weight: "black", fill: accent-color)[¶ 02],
+            par(justify: true, leading: 0.44em)[
+              #text(font: hde-font-sans, size: 6.8pt, fill: rgb("#1e293b"))[
+                *VERIFIED RECONCILIATION:* #demand-signal Baseline *#m0-lbl* (#m0-val) reconciles to net *#m3-lbl* (#m3-val).
+              ]
+            ],
+            box(fill: rgb("#ecfdf5"), radius: 2.5pt, inset: (x: 5pt, y: 2pt))[
+              #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: accent-color)[[NET: #m3-val]]
+            ],
+          )
+        ]
+      )
+    } else if variant == "asymmetric_callout_split" {
+      // Mode 3: Asymmetric 62% Left-Aligned Narrative + 38% Right Folded-Corner Brief Card
+      grid(
+        columns: (1.55fr, 1fr),
+        gutter: 8pt,
+        align: (left + horizon, left + horizon),
+        rect(
+          width: 100%,
+          fill: rgb("#ffffff"),
+          stroke: (left: 2.5pt + primary-color, rest: 0.5pt + rgb("#cbd5e1")),
+          radius: (right: 3.5pt),
+          inset: (x: 8pt, y: 5pt),
+          [
+            #text(font: hde-font-mono, size: 6pt, weight: "bold", tracking: 0.5pt, fill: primary-color)[
+              EXECUTIVE SCOPE & ALIGNED NARRATIVE SUMMARY
+            ] \
+            #v(1.5pt)
+            #par(justify: false, leading: 0.45em)[
+              #text(font: hde-font-sans, size: 6.8pt, fill: rgb("#1e293b"))[
+                Prepared by *#org-name* for *#counterparty* under *#citation*. #demand-signal
+              ]
+            ]
+            #v(2pt)
+            #text(font: hde-font-sans, size: 6.5pt, fill: rgb("#334155"))[
+              #text(fill: primary-color, weight: "bold")[•] Primary Basis (*#m0-lbl*): *#m0-val* #h(6pt)
+              #text(fill: accent-color, weight: "bold")[•] Target (*#m3-lbl*): *#m3-val*
+            ]
+          ]
+        ),
+        hde-folded-brief-card(
+          kicker: m3-lbl,
+          headline: m3-val,
+          items: ((m0-lbl, m0-val), (m1-lbl, m1-val), (m2-lbl, m2-val)),
+          primary-color: primary-color,
+          accent-color: accent-color,
+        )
+      )
+    } else if variant == "tabular_dot_leader_ledger" {
+      // Mode 4: Tabular Dot-Leader Financial Ledger (Left Label + . . . + Right-Aligned Tabular Figures)
+      rect(
+        width: 100%,
+        fill: rgb("#fffdf9"),
+        stroke: 0.65pt + rgb("#cbd5e1"),
+        radius: 3.5pt,
+        inset: (x: 9pt, y: 5pt),
+        [
+          #grid(
+            columns: (auto, 1fr, auto),
+            row-gutter: 3pt,
+            column-gutter: 4pt,
+            align: (left + bottom, left + bottom, right + bottom),
+            text(font: hde-font-sans, size: 6.8pt, weight: "bold", fill: rgb("#334155"))[[01] #m0-lbl (#org-name)],
+            box(width: 100%, repeat(text(font: hde-font-mono, size: 6.4pt, fill: rgb("#94a3b8"))[. ])),
+            text(font: hde-font-mono, size: 7pt, weight: "bold", fill: rgb("#0f172a"))[#m0-val],
+            text(font: hde-font-sans, size: 6.8pt, fill: rgb("#334155"))[[02] #m1-lbl · #m2-lbl (#m2-val)],
+            box(width: 100%, repeat(text(font: hde-font-mono, size: 6.4pt, fill: rgb("#94a3b8"))[. ])),
+            text(font: hde-font-mono, size: 7pt, weight: "bold", fill: primary-color)[#m1-val],
+            text(font: hde-font-sans, size: 7pt, weight: "black", fill: accent-color)[[03] VERIFIED NET POSITION — #upper(m3-lbl)],
+            box(width: 100%, repeat(text(font: hde-font-mono, size: 6.4pt, fill: accent-color)[. ])),
+            box(stroke: (top: 0.6pt + rgb("#0f172a"), bottom: 1.4pt + accent-color), inset: (y: 1pt))[
+              #text(font: hde-font-mono, size: 7.4pt, weight: "black", fill: accent-color)[#m3-val]
+            ],
+          )
+        ]
+      )
+    } else if variant == "centered_recital_quote" {
+      // Mode 5: Centered Pull-Quote / Statutory Proclamation with Flanking Rules
+      rect(
+        width: 100%,
+        fill: rgb("#f8fafc"),
+        stroke: (top: 1pt + primary-color, bottom: 1pt + primary-color),
+        inset: (x: 14pt, y: 4.5pt),
+        align(center)[
+          #text(font: hde-font-serif, size: 7.3pt, style: "italic", fill: rgb("#0f172a"))[
+            “Pursuant to *#citation*, *#org-name* certifies this official schedule for *#counterparty*. #demand-signal”
+          ] \
+          #v(1.5pt)
+          #text(font: hde-font-mono, size: 6pt, weight: "bold", tracking: 0.6pt, fill: accent-color)[
+            — CERTIFIED RECORD · #upper(m0-lbl): #m0-val · #upper(m3-lbl): #m3-val —
+          ]
+        ]
+      )
+    } else {
+      // Default Mode 1: "two_column_justified" (Two-Column Justified Covenants with Gutter Rule)
+      rect(
+        width: 100%,
+        fill: rgb("#ffffff"),
+        stroke: 0.6pt + rgb("#cbd5e1"),
+        radius: 3.5pt,
+        inset: (x: 8pt, y: 4.5pt),
+        grid(
+          columns: (1fr, 1fr),
+          gutter: 10pt,
+          rect(
+            width: 100%,
+            stroke: (right: 0.5pt + rgb("#cbd5e1")),
+            inset: (right: 6pt, y: 0pt),
+            par(justify: true, leading: 0.44em)[
+              #text(font: hde-font-serif, size: 6.7pt, fill: rgb("#1e293b"))[
+                *WHEREAS, THE UNDERSIGNED* (*#org-name*, acting as *#profession*) and *#counterparty* enter into this verified record pursuant to *#citation*, establishing *#m0-lbl* at *#m0-val*.
+              ]
+            ]
+          ),
+          par(justify: true, leading: 0.44em)[
+            #text(font: hde-font-serif, size: 6.7pt, fill: rgb("#1e293b"))[
+              *FURTHER COVENANTED:* #demand-signal Upon reconciliation of *#m1-lbl* (*#m1-val*) and *#m2-lbl* (*#m2-val*), the certified *#m3-lbl* is fixed at *#m3-val*.
+            ]
+          ]
+        )
+      )
+    }
+  ]
+}
+
+// -----------------------------------------------------------------------------
 // 2. 10 EMBEDDED ARCHITECTURAL, TECHNICAL & DOMAIN SCHEMATICS (SVG)
 // -----------------------------------------------------------------------------
 #let svg-architectural-diagram(
@@ -677,50 +1089,99 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
 }
 
 // -----------------------------------------------------------------------------
-// 7. LINE-ITEM & EVIDENCE SCHEDULE TABLE
+// 7. LINE-ITEM & EVIDENCE SCHEDULE TABLE (WITH STATUS PILLS & SUMMARY FOOTER)
 // -----------------------------------------------------------------------------
 #let hde-schedule-table-variation(
   variant: "striped",
-  headers: ("CODE", "DESCRIPTION & TECHNICAL SPECIFICATION", "BASIS / QTY", "AMOUNT / DELTA"),
+  headers: ("CODE", "DESCRIPTION & TECHNICAL SPECIFICATION", "BASIS / STATUS", "AMOUNT / DELTA"),
   rows: (),
+  summary-label: "",
+  summary-value: "",
   primary-color: rgb("#1e3a8a"),
   accent-color: rgb("#059669"),
 ) = {
-  block(breakable: false, width: 100%, above: 3pt, below: 3pt)[
+  let row-count = rows.len()
+  block(breakable: false, width: 100%, above: 2pt, below: 2pt)[
     #if variant == "dark_header" or variant == "striped" {
       table(
-        columns: (58pt, 1fr, 84pt, 76pt),
-        inset: (x: 6pt, y: 4.5pt),
+        columns: (56pt, 1fr, 88pt, 76pt),
+        inset: (x: 5.5pt, y: 3.8pt),
         stroke: 0.5pt + rgb("#cbd5e1"),
         align: (left + horizon, left + horizon, right + horizon, right + horizon),
         fill: (x, y) => if y == 0 {
           if variant == "dark_header" { rgb("#0f172a") } else { primary-color }
+        } else if summary-value != "" and y == row-count + 1 {
+          rgb("#0f172a")
         } else if calc.odd(y) {
           rgb("#ffffff")
         } else {
           rgb("#f8fafc")
         },
-        ..headers.map(h => text(font: hde-font-sans, size: 6.8pt, weight: "bold", fill: white)[#upper(h)]),
-        ..rows.map(r => (
-          text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: primary-color)[#r.at(0)],
-          text(font: hde-font-sans, size: 7.5pt, fill: rgb("#1e293b"))[#r.at(1)],
-          text(font: hde-font-mono, size: 7.2pt, fill: rgb("#475569"))[#r.at(2)],
-          text(font: hde-font-mono, size: 7.6pt, weight: "bold", fill: rgb("#0f172a"))[#r.at(3)],
-        )).flatten()
+        ..headers.map(h => text(font: hde-font-sans, size: 6.6pt, weight: "bold", fill: white)[#upper(h)]),
+        ..rows.enumerate().map(((idx, r)) => (
+          text(font: hde-font-mono, size: 7pt, weight: "bold", fill: primary-color)[#r.at(0)],
+          text(font: hde-font-sans, size: 7.2pt, fill: rgb("#1e293b"))[#r.at(1)],
+          box(
+            fill: if calc.even(idx) { rgb("#ecfdf5") } else { rgb("#eff6ff") },
+            stroke: 0.4pt + if calc.even(idx) { accent-color } else { primary-color },
+            radius: 99pt,
+            inset: (x: 5pt, y: 1.4pt),
+            text(font: hde-font-mono, size: 6.3pt, weight: "bold", fill: if calc.even(idx) { accent-color } else { primary-color })[#r.at(2)]
+          ),
+          text(font: hde-font-mono, size: 7.4pt, weight: "bold", fill: rgb("#0f172a"))[#r.at(3)],
+        )).flatten(),
+        ..if summary-value != "" {
+          (
+            table.cell(colspan: 2, align: left + horizon)[
+              #text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: rgb("#94a3b8"))[
+                ✓ SCHEDULE VERIFIED · TABULAR RIGHT-ALIGNED RECONCILIATION
+              ]
+            ],
+            text(font: hde-font-mono, size: 6.4pt, weight: "bold", fill: rgb("#ffe500"))[
+              #upper(if summary-label != "" { summary-label } else { "NET TOTAL" })
+            ],
+            text(font: hde-font-mono, size: 7.6pt, weight: "black", fill: rgb("#34d399"))[#summary-value],
+          )
+        } else { () }
       )
     } else {
       table(
-        columns: (58pt, 1fr, 84pt, 76pt),
-        inset: (x: 6pt, y: 4.5pt),
-        stroke: (x, y) => if y == 0 { (bottom: 1.5pt + primary-color, top: 1.5pt + primary-color) } else { (bottom: 0.5pt + rgb("#cbd5e1")) },
+        columns: (56pt, 1fr, 88pt, 76pt),
+        inset: (x: 5.5pt, y: 3.8pt),
+        stroke: (x, y) => if y == 0 {
+          (bottom: 1.4pt + primary-color, top: 1.4pt + primary-color)
+        } else if summary-value != "" and y == row-count + 1 {
+          (top: 1.2pt + primary-color, bottom: 1.6pt + accent-color)
+        } else {
+          (bottom: 0.5pt + rgb("#cbd5e1"))
+        },
+        fill: (x, y) => if summary-value != "" and y == row-count + 1 { rgb("#f8fafc") } else { none },
         align: (left + horizon, left + horizon, right + horizon, right + horizon),
-        ..headers.map(h => text(font: hde-font-sans, size: 6.8pt, weight: "bold", fill: primary-color)[#upper(h)]),
-        ..rows.map(r => (
-          text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: rgb("#334155"))[#r.at(0)],
-          text(font: hde-font-sans, size: 7.5pt, fill: rgb("#0f172a"))[#r.at(1)],
-          text(font: hde-font-mono, size: 7.2pt, fill: rgb("#475569"))[#r.at(2)],
-          text(font: hde-font-mono, size: 7.6pt, weight: "bold", fill: accent-color)[#r.at(3)],
-        )).flatten()
+        ..headers.map(h => text(font: hde-font-sans, size: 6.6pt, weight: "bold", fill: primary-color)[#upper(h)]),
+        ..rows.enumerate().map(((idx, r)) => (
+          text(font: hde-font-mono, size: 7pt, weight: "bold", fill: rgb("#334155"))[#r.at(0)],
+          text(font: hde-font-sans, size: 7.2pt, fill: rgb("#0f172a"))[#r.at(1)],
+          box(
+            fill: rgb("#f1f5f9"),
+            radius: 99pt,
+            inset: (x: 5pt, y: 1.4pt),
+            text(font: hde-font-mono, size: 6.3pt, weight: "bold", fill: primary-color)[#r.at(2)]
+          ),
+          text(font: hde-font-mono, size: 7.4pt, weight: "bold", fill: accent-color)[#r.at(3)],
+        )).flatten(),
+        ..if summary-value != "" {
+          (
+            table.cell(colspan: 2, align: left + horizon)[
+              #text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: rgb("#475569"))[
+                ✓ CERTIFIED SCHEDULE FOOTER · RIGHT-ALIGNED SUMMARY
+              ]
+            ],
+            text(font: hde-font-mono, size: 6.4pt, weight: "bold", fill: primary-color)[
+              #upper(if summary-label != "" { summary-label } else { "NET TOTAL" })
+            ],
+            text(font: hde-font-mono, size: 7.6pt, weight: "black", fill: accent-color)[#summary-value],
+          )
+        } else { () }
       )
     }
   ]
@@ -851,6 +1312,8 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
   kpi-variant: "metric_cards",
   table-variant: "striped",
   diagram-kind: "parcel_lot",
+  section-header-variant: "numbered_pill_rule",
+  text-alignment-variant: "two_column_justified",
   title: "",
   org-name: "",
   counterparty: "",
@@ -875,9 +1338,22 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
   let primary-color = rgb(primary-hex)
   let accent-color = rgb(accent-hex)
   let seal-node = if seal-path != "" {
-    image(seal-path, width: 54pt, height: 54pt, fit: "contain")
+    image(seal-path, width: 52pt, height: 52pt, fit: "contain")
   } else {
     none
+  }
+  let sec-hdr-2 = if section-header-variant == "numbered_pill_rule" {
+    "editorial_accent_bar"
+  } else if section-header-variant == "editorial_accent_bar" {
+    "swiss_index_grid"
+  } else if section-header-variant == "dark_command_ribbon" {
+    "numbered_pill_rule"
+  } else if section-header-variant == "centered_double_rule" {
+    "editorial_accent_bar"
+  } else if section-header-variant == "neo_brutalist_tab" {
+    "dark_command_ribbon"
+  } else {
+    "numbered_pill_rule"
   }
 
   // ---------------------------------------------------------------------------
@@ -886,57 +1362,57 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
   // ---------------------------------------------------------------------------
   if page-layout == "asymmetric_sidebar" {
     grid(
-      columns: (154pt, 1fr),
-      gutter: 11pt,
+      columns: (150pt, 1fr),
+      gutter: 10pt,
       rect(
         width: 100%,
         fill: rgb("#0f172a"),
         stroke: (right: 3pt + accent-color),
         radius: 5pt,
-        inset: (x: 9pt, y: 9pt),
+        inset: (x: 8.5pt, y: 8pt),
         [
           #if seal-node != none [
-            #align(center, box(fill: white, radius: 6pt, inset: 3pt, seal-node))
-            #v(5pt)
+            #align(center, box(fill: white, radius: 6pt, inset: 2.5pt, seal-node))
+            #v(4pt)
           ]
           #box(fill: accent-color, radius: 3pt, inset: (x: 6pt, y: 2pt))[
-            #text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: white)[#upper(vertical)]
+            #text(font: hde-font-mono, size: 6pt, weight: "bold", fill: white)[#upper(vertical)]
           ]
+          #v(3.5pt)
+          #text(font: hde-font-sans, size: 9.2pt, weight: "black", fill: white)[#org-name]
+          #v(1.5pt)
+          #text(font: hde-font-sans, size: 6.8pt, fill: rgb("#94a3b8"))[#profession]
+          #v(5pt)
+          #line(length: 100%, stroke: 0.5pt + rgb("#334155"))
+          #v(5pt)
+          #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: rgb("#38bdf8"))[DOCUMENT REFERENCE] \
+          #text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: white)[#doc-ref · #date-str]
           #v(4pt)
-          #text(font: hde-font-sans, size: 9.5pt, weight: "black", fill: white)[#org-name]
-          #v(2pt)
-          #text(font: hde-font-sans, size: 7pt, fill: rgb("#94a3b8"))[#profession]
-          #v(6pt)
-          #line(length: 100%, stroke: 0.5pt + rgb("#334155"))
-          #v(6pt)
-          #text(font: hde-font-mono, size: 6pt, weight: "bold", fill: rgb("#38bdf8"))[DOCUMENT REFERENCE] \
-          #text(font: hde-font-mono, size: 7.4pt, weight: "bold", fill: white)[#doc-ref · #date-str]
+          #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: rgb("#38bdf8"))[COUNTERPARTY / CLIENT] \
+          #text(font: hde-font-sans, size: 7pt, weight: "bold", fill: rgb("#f8fafc"))[#counterparty]
+          #v(4pt)
+          #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: rgb("#38bdf8"))[GOVERNANCE STANDARD] \
+          #text(font: hde-font-mono, size: 6.3pt, fill: rgb("#cbd5e1"))[#citation]
           #v(5pt)
-          #text(font: hde-font-mono, size: 6pt, weight: "bold", fill: rgb("#38bdf8"))[COUNTERPARTY / CLIENT] \
-          #text(font: hde-font-sans, size: 7.2pt, weight: "bold", fill: rgb("#f8fafc"))[#counterparty]
-          #v(5pt)
-          #text(font: hde-font-mono, size: 6pt, weight: "bold", fill: rgb("#38bdf8"))[GOVERNANCE STANDARD] \
-          #text(font: hde-font-mono, size: 6.5pt, fill: rgb("#cbd5e1"))[#citation]
-          #v(6pt)
           #line(length: 100%, stroke: 0.5pt + rgb("#334155"))
-          #v(6pt)
+          #v(5pt)
           #for (idx, m) in metrics.enumerate() [
             #rect(
               width: 100%,
               fill: if idx == metrics.len() - 1 { rgb("#064e3b") } else { rgb("#1e293b") },
               stroke: 0.6pt + if idx == metrics.len() - 1 { rgb("#10b981") } else { rgb("#334155") },
               radius: 3.5pt,
-              inset: (x: 6pt, y: 4pt),
+              inset: (x: 6pt, y: 3.8pt),
               [
-                #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: rgb("#94a3b8"))[#upper(m.at(0))] \
+                #text(font: hde-font-mono, size: 5.6pt, weight: "bold", fill: rgb("#94a3b8"))[#upper(m.at(0))] \
                 #v(1pt)
-                #text(font: hde-font-mono, size: 8.4pt, weight: "bold", fill: if idx == metrics.len() - 1 { rgb("#34d399") } else { white })[#m.at(1)]
+                #text(font: hde-font-mono, size: 8.2pt, weight: "bold", fill: if idx == metrics.len() - 1 { rgb("#34d399") } else { white })[#m.at(1)]
               ]
             )
-            #v(3pt)
+            #v(2.5pt)
           ]
-          #v(4pt)
-          #align(center, svg-rubber-stamp(label: stamp-label, sublabel: stamp-sublabel, color-hex: accent-hex, angle: -4deg, width-in: 1.32in))
+          #v(3pt)
+          #align(center, svg-rubber-stamp(label: stamp-label, sublabel: stamp-sublabel, color-hex: accent-hex, angle: -4deg, width-in: 1.28in))
         ]
       ),
       [
@@ -944,39 +1420,60 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
           width: 100%,
           fill: rgb("#f8fafc"),
           stroke: (bottom: 2pt + primary-color),
-          inset: (x: 9pt, y: 6pt),
+          inset: (x: 8pt, y: 5pt),
           [
-            #text(font: hde-font-mono, size: 6.5pt, weight: "bold", tracking: 0.8pt, fill: primary-color)[
+            #text(font: hde-font-mono, size: 6.2pt, weight: "bold", tracking: 0.8pt, fill: primary-color)[
               EXECUTIVE ENGAGEMENT & COMMERCIAL LEDGER · #doc-ref
             ] \
-            #v(2pt)
-            #text(font: hde-font-sans, size: 12.5pt, weight: "black", fill: rgb("#0f172a"))[#title] \
-            #v(2pt)
-            #text(font: hde-font-sans, size: 7.3pt, fill: rgb("#475569"))[#demand-signal]
+            #v(1.5pt)
+            #text(font: hde-font-sans, size: 11.8pt, weight: "black", fill: rgb("#0f172a"))[#title]
           ]
         )
-        #v(2.5pt)
+        #hde-section-header(
+          variant: section-header-variant,
+          sec-num: "01",
+          kicker: "SECTION 01 · COVENANTS & ALIGNMENT",
+          title: "EXECUTIVE SCOPE & VERIFIED RECITALS",
+          subtitle: counterparty,
+          right-tag: doc-ref,
+          primary-color: primary-color,
+          accent-color: accent-color,
+        )
+        #hde-text-alignment-block(
+          variant: text-alignment-variant,
+          org-name: org-name,
+          counterparty: counterparty,
+          profession: profession,
+          citation: citation,
+          demand-signal: demand-signal,
+          metrics: metrics,
+          primary-color: primary-color,
+          accent-color: accent-color,
+        )
+        #hde-section-header(
+          variant: sec-hdr-2,
+          sec-num: "02",
+          kicker: "SECTION 02 · ITEMIZED SCHEDULE",
+          title: "LINE-ITEM SCHEDULE & ALLOCATION",
+          subtitle: org-name,
+          right-tag: metrics.at(3).at(1),
+          primary-color: primary-color,
+          accent-color: accent-color,
+        )
         #hde-schedule-table-variation(
           variant: table-variant,
           rows: rows,
+          summary-label: metrics.at(3).at(0),
+          summary-value: metrics.at(3).at(1),
           primary-color: primary-color,
           accent-color: accent-color,
         )
-        #v(2pt)
-        #hde-comparative-bar-chart(
-          title: "COMMERCIAL VALUE & COST ALLOCATION SUMMARY",
-          rows: chart-rows,
-          primary-color: primary-color,
-          accent-color: accent-color,
-        )
-        #v(2pt)
         #hde-milestone-timeline(
           title: "DELIVERABLE PHASES & SETTLEMENT SCHEDULE",
           steps: milestones,
           primary-color: primary-color,
           accent-color: accent-color,
         )
-        #v(2pt)
         #jurat-box(
           signer-name: org-name,
           signer-role: profession,
@@ -997,107 +1494,112 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
   // ---------------------------------------------------------------------------
   } else if page-layout == "pleading_caption" {
     grid(
-      columns: (22pt, 1fr),
-      gutter: 9pt,
+      columns: (20pt, 1fr),
+      gutter: 8pt,
       rect(
         width: 100%,
         stroke: (right: 1.4pt + primary-color),
-        inset: (right: 4pt, y: 1pt),
+        inset: (right: 3.5pt, y: 1pt),
         align(right)[
-          #set text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: rgb("#64748b"))
+          #set text(font: hde-font-mono, size: 7pt, weight: "bold", fill: rgb("#64748b"))
           #for line-no in range(1, 24) [
-            #box(height: 22pt, align(right + horizon)[#line-no]) \
+            #box(height: 21.5pt, align(right + horizon)[#line-no]) \
           ]
         ]
       ),
       [
-        #set text(font: hde-font-serif, size: 8.8pt, fill: rgb("#0f172a"))
+        #set text(font: hde-font-serif, size: 8.4pt, fill: rgb("#0f172a"))
         #rect(
           width: 100%,
           stroke: 1.2pt + rgb("#0f172a"),
           fill: rgb("#f8fafc"),
-          inset: (x: 10pt, y: 7pt),
+          inset: (x: 9pt, y: 5.5pt),
           grid(
-            columns: (1.25fr, 16pt, 0.95fr),
+            columns: (1.25fr, 14pt, 0.95fr),
             align: (left + horizon, center + horizon, left + horizon),
             [
-              #text(font: hde-font-serif, size: 7.6pt, weight: "bold", tracking: 0.5pt, fill: primary-color)[
+              #text(font: hde-font-serif, size: 7.2pt, weight: "bold", tracking: 0.5pt, fill: primary-color)[
                 IN THE MATTER OF THE STATUTORY RECORD / TRIBUNAL:
               ] \
-              #v(3pt)
-              #text(weight: "bold", size: 9pt)[#upper(org-name)], \
-              #h(8pt)#text(size: 7.6pt, style: "italic")[Petitioner / Claimant / Issuing Party,] \
-              #v(1.5pt)
+              #v(2pt)
+              #text(weight: "bold", size: 8.6pt)[#upper(org-name)], \
+              #h(8pt)#text(size: 7.2pt, style: "italic")[Petitioner / Claimant / Issuing Party,] \
+              #v(1pt)
               #h(20pt)#text(weight: "bold", style: "italic")[v.] \
-              #v(1.5pt)
-              #text(weight: "bold", size: 8.8pt)[#upper(counterparty)], \
-              #h(8pt)#text(size: 7.6pt, style: "italic")[Respondent / Counterparty of Record.]
+              #v(1pt)
+              #text(weight: "bold", size: 8.4pt)[#upper(counterparty)], \
+              #h(8pt)#text(size: 7.2pt, style: "italic")[Respondent / Counterparty of Record.]
             ],
             [
-              #for _ in range(1, 7) [ #text(font: hde-font-mono, size: 8.5pt, weight: "bold")[)] \ ]
+              #for _ in range(1, 7) [ #text(font: hde-font-mono, size: 8pt, weight: "bold")[)] \ ]
             ],
             [
               #if seal-node != none [
-                #place(top + right, box(width: 36pt, height: 36pt, image(seal-path, width: 36pt)))
+                #place(top + right, box(width: 34pt, height: 34pt, image(seal-path, width: 34pt)))
               ]
-              #text(font: hde-font-mono, size: 7.2pt, weight: "bold")[DOCKET / INSTRUMENT NO.:] \
-              #text(font: hde-font-mono, size: 8.2pt, weight: "bold", fill: primary-color)[#doc-ref] \
-              #v(2pt)
-              #text(font: hde-font-mono, size: 7pt)[EFFECTIVE DATE: #date-str] \
-              #text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: accent-color)[STATUTE: #citation]
+              #text(font: hde-font-mono, size: 6.8pt, weight: "bold")[DOCKET / INSTRUMENT NO.:] \
+              #text(font: hde-font-mono, size: 7.8pt, weight: "bold", fill: primary-color)[#doc-ref] \
+              #v(1.5pt)
+              #text(font: hde-font-mono, size: 6.6pt)[EFFECTIVE DATE: #date-str] \
+              #text(font: hde-font-mono, size: 6.4pt, weight: "bold", fill: accent-color)[STATUTE: #citation]
             ]
           )
         )
-        #v(5pt)
-        #align(center)[
-          #text(font: hde-font-serif, size: 11pt, weight: "bold", tracking: 0.4pt)[#upper(title)]
-          #v(1.5pt)
-          #line(length: 65%, stroke: 0.75pt + primary-color)
-        ]
-        #v(4pt)
-        #text(font: hde-font-serif, size: 8.2pt)[
-          *COMES NOW* the undersigned party of record (*#org-name*) and respectfully submits this verified statutory instrument and evidentiary schedule pursuant to *#citation*:
-        ]
-        #v(4pt)
-        #rect(
-          width: 100%,
-          stroke: (left: 2.5pt + primary-color, rest: 0.5pt + rgb("#cbd5e1")),
-          fill: white,
-          inset: (x: 9pt, y: 6pt),
-          [
-            #text(font: hde-font-sans, size: 7pt, weight: "bold", fill: primary-color)[
-              I. VERIFIED STATUTORY FINDINGS & JURISDICTIONAL METRICS
-            ]
-            #v(3pt)
-            #grid(
-              columns: (1fr, 1fr),
-              gutter: 7pt,
-              ..metrics.enumerate().map(((idx, m)) => [
-                #text(font: hde-font-serif, size: 7.8pt)[
-                  *¶ #(idx + 1).* *#m.at(0):* #text(font: hde-font-mono, weight: "bold", fill: if idx == 3 { accent-color } else { rgb("#0f172a") })[#m.at(1)]
-                ]
-              ])
-            )
-          ]
-        )
-        #v(4pt)
-        #text(font: hde-font-sans, size: 7.2pt, weight: "bold", fill: primary-color)[
-          II. CERTIFIED SCHEDULE OF EVIDENCE, LINE ITEMS & STATUTORY BASIS
-        ]
-        #hde-schedule-table-variation(
-          variant: "dark_header",
-          rows: rows,
+        #hde-section-header(
+          variant: "centered_double_rule",
+          sec-num: "01",
+          title: title,
+          subtitle: counterparty,
+          right-tag: doc-ref,
           primary-color: primary-color,
           accent-color: accent-color,
         )
-        #v(2pt)
+        #hde-comparison-lanes(
+          left-label: metrics.at(0).at(0),
+          left-val: metrics.at(0).at(1),
+          left-sub: "Baseline / Prior Record",
+          right-label: metrics.at(3).at(0),
+          right-val: metrics.at(3).at(1),
+          right-sub: "Contended / Certified Relief",
+          delta-badge: stamp-label,
+          primary-color: primary-color,
+          accent-color: accent-color,
+        )
+        #hde-text-alignment-block(
+          variant: if text-alignment-variant == "two_column_justified" { "hanging_indent_clauses" } else { text-alignment-variant },
+          org-name: org-name,
+          counterparty: counterparty,
+          profession: profession,
+          citation: citation,
+          demand-signal: demand-signal,
+          metrics: metrics,
+          primary-color: primary-color,
+          accent-color: accent-color,
+        )
+        #hde-section-header(
+          variant: section-header-variant,
+          sec-num: "02",
+          kicker: "SECTION II · EVIDENTIARY SCHEDULE",
+          title: "CERTIFIED SCHEDULE OF EVIDENCE & STATUTORY BASIS",
+          subtitle: org-name,
+          right-tag: metrics.at(3).at(1),
+          primary-color: primary-color,
+          accent-color: accent-color,
+        )
+        #hde-schedule-table-variation(
+          variant: "dark_header",
+          rows: rows,
+          summary-label: metrics.at(3).at(0),
+          summary-value: metrics.at(3).at(1),
+          primary-color: primary-color,
+          accent-color: accent-color,
+        )
         #hde-milestone-timeline(
           title: "III. PROCEDURAL DEADLINES, CURATIVE WINDOW & COMPLIANCE STEPS",
           steps: milestones,
           primary-color: primary-color,
           accent-color: accent-color,
         )
-        #v(2pt)
         #jurat-box(
           signer-name: org-name,
           signer-role: profession,
@@ -1130,68 +1632,69 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(3pt)
-    text(font: hde-font-sans, size: 7.4pt, weight: "bold", tracking: 0.5pt, fill: primary-color)[
-      SELECTABLE SERVICE TIERS & COMMERCIAL PACKAGE COMPARISON
-    ]
-    v(2.5pt)
+    hde-section-header(
+      variant: section-header-variant,
+      sec-num: "01",
+      kicker: "SECTION 01 · COMMERCIAL TIERS",
+      title: "SELECTABLE SERVICE TIERS & PACKAGE COMPARISON",
+      subtitle: counterparty,
+      right-tag: doc-ref,
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
     grid(
       columns: (1fr, 1.08fr, 1fr),
-      gutter: 8pt,
+      gutter: 7pt,
       // Tier 1
       rect(
         width: 100%,
         stroke: 0.85pt + rgb("#cbd5e1"),
         radius: 5pt,
         fill: rgb("#ffffff"),
-        inset: (x: 8pt, y: 6pt),
+        inset: (x: 7.5pt, y: 5pt),
         [
-          #text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: rgb("#64748b"))[OPTION A · ESSENTIAL TIER] \
+          #text(font: hde-font-mono, size: 6pt, weight: "bold", fill: rgb("#64748b"))[OPTION A · ESSENTIAL TIER] \
+          #v(1pt)
+          #text(font: hde-font-sans, size: 8.4pt, weight: "bold", fill: rgb("#0f172a"))[#metrics.at(0).at(0)] \
           #v(1.5pt)
-          #text(font: hde-font-sans, size: 9pt, weight: "bold", fill: rgb("#0f172a"))[#metrics.at(0).at(0)] \
+          #text(font: hde-font-mono, size: 10.5pt, weight: "black", fill: primary-color)[#metrics.at(0).at(1)] \
           #v(2pt)
-          #text(font: hde-font-mono, size: 11.5pt, weight: "black", fill: primary-color)[#metrics.at(0).at(1)] \
-          #v(3pt)
           #line(length: 100%, stroke: 0.5pt + rgb("#e2e8f0"))
-          #v(3pt)
-          #text(font: hde-font-sans, size: 7.1pt, fill: rgb("#334155"))[
+          #v(2pt)
+          #text(font: hde-font-sans, size: 6.7pt, fill: rgb("#334155"))[
             #text(fill: accent-color, weight: "bold")[✓] #rows.at(0).at(1) \
-            #v(1.5pt)
-            #text(fill: accent-color, weight: "bold")[✓] Basis: #rows.at(0).at(2) \
-            #v(1.5pt)
-            #text(fill: accent-color, weight: "bold")[✓] Phase 1: #milestones.at(0).at(0)
+            #v(1pt)
+            #text(fill: accent-color, weight: "bold")[✓] Basis: #rows.at(0).at(2) · #milestones.at(0).at(0)
           ]
         ]
       ),
       // Tier 2 (Recommended Hero Card)
       rect(
         width: 100%,
-        stroke: 2pt + accent-color,
+        stroke: 1.8pt + accent-color,
         radius: 5pt,
         fill: rgb("#f0fdf4"),
-        inset: (x: 8pt, y: 6pt),
+        inset: (x: 7.5pt, y: 5pt),
         [
           #grid(
             columns: (1fr, auto),
             align: (left + horizon, right + horizon),
-            text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: accent-color)[OPTION B · RECOMMENDED],
-            box(fill: accent-color, radius: 99pt, inset: (x: 5pt, y: 1.5pt))[
-              #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: white)[★ MOST POPULAR]
+            text(font: hde-font-mono, size: 6pt, weight: "bold", fill: accent-color)[OPTION B · RECOMMENDED],
+            box(fill: accent-color, radius: 99pt, inset: (x: 5pt, y: 1.2pt))[
+              #text(font: hde-font-mono, size: 5.6pt, weight: "bold", fill: white)[★ MOST POPULAR]
             ]
           )
+          #v(1pt)
+          #text(font: hde-font-sans, size: 8.6pt, weight: "black", fill: rgb("#0f172a"))[#metrics.at(3).at(0)] \
           #v(1.5pt)
-          #text(font: hde-font-sans, size: 9.2pt, weight: "black", fill: rgb("#0f172a"))[#metrics.at(3).at(0)] \
+          #text(font: hde-font-mono, size: 11pt, weight: "black", fill: accent-color)[#metrics.at(3).at(1)] \
           #v(2pt)
-          #text(font: hde-font-mono, size: 12pt, weight: "black", fill: accent-color)[#metrics.at(3).at(1)] \
-          #v(3pt)
           #line(length: 100%, stroke: 0.75pt + accent-color)
-          #v(3pt)
-          #text(font: hde-font-sans, size: 7.2pt, fill: rgb("#0f172a"))[
+          #v(2pt)
+          #text(font: hde-font-sans, size: 6.8pt, fill: rgb("#0f172a"))[
             #text(fill: accent-color, weight: "bold")[✓] *#rows.at(1).at(1)* \
-            #v(1.5pt)
-            #text(fill: accent-color, weight: "bold")[✓] *#rows.at(2).at(1)* \
-            #v(1.5pt)
-            #text(fill: accent-color, weight: "bold")[✓] Statutory Compliance: #citation
+            #v(1pt)
+            #text(fill: accent-color, weight: "bold")[✓] *#rows.at(2).at(1)*
           ]
         ]
       ),
@@ -1201,42 +1704,60 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
         stroke: 1pt + primary-color,
         radius: 5pt,
         fill: rgb("#f8fafc"),
-        inset: (x: 8pt, y: 6pt),
+        inset: (x: 7.5pt, y: 5pt),
         [
-          #text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: primary-color)[OPTION C · PREMIER / FULL] \
+          #text(font: hde-font-mono, size: 6pt, weight: "bold", fill: primary-color)[OPTION C · PREMIER / FULL] \
+          #v(1pt)
+          #text(font: hde-font-sans, size: 8.4pt, weight: "bold", fill: rgb("#0f172a"))[#metrics.at(1).at(0)] \
           #v(1.5pt)
-          #text(font: hde-font-sans, size: 9pt, weight: "bold", fill: rgb("#0f172a"))[#metrics.at(1).at(0)] \
+          #text(font: hde-font-mono, size: 10.5pt, weight: "black", fill: rgb("#0f172a"))[#metrics.at(1).at(1)] \
           #v(2pt)
-          #text(font: hde-font-mono, size: 11.5pt, weight: "black", fill: rgb("#0f172a"))[#metrics.at(1).at(1)] \
-          #v(3pt)
           #line(length: 100%, stroke: 0.5pt + rgb("#cbd5e1"))
-          #v(3pt)
-          #text(font: hde-font-sans, size: 7.1pt, fill: rgb("#334155"))[
+          #v(2pt)
+          #text(font: hde-font-sans, size: 6.7pt, fill: rgb("#334155"))[
             #text(fill: primary-color, weight: "bold")[✓] #rows.at(3).at(1) \
-            #v(1.5pt)
-            #text(fill: primary-color, weight: "bold")[✓] Metric: #metrics.at(2).at(0) (#metrics.at(2).at(1)) \
-            #v(1.5pt)
-            #text(fill: primary-color, weight: "bold")[✓] Priority SLA: #milestones.at(3).at(2)
+            #v(1pt)
+            #text(fill: primary-color, weight: "bold")[✓] #metrics.at(2).at(0): #metrics.at(2).at(1)
           ]
         ]
       )
     )
-    v(2.5pt)
+    hde-text-alignment-block(
+      variant: text-alignment-variant,
+      org-name: org-name,
+      counterparty: counterparty,
+      profession: profession,
+      citation: citation,
+      demand-signal: demand-signal,
+      metrics: metrics,
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
+    hde-section-header(
+      variant: sec-hdr-2,
+      sec-num: "02",
+      kicker: "SECTION 02 · DELIVERABLE MATRIX",
+      title: "INCLUDED DELIVERABLES, SPECIFICATIONS & SLA SCHEDULE",
+      subtitle: org-name,
+      right-tag: metrics.at(3).at(1),
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
     hde-schedule-table-variation(
       variant: table-variant,
       headers: ("PACKAGE / CODE", "INCLUDED DELIVERABLES, SPECIFICATIONS & SLA", "ALLOCATION / QTY", "FEE / VALUE"),
       rows: rows,
+      summary-label: metrics.at(3).at(0),
+      summary-value: metrics.at(3).at(1),
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(2pt)
     hde-milestone-timeline(
       title: "ONBOARDING & FULFILLMENT TIMELINE",
       steps: milestones,
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(2pt)
     jurat-box(
       signer-name: org-name,
       signer-role: profession,
@@ -1267,54 +1788,62 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(4pt)
-    rect(
-      width: 100%,
-      fill: rgb("#0f172a"),
-      radius: 4pt,
-      inset: (x: 10pt, y: 5pt),
-      grid(
-        columns: (auto, 1fr),
-        gutter: 10pt,
-        align: (left + horizon, right + horizon),
-        text(font: hde-font-mono, size: 7pt, weight: "bold", fill: rgb("#ffe500"))[
-          GRADING KEY: #h(4pt) #text(fill: white, weight: "regular")[[☑ PASS]  [☐ ATTN]  [☐ FAIL]  [☐ N/A]]
-        ],
-        text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: rgb("#34d399"))[
-          STANDARD: #citation
-        ]
-      )
+    hde-section-header(
+      variant: "dark_command_ribbon",
+      sec-num: "01",
+      title: "GRADING KEY: [☑ PASS] [☐ ATTN] [☐ FAIL] · DIAGNOSTIC TELEMETRY",
+      right-tag: citation,
+      primary-color: primary-color,
+      accent-color: accent-color,
     )
-    v(4pt)
     hde-kpi-strip-variation(
       variant: kpi-variant,
       metrics: metrics,
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(4pt)
     table(
-      columns: (58pt, 1.05fr, 1fr, 82pt, 78pt),
-      inset: (x: 6pt, y: 5.5pt),
+      columns: (54pt, 1.08fr, 0.96fr, 80pt, 74pt),
+      inset: (x: 5.5pt, y: 4pt),
       stroke: 0.5pt + rgb("#cbd5e1"),
       align: (left + horizon, left + horizon, left + horizon, center + horizon, right + horizon),
       fill: (x, y) => if y == 0 { primary-color } else if calc.odd(y) { white } else { rgb("#f8fafc") },
-      text(font: hde-font-sans, size: 6.8pt, weight: "bold", fill: white)[ITEM CODE],
-      text(font: hde-font-sans, size: 6.8pt, weight: "bold", fill: white)[INSPECTION CHECKPOINT & SYSTEM],
-      text(font: hde-font-sans, size: 6.8pt, weight: "bold", fill: white)[GRADE CHECKBOXES],
-      text(font: hde-font-sans, size: 6.8pt, weight: "bold", fill: white)[OBSERVED SPEC],
-      text(font: hde-font-sans, size: 6.8pt, weight: "bold", fill: white)[COST / STATUS],
+      text(font: hde-font-sans, size: 6.6pt, weight: "bold", fill: white)[ITEM CODE],
+      text(font: hde-font-sans, size: 6.6pt, weight: "bold", fill: white)[INSPECTION CHECKPOINT & SYSTEM],
+      text(font: hde-font-sans, size: 6.6pt, weight: "bold", fill: white)[GRADE CHECKBOXES],
+      text(font: hde-font-sans, size: 6.6pt, weight: "bold", fill: white)[OBSERVED SPEC],
+      text(font: hde-font-sans, size: 6.6pt, weight: "bold", fill: white)[COST / STATUS],
       ..rows.enumerate().map(((idx, r)) => (
-        text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: primary-color)[#r.at(0)],
-        text(font: hde-font-sans, size: 7.5pt, fill: rgb("#0f172a"))[#r.at(1)],
-        text(font: hde-font-mono, size: 7pt, weight: "bold", fill: if idx == 1 { rgb("#b45309") } else { rgb("#047857") })[
-          #if idx == 1 { "[☐ PASS  ☑ ATTN  ☐ FAIL]" } else { "[☑ PASS  ☐ ATTN  ☐ FAIL]" }
+        text(font: hde-font-mono, size: 7pt, weight: "bold", fill: primary-color)[#r.at(0)],
+        text(font: hde-font-sans, size: 7.2pt, fill: rgb("#0f172a"))[#r.at(1)],
+        text(font: hde-font-mono, size: 6.7pt, weight: "bold", fill: if idx == 1 { rgb("#b45309") } else { rgb("#047857") })[
+          #if idx == 1 { "[☐ PASS ☑ ATTN ☐ FAIL]" } else { "[☑ PASS ☐ ATTN ☐ FAIL]" }
         ],
-        text(font: hde-font-mono, size: 7pt, fill: rgb("#475569"))[#r.at(2)],
-        text(font: hde-font-mono, size: 7.4pt, weight: "bold", fill: rgb("#0f172a"))[#r.at(3)],
+        text(font: hde-font-mono, size: 6.8pt, fill: rgb("#475569"))[#r.at(2)],
+        text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: rgb("#0f172a"))[#r.at(3)],
       )).flatten()
     )
-    v(4pt)
+    hde-section-header(
+      variant: section-header-variant,
+      sec-num: "02",
+      kicker: "SECTION 02 · FIELD FINDINGS & SCHEMATIC",
+      title: "TECHNICAL TELEMETRY & NARRATIVE FINDINGS",
+      subtitle: org-name,
+      right-tag: metrics.at(3).at(1),
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
+    hde-text-alignment-block(
+      variant: text-alignment-variant,
+      org-name: org-name,
+      counterparty: counterparty,
+      profession: profession,
+      citation: citation,
+      demand-signal: demand-signal,
+      metrics: metrics,
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
     svg-architectural-diagram(
       kind: diagram-kind,
       title: "FIELD DIAGNOSTIC TELEMETRY & INSPECTION SCHEMATIC",
@@ -1322,8 +1851,8 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
       accent-hex: accent-hex,
       metric-a: metrics.at(0).at(1),
       metric-b: metrics.at(3).at(1),
+      hero-height: 70pt,
     )
-    v(4pt)
     jurat-box(
       signer-name: org-name,
       signer-role: profession,
@@ -1345,34 +1874,33 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
       width: 100%,
       stroke: 1.5pt + rgb("#0f172a"),
       fill: rgb("#ffffff"),
-      inset: 9pt,
+      inset: 8pt,
       [
         #table(
-          columns: (if seal-node != none { 52pt } else { 0pt }, 1fr, 115pt, 115pt),
+          columns: (if seal-node != none { 50pt } else { 0pt }, 1fr, 112pt, 112pt),
           stroke: 0.75pt + rgb("#0f172a"),
-          inset: (x: 8pt, y: 5pt),
+          inset: (x: 7pt, y: 4.5pt),
           fill: (x, y) => if x == 1 { rgb("#f8fafc") } else { white },
           align: (center + horizon, left + horizon, left + horizon, left + horizon),
           [#if seal-node != none { seal-node }],
           [
-            #text(font: hde-font-mono, size: 6.5pt, weight: "bold", fill: primary-color)[ENGINEERING / CAD SUBMITTAL · #upper(vertical)] \
-            #v(1.5pt)
-            #text(font: hde-font-sans, size: 11.5pt, weight: "black", fill: rgb("#0f172a"))[#upper(title)] \
+            #text(font: hde-font-mono, size: 6.3pt, weight: "bold", fill: primary-color)[ENGINEERING / CAD SUBMITTAL · #upper(vertical)] \
             #v(1pt)
-            #text(font: hde-font-mono, size: 6.8pt, fill: rgb("#475569"))[SITE / CLIENT: #counterparty]
+            #text(font: hde-font-sans, size: 11pt, weight: "black", fill: rgb("#0f172a"))[#upper(title)] \
+            #v(1pt)
+            #text(font: hde-font-mono, size: 6.5pt, fill: rgb("#475569"))[SITE / CLIENT: #counterparty]
           ],
           [
-            #text(font: hde-font-mono, size: 6pt, fill: rgb("#64748b"))[DRAWING / SPEC NO.] \
-            #text(font: hde-font-mono, size: 7.8pt, weight: "bold", fill: primary-color)[#doc-ref] \
-            #text(font: hde-font-mono, size: 6.4pt, fill: rgb("#334155"))[SCALE: AS NOTED]
+            #text(font: hde-font-mono, size: 5.8pt, fill: rgb("#64748b"))[DRAWING / SPEC NO.] \
+            #text(font: hde-font-mono, size: 7.5pt, weight: "bold", fill: primary-color)[#doc-ref] \
+            #text(font: hde-font-mono, size: 6.2pt, fill: rgb("#334155"))[SCALE: AS NOTED]
           ],
           [
-            #text(font: hde-font-mono, size: 6pt, fill: rgb("#64748b"))[CODE / STANDARD] \
-            #text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: accent-color)[#citation] \
-            #text(font: hde-font-mono, size: 6.4pt, fill: rgb("#334155"))[DATE: #date-str]
+            #text(font: hde-font-mono, size: 5.8pt, fill: rgb("#64748b"))[CODE / STANDARD] \
+            #text(font: hde-font-mono, size: 6.5pt, weight: "bold", fill: accent-color)[#citation] \
+            #text(font: hde-font-mono, size: 6.2pt, fill: rgb("#334155"))[DATE: #date-str]
           ]
         )
-        #v(6pt)
         #svg-architectural-diagram(
           kind: diagram-kind,
           title: "FIGURE 1.0 — CERTIFIED AS-BUILT ENGINEERING & GEOMETRY SCHEMATIC",
@@ -1380,27 +1908,52 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
           accent-hex: accent-hex,
           metric-a: metrics.at(0).at(1),
           metric-b: metrics.at(3).at(1),
-          hero-height: 122pt,
+          hero-height: 92pt,
         )
-        #v(4pt)
         #hde-kpi-strip-variation(
           variant: "dark_terminal",
           metrics: metrics,
           primary-color: primary-color,
           accent-color: accent-color,
         )
-        #v(4pt)
-        #text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: primary-color)[
-          BILL OF MATERIALS (BOM), COMPONENT TOLERANCES & SCHEDULE OF QUANTITIES
-        ]
+        #hde-section-header(
+          variant: section-header-variant,
+          sec-num: "01",
+          kicker: "SECTION 01 · ENGINEERING NOTES",
+          title: "TECHNICAL SPECIFICATIONS & DESIGN COVENANTS",
+          subtitle: counterparty,
+          right-tag: doc-ref,
+          primary-color: primary-color,
+          accent-color: accent-color,
+        )
+        #hde-text-alignment-block(
+          variant: text-alignment-variant,
+          org-name: org-name,
+          counterparty: counterparty,
+          profession: profession,
+          citation: citation,
+          demand-signal: demand-signal,
+          metrics: metrics,
+          primary-color: primary-color,
+          accent-color: accent-color,
+        )
+        #hde-section-header(
+          variant: "swiss_index_grid",
+          sec-num: "02",
+          title: "BILL OF MATERIALS (BOM) & COMPONENT TOLERANCE SCHEDULE",
+          right-tag: metrics.at(3).at(1),
+          primary-color: primary-color,
+          accent-color: accent-color,
+        )
         #hde-schedule-table-variation(
           variant: "dark_header",
           headers: ("SPEC ID", "ENGINEERING COMPONENT / MATERIAL SPECIFICATION", "TOLERANCE / QTY", "EXTENDED VALUE"),
           rows: rows,
+          summary-label: metrics.at(3).at(0),
+          summary-value: metrics.at(3).at(1),
           primary-color: primary-color,
           accent-color: accent-color,
         )
-        #v(4pt)
         #jurat-box(
           signer-name: org-name,
           signer-role: profession,
@@ -1433,50 +1986,58 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(3pt)
     hde-kpi-strip-variation(
       variant: kpi-variant,
       metrics: metrics,
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(3pt)
+    hde-section-header(
+      variant: section-header-variant,
+      sec-num: "01",
+      kicker: "SECTION 01 · BILATERAL T-ACCOUNT",
+      title: "DEBIT / CREDIT PRORATION & SETTLEMENT COLUMNS",
+      subtitle: counterparty,
+      right-tag: doc-ref,
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
     grid(
       columns: (1fr, 1fr),
-      gutter: 9pt,
+      gutter: 8pt,
       // Left T-Account Column
       rect(
         width: 100%,
-        stroke: (top: 2.5pt + primary-color, rest: 0.75pt + rgb("#cbd5e1")),
+        stroke: (top: 2.2pt + primary-color, rest: 0.75pt + rgb("#cbd5e1")),
         radius: 4pt,
         fill: rgb("#ffffff"),
-        inset: (x: 8pt, y: 6pt),
+        inset: (x: 7.5pt, y: 5pt),
         [
-          #text(font: hde-font-mono, size: 7pt, weight: "bold", fill: primary-color)[
+          #text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: primary-color)[
             SCHEDULE A · PRIMARY DEBITS / GROSS BASIS
           ]
-          #v(3pt)
+          #v(2pt)
           #table(
-            columns: (50pt, 1fr, 70pt),
-            inset: (x: 4.5pt, y: 4pt),
+            columns: (48pt, 1fr, 68pt),
+            inset: (x: 4pt, y: 3.5pt),
             stroke: (bottom: 0.5pt + rgb("#e2e8f0")),
             align: (left + horizon, left + horizon, right + horizon),
-            text(font: hde-font-mono, size: 6.4pt, weight: "bold", fill: rgb("#64748b"))[CODE],
-            text(font: hde-font-sans, size: 6.4pt, weight: "bold", fill: rgb("#64748b"))[ITEM DESCRIPTION],
-            text(font: hde-font-mono, size: 6.4pt, weight: "bold", fill: rgb("#64748b"))[AMOUNT],
-            text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: primary-color)[#rows.at(0).at(0)],
-            text(font: hde-font-sans, size: 7pt)[#rows.at(0).at(1)],
-            text(font: hde-font-mono, size: 7pt, weight: "bold")[#rows.at(0).at(3)],
-            text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: primary-color)[#rows.at(1).at(0)],
-            text(font: hde-font-sans, size: 7pt)[#rows.at(1).at(1)],
-            text(font: hde-font-mono, size: 7pt, weight: "bold")[#rows.at(1).at(3)],
+            text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: rgb("#64748b"))[CODE],
+            text(font: hde-font-sans, size: 6.2pt, weight: "bold", fill: rgb("#64748b"))[ITEM DESCRIPTION],
+            text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: rgb("#64748b"))[AMOUNT],
+            text(font: hde-font-mono, size: 6.6pt, weight: "bold", fill: primary-color)[#rows.at(0).at(0)],
+            text(font: hde-font-sans, size: 6.8pt)[#rows.at(0).at(1)],
+            text(font: hde-font-mono, size: 6.8pt, weight: "bold")[#rows.at(0).at(3)],
+            text(font: hde-font-mono, size: 6.6pt, weight: "bold", fill: primary-color)[#rows.at(1).at(0)],
+            text(font: hde-font-sans, size: 6.8pt)[#rows.at(1).at(1)],
+            text(font: hde-font-mono, size: 6.8pt, weight: "bold")[#rows.at(1).at(3)],
           )
-          #v(3.5pt)
-          #rect(width: 100%, fill: rgb("#eff6ff"), radius: 3pt, inset: (x: 6pt, y: 4pt))[
+          #v(2.5pt)
+          #rect(width: 100%, fill: rgb("#eff6ff"), radius: 3pt, inset: (x: 6pt, y: 3.5pt))[
             #grid(
               columns: (1fr, auto),
-              text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: primary-color)[#metrics.at(0).at(0)],
-              text(font: hde-font-mono, size: 8pt, weight: "bold", fill: rgb("#0f172a"))[#metrics.at(0).at(1)]
+              text(font: hde-font-mono, size: 6.5pt, weight: "bold", fill: primary-color)[#metrics.at(0).at(0)],
+              text(font: hde-font-mono, size: 7.6pt, weight: "bold", fill: rgb("#0f172a"))[#metrics.at(0).at(1)]
             )
           ]
         ]
@@ -1484,56 +2045,68 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
       // Right T-Account Column
       rect(
         width: 100%,
-        stroke: (top: 2.5pt + accent-color, rest: 0.75pt + rgb("#cbd5e1")),
+        stroke: (top: 2.2pt + accent-color, rest: 0.75pt + rgb("#cbd5e1")),
         radius: 4pt,
         fill: rgb("#ffffff"),
-        inset: (x: 8pt, y: 6pt),
+        inset: (x: 7.5pt, y: 5pt),
         [
-          #text(font: hde-font-mono, size: 7pt, weight: "bold", fill: accent-color)[
+          #text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: accent-color)[
             SCHEDULE B · CREDITS / PRORATIONS & ADJUSTMENTS
           ]
-          #v(3pt)
+          #v(2pt)
           #table(
-            columns: (50pt, 1fr, 70pt),
-            inset: (x: 4.5pt, y: 4pt),
+            columns: (48pt, 1fr, 68pt),
+            inset: (x: 4pt, y: 3.5pt),
             stroke: (bottom: 0.5pt + rgb("#e2e8f0")),
             align: (left + horizon, left + horizon, right + horizon),
-            text(font: hde-font-mono, size: 6.4pt, weight: "bold", fill: rgb("#64748b"))[CODE],
-            text(font: hde-font-sans, size: 6.4pt, weight: "bold", fill: rgb("#64748b"))[CREDIT / OFFSET],
-            text(font: hde-font-mono, size: 6.4pt, weight: "bold", fill: rgb("#64748b"))[ADJUSTMENT],
-            text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: accent-color)[#rows.at(2).at(0)],
-            text(font: hde-font-sans, size: 7pt)[#rows.at(2).at(1)],
-            text(font: hde-font-mono, size: 7pt, weight: "bold", fill: accent-color)[#rows.at(2).at(3)],
-            text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: accent-color)[#rows.at(3).at(0)],
-            text(font: hde-font-sans, size: 7pt)[#rows.at(3).at(1)],
-            text(font: hde-font-mono, size: 7pt, weight: "bold", fill: accent-color)[#rows.at(3).at(3)],
+            text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: rgb("#64748b"))[CODE],
+            text(font: hde-font-sans, size: 6.2pt, weight: "bold", fill: rgb("#64748b"))[CREDIT / OFFSET],
+            text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: rgb("#64748b"))[ADJUSTMENT],
+            text(font: hde-font-mono, size: 6.6pt, weight: "bold", fill: accent-color)[#rows.at(2).at(0)],
+            text(font: hde-font-sans, size: 6.8pt)[#rows.at(2).at(1)],
+            text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: accent-color)[#rows.at(2).at(3)],
+            text(font: hde-font-mono, size: 6.6pt, weight: "bold", fill: accent-color)[#rows.at(3).at(0)],
+            text(font: hde-font-sans, size: 6.8pt)[#rows.at(3).at(1)],
+            text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: accent-color)[#rows.at(3).at(3)],
           )
-          #v(3.5pt)
-          #rect(width: 100%, fill: rgb("#ecfdf5"), radius: 3pt, inset: (x: 6pt, y: 4pt))[
+          #v(2.5pt)
+          #rect(width: 100%, fill: rgb("#ecfdf5"), radius: 3pt, inset: (x: 6pt, y: 3.5pt))[
             #grid(
               columns: (1fr, auto),
-              text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: accent-color)[#metrics.at(3).at(0)],
-              text(font: hde-font-mono, size: 8pt, weight: "bold", fill: accent-color)[#metrics.at(3).at(1)]
+              text(font: hde-font-mono, size: 6.5pt, weight: "bold", fill: accent-color)[#metrics.at(3).at(0)],
+              text(font: hde-font-mono, size: 7.6pt, weight: "bold", fill: accent-color)[#metrics.at(3).at(1)]
             )
           ]
         ]
       )
     )
-    v(2.5pt)
-    hde-comparative-bar-chart(
-      title: "BILATERAL RECONCILIATION & NET SETTLEMENT WATERFALL",
-      rows: chart-rows,
+    hde-section-header(
+      variant: sec-hdr-2,
+      sec-num: "02",
+      kicker: "SECTION 02 · DOT-LEADER WATERFALL",
+      title: "TABULAR SETTLEMENT LEDGER & DISBURSEMENT SCHEDULE",
+      subtitle: org-name,
+      right-tag: metrics.at(3).at(1),
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(2pt)
+    hde-text-alignment-block(
+      variant: if text-alignment-variant == "two_column_justified" { "tabular_dot_leader_ledger" } else { text-alignment-variant },
+      org-name: org-name,
+      counterparty: counterparty,
+      profession: profession,
+      citation: citation,
+      demand-signal: demand-signal,
+      metrics: metrics,
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
     hde-milestone-timeline(
       title: "SETTLEMENT & DISBURSEMENT AUDIT TRAIL",
       steps: milestones,
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(2pt)
     jurat-box(
       signer-name: org-name,
       signer-role: profession,
@@ -1554,15 +2127,15 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
     rect(
       width: 100%,
       fill: primary-color,
-      inset: (x: 10pt, y: 5pt),
+      inset: (x: 10pt, y: 4.5pt),
       grid(
         columns: (1.5fr, 1fr),
         gutter: 8pt,
         align: (left + horizon, right + horizon),
-        text(font: hde-font-mono, size: 8.2pt, weight: "bold", fill: white)[
+        text(font: hde-font-mono, size: 8pt, weight: "bold", fill: white)[
           OFFICIAL CODED FORM • #upper(title)
         ],
-        text(font: hde-font-mono, size: 6.8pt, weight: "bold", fill: rgb("#ffe500"))[
+        text(font: hde-font-mono, size: 6.6pt, weight: "bold", fill: rgb("#ffe500"))[
           FORM ID: #doc-ref · #citation
         ]
       )
@@ -1570,60 +2143,79 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
     table(
       columns: (1.2fr, 1.2fr, 1fr, 0.9fr),
       stroke: 0.6pt + rgb("#0f172a"),
-      inset: (x: 7pt, y: 4.5pt),
+      inset: (x: 6.5pt, y: 4pt),
       fill: (x, y) => if y == 0 or y == 2 { rgb("#f8fafc") } else { white },
       [
-        #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: primary-color)[BOX 01 · ISSUING PROVIDER / CARRIER / LAB] \
+        #text(font: hde-font-mono, size: 5.6pt, weight: "bold", fill: primary-color)[BOX 01 · ISSUING PROVIDER / CARRIER / LAB] \
         #v(1pt)
-        #text(font: hde-font-sans, size: 7.8pt, weight: "bold", fill: rgb("#0f172a"))[#org-name]
+        #text(font: hde-font-sans, size: 7.5pt, weight: "bold", fill: rgb("#0f172a"))[#org-name]
       ],
       [
-        #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: primary-color)[BOX 02 · PATIENT / CONSIGNEE / SUBJECT] \
+        #text(font: hde-font-mono, size: 5.6pt, weight: "bold", fill: primary-color)[BOX 02 · PATIENT / CONSIGNEE / SUBJECT] \
         #v(1pt)
-        #text(font: hde-font-sans, size: 7.8pt, weight: "bold", fill: rgb("#0f172a"))[#counterparty]
+        #text(font: hde-font-sans, size: 7.5pt, weight: "bold", fill: rgb("#0f172a"))[#counterparty]
       ],
       [
-        #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: primary-color)[BOX 03 · CLASSIFICATION] \
+        #text(font: hde-font-mono, size: 5.6pt, weight: "bold", fill: primary-color)[BOX 03 · CLASSIFICATION] \
         #v(1pt)
-        #text(font: hde-font-mono, size: 7.4pt, weight: "bold", fill: accent-color)[#vertical]
+        #text(font: hde-font-mono, size: 7.2pt, weight: "bold", fill: accent-color)[#vertical]
       ],
       [
-        #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: primary-color)[BOX 04 · FILING DATE] \
+        #text(font: hde-font-mono, size: 5.6pt, weight: "bold", fill: primary-color)[BOX 04 · FILING DATE] \
         #v(1pt)
-        #text(font: hde-font-mono, size: 7.6pt, weight: "bold", fill: rgb("#0f172a"))[#date-str]
+        #text(font: hde-font-mono, size: 7.4pt, weight: "bold", fill: rgb("#0f172a"))[#date-str]
       ],
       ..metrics.enumerate().map(((idx, m)) => [
-        #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: rgb("#475569"))[BOX 0#(idx + 5) · #upper(m.at(0))] \
+        #text(font: hde-font-mono, size: 5.6pt, weight: "bold", fill: rgb("#475569"))[BOX 0#(idx + 5) · #upper(m.at(0))] \
         #v(1pt)
-        #text(font: hde-font-mono, size: 8.6pt, weight: "bold", fill: if idx == 3 { accent-color } else { rgb("#0f172a") })[#m.at(1)]
+        #text(font: hde-font-mono, size: 8.2pt, weight: "bold", fill: if idx == 3 { accent-color } else { rgb("#0f172a") })[#m.at(1)]
       ])
     )
-    v(2.5pt)
+    hde-section-header(
+      variant: section-header-variant,
+      sec-num: "09",
+      kicker: "BOX 09 · CODED SCHEDULE",
+      title: "CODED PROCEDURE, TARIFF OR CLINICAL LINE SCHEDULE",
+      subtitle: counterparty,
+      right-tag: doc-ref,
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
     hde-schedule-table-variation(
       variant: "dark_header",
       headers: ("LINE / CODE", "CODED PROCEDURE, TARIFF OR CLINICAL DESCRIPTION", "UNITS / POINTER", "CHARGE / VALUE"),
       rows: rows,
+      summary-label: metrics.at(3).at(0),
+      summary-value: metrics.at(3).at(1),
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(2pt)
+    hde-text-alignment-block(
+      variant: text-alignment-variant,
+      org-name: org-name,
+      counterparty: counterparty,
+      profession: profession,
+      citation: citation,
+      demand-signal: demand-signal,
+      metrics: metrics,
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
     svg-architectural-diagram(
       kind: diagram-kind,
-      title: "BOX 09 · VERIFIED TELEMETRY & WORKFLOW DIAGRAM",
+      title: "BOX 10 · VERIFIED TELEMETRY & WORKFLOW DIAGRAM",
       primary-hex: primary-hex,
       accent-hex: accent-hex,
       metric-a: metrics.at(0).at(1),
       metric-b: metrics.at(3).at(1),
-      hero-height: 76pt,
+      hero-height: 62pt,
     )
-    v(2pt)
     hde-milestone-timeline(
-      title: "BOX 10 · CHAIN OF CUSTODY, ROUTING & SETTLEMENT STEPS",
+      title: "BOX 11 · CHAIN OF CUSTODY, ROUTING & SETTLEMENT STEPS",
       steps: milestones,
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(2pt)
     jurat-box(
       signer-name: org-name,
       signer-role: profession,
@@ -1644,18 +2236,18 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
     rect(
       width: 100%,
       stroke: 2.2pt + primary-color,
-      inset: 3.5pt,
+      inset: 3pt,
       rect(
         width: 100%,
         stroke: 0.75pt + accent-color,
         fill: rgb("#fffdf9"),
-        inset: (x: 16pt, y: 12pt),
+        inset: (x: 13pt, y: 9pt),
         [
           #grid(
             columns: (1fr, auto, 1fr),
             align: (left + top, center + horizon, right + top),
             [
-              #text(font: hde-font-mono, size: 6.5pt, weight: "bold", fill: rgb("#475569"))[
+              #text(font: hde-font-mono, size: 6.3pt, weight: "bold", fill: rgb("#475569"))[
                 INSTRUMENT NO: #doc-ref \
                 RECORDED DATE: #date-str
               ]
@@ -1666,44 +2258,67 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
             [
               #rect(
                 stroke: (dash: "dashed", paint: rgb("#94a3b8"), thickness: 0.6pt),
-                inset: (x: 7pt, y: 4pt),
+                inset: (x: 6pt, y: 3.5pt),
                 align(right)[
-                  #text(font: hde-font-mono, size: 6pt, weight: "bold", fill: primary-color)[OFFICIAL RECORDING STAMP ZONE] \
-                  #text(font: hde-font-mono, size: 6pt, fill: rgb("#64748b"))[#citation]
+                  #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: primary-color)[OFFICIAL RECORDING STAMP ZONE] \
+                  #text(font: hde-font-mono, size: 5.8pt, fill: rgb("#64748b"))[#citation]
                 ]
               )
             ]
           )
-          #v(6pt)
+          #v(4pt)
           #align(center)[
-            #text(font: hde-font-mono, size: 7pt, weight: "bold", tracking: 1.5pt, fill: accent-color)[
+            #text(font: hde-font-mono, size: 6.6pt, weight: "bold", tracking: 1.4pt, fill: accent-color)[
               #upper(vertical) • #upper(org-name)
             ] \
-            #v(3pt)
-            #text(font: hde-font-serif, size: 15pt, weight: "bold", fill: rgb("#0f172a"))[#upper(title)] \
-            #v(3pt)
-            #line(length: 55%, stroke: 1pt + accent-color)
+            #v(2pt)
+            #text(font: hde-font-serif, size: 13.8pt, weight: "bold", fill: rgb("#0f172a"))[#upper(title)]
           ]
-          #v(8pt)
-          #text(font: hde-font-serif, size: 8.6pt, fill: rgb("#1e293b"))[
-            *KNOW ALL PERSONS BY THESE PRESENTS*, that *#org-name* (#profession), acting pursuant to statutory and regulatory authority under *#citation*, does hereby execute, certify, and deliver this official instrument unto *#counterparty*, subject to the verified schedules and covenants set forth below:
-          ]
-          #v(6pt)
+          #hde-section-header(
+            variant: "centered_double_rule",
+            sec-num: "01",
+            title: "CEREMONIAL GRANT, RECITAL & STATUTORY AUTHORITY",
+            right-tag: doc-ref,
+            primary-color: primary-color,
+            accent-color: accent-color,
+          )
+          #hde-text-alignment-block(
+            variant: if text-alignment-variant == "two_column_justified" { "centered_recital_quote" } else { text-alignment-variant },
+            org-name: org-name,
+            counterparty: counterparty,
+            profession: profession,
+            citation: citation,
+            demand-signal: demand-signal,
+            metrics: metrics,
+            primary-color: primary-color,
+            accent-color: accent-color,
+          )
           #hde-kpi-strip-variation(
             variant: "metric_cards",
             metrics: metrics,
             primary-color: primary-color,
             accent-color: accent-color,
           )
-          #v(4pt)
+          #hde-section-header(
+            variant: section-header-variant,
+            sec-num: "02",
+            kicker: "SECTION 02 · CERTIFIED SCHEDULE",
+            title: "SCHEDULE OF COVENANTS, GRANTS & VERIFIED AMOUNTS",
+            subtitle: counterparty,
+            right-tag: metrics.at(3).at(1),
+            primary-color: primary-color,
+            accent-color: accent-color,
+          )
           #hde-schedule-table-variation(
             variant: "minimal_lines",
             headers: ("CLAUSE / REF", "CERTIFIED COVENANT, GRANT OR SCHEDULE ITEM", "STATUTORY BASIS", "VERIFIED AMOUNT"),
             rows: rows,
+            summary-label: metrics.at(3).at(0),
+            summary-value: metrics.at(3).at(1),
             primary-color: primary-color,
             accent-color: accent-color,
           )
-          #v(6pt)
+          #v(2pt)
           #jurat-box(
             signer-name: org-name,
             signer-role: profession,
@@ -1729,50 +2344,79 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
       fill: rgb("#091b34"),
       stroke: 1.5pt + rgb("#254b7c"),
       radius: 6pt,
-      inset: (x: 12pt, y: 9pt),
+      inset: (x: 10pt, y: 4.5pt),
       [
         #grid(
-          columns: (if seal-node != none { 52pt } else { 0pt }, 1fr, auto),
-          gutter: 10pt,
+          columns: (if seal-node != none { 46pt } else { 0pt }, 1fr, auto),
+          gutter: 8pt,
           align: (center + horizon, left + horizon, right + horizon),
           [#if seal-node != none { box(fill: white, radius: 5pt, inset: 2pt, seal-node) }],
           [
             #hde-sticker-badge(label: upper(vertical), angle: -2deg, bg: rgb("#ffd000"), fg: rgb("#0f172a"))
             #h(8pt)
-            #text(font: hde-font-mono, size: 7pt, weight: "bold", fill: rgb("#38bdf8"))[#doc-ref · #citation]
-            #v(4pt)
-            #text(font: hde-font-sans, size: 13pt, weight: "black", fill: white)[#title] \
-            #v(1.5pt)
-            #text(font: hde-font-sans, size: 7.5pt, fill: rgb("#cbd5e1"))[#org-name → #counterparty]
+            #text(font: hde-font-mono, size: 6.6pt, weight: "bold", fill: rgb("#38bdf8"))[#doc-ref · #citation]
+            #v(2pt)
+            #text(font: hde-font-sans, size: 11.4pt, weight: "black", fill: white)[#title] \
+            #v(1pt)
+            #text(font: hde-font-sans, size: 7pt, fill: rgb("#cbd5e1"))[#org-name → #counterparty]
           ],
-          svg-rubber-stamp(label: stamp-label, sublabel: stamp-sublabel, color-hex: "#38bdf8", angle: -4deg, width-in: 1.38in)
+          svg-rubber-stamp(label: stamp-label, sublabel: stamp-sublabel, color-hex: "#38bdf8", angle: -4deg, width-in: 1.24in)
         )
       ]
     )
-    v(7pt)
+    v(2pt)
     grid(
       columns: (1fr,) * metrics.len(),
-      gutter: 8pt,
+      gutter: 6pt,
       ..metrics.enumerate().map(((idx, m)) => hde-depth-card(
         accent-border: if idx == 3 { rgb("#10b981") } else { rgb("#254b7c") },
         fill-color: rgb("#0f172a"),
         shadow-color: if idx == 3 { rgb("#10b981") } else { primary-color },
-        inset-val: (x: 8pt, y: 6pt),
+        inset-val: (x: 6pt, y: 3.5pt),
         [
-          #text(font: hde-font-mono, size: 6.2pt, weight: "bold", fill: rgb("#94a3b8"))[#upper(m.at(0))] \
-          #v(2pt)
-          #text(font: hde-font-mono, size: 9.6pt, weight: "black", fill: if idx == 3 { rgb("#34d399") } else { rgb("#ffe500") })[#m.at(1)]
+          #text(font: hde-font-mono, size: 5.8pt, weight: "bold", fill: rgb("#94a3b8"))[#upper(m.at(0))] \
+          #v(1pt)
+          #text(font: hde-font-mono, size: 8.8pt, weight: "black", fill: if idx == 3 { rgb("#34d399") } else { rgb("#ffe500") })[#m.at(1)]
         ]
       ))
     )
-    v(7pt)
-    hde-schedule-table-variation(
-      variant: "dark_header",
-      rows: rows,
+    hde-section-header(
+      variant: "neo_brutalist_tab",
+      sec-num: "01",
+      title: "EXECUTIVE BRIEF, SCOPE & FOLDED METRIC CALLOUT",
+      right-tag: doc-ref,
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(3pt)
+    hde-text-alignment-block(
+      variant: if text-alignment-variant == "two_column_justified" { "asymmetric_callout_split" } else { text-alignment-variant },
+      org-name: org-name,
+      counterparty: counterparty,
+      profession: profession,
+      citation: citation,
+      demand-signal: demand-signal,
+      metrics: metrics,
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
+    hde-section-header(
+      variant: section-header-variant,
+      sec-num: "02",
+      kicker: "SECTION 02 · DELIVERABLE SCHEDULE",
+      title: "VERIFIED SCHEDULE OF DELIVERABLES & TELEMETRY",
+      subtitle: counterparty,
+      right-tag: metrics.at(3).at(1),
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
+    hde-schedule-table-variation(
+      variant: "dark_header",
+      rows: rows,
+      summary-label: metrics.at(3).at(0),
+      summary-value: metrics.at(3).at(1),
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
     grid(
       columns: (1.2fr, 1fr),
       gutter: 8pt,
@@ -1783,7 +2427,7 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
         accent-hex: accent-hex,
         metric-a: metrics.at(0).at(1),
         metric-b: metrics.at(3).at(1),
-        hero-height: 76pt,
+        hero-height: 48pt,
       ),
       hde-comparative-bar-chart(
         title: "PERFORMANCE & ALLOCATION BENCHMARK",
@@ -1792,7 +2436,6 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
         accent-color: accent-color,
       )
     )
-    v(3pt)
     jurat-box(
       signer-name: org-name,
       signer-role: profession,
@@ -1823,21 +2466,51 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(2.5pt)
     hde-kpi-strip-variation(
       variant: kpi-variant,
       metrics: metrics,
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(2pt)
-    hde-schedule-table-variation(
-      variant: table-variant,
-      rows: rows,
+    hde-section-header(
+      variant: section-header-variant,
+      sec-num: "01",
+      kicker: "SECTION 01 · SCHEDULE OF VALUES",
+      title: "CERTIFIED SCHEDULE OF VALUES & PROGRESS ALLOCATION",
+      subtitle: counterparty,
+      right-tag: doc-ref,
       primary-color: primary-color,
       accent-color: accent-color,
     )
-    v(2pt)
+    hde-schedule-table-variation(
+      variant: table-variant,
+      rows: rows,
+      summary-label: metrics.at(3).at(0),
+      summary-value: metrics.at(3).at(1),
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
+    hde-section-header(
+      variant: sec-hdr-2,
+      sec-num: "02",
+      kicker: "SECTION 02 · COVENANTS & TELEMETRY",
+      title: "ALIGNED COVENANTS, SCHEMATIC & MILESTONE GATES",
+      subtitle: org-name,
+      right-tag: metrics.at(3).at(1),
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
+    hde-text-alignment-block(
+      variant: text-alignment-variant,
+      org-name: org-name,
+      counterparty: counterparty,
+      profession: profession,
+      citation: citation,
+      demand-signal: demand-signal,
+      metrics: metrics,
+      primary-color: primary-color,
+      accent-color: accent-color,
+    )
     grid(
       columns: (1.25fr, 1fr),
       gutter: 8pt,
@@ -1848,7 +2521,7 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
         accent-hex: accent-hex,
         metric-a: metrics.at(0).at(1),
         metric-b: metrics.at(3).at(1),
-        hero-height: 76pt,
+        hero-height: 54pt,
       ),
       hde-comparative-bar-chart(
         title: "FINANCIAL & VALUATION BREAKDOWN",
@@ -1857,14 +2530,6 @@ pub const HALLMAN_EMBEDDED_GRAPHICS_TYP: &str = r##"
         accent-color: accent-color,
       ),
     )
-    v(2pt)
-    hde-milestone-timeline(
-      title: "EXECUTION MILESTONES, STATUTORY GATES & VERIFICATION TIMELINE",
-      steps: milestones,
-      primary-color: primary-color,
-      accent-color: accent-color,
-    )
-    v(2pt)
     jurat-box(
       signer-name: org-name,
       signer-role: profession,

@@ -47,6 +47,10 @@ fn test_compile_all_4_element_showcase_sheets_and_15_flagship_concept_pngs() {
 
     let sheets = [
         ("page_layouts", "showcase_sheet_page_layouts.png"),
+        (
+            "headers_and_alignments",
+            "showcase_sheet_headers_and_alignments.png",
+        ),
         ("mastheads", "showcase_sheet_mastheads.png"),
         ("tables_and_kpis", "showcase_sheet_tables_and_kpis.png"),
         (
