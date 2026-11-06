@@ -4,45 +4,26 @@
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+pub use hallman_doc_engine::{
+    escape_typst_string_literal, escape_typst_text, inject_acroform_fields,
+    inject_fillable_signature_acroform, should_inject_signature_acroform, AcroFormFieldSpec,
+    ReadabilityPreset,
+};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 
 /// Locate the Typst compiler binary on macOS or Linux systems.
 pub fn find_typst_executable() -> Option<PathBuf> {
-    if let Ok(path_str) = std::env::var("PRESSMARK_ENGINE_BIN").or_else(|_| std::env::var("PRESSMARK_TYPST_BIN")) {
+    if let Ok(path_str) =
+        std::env::var("PRESSMARK_ENGINE_BIN").or_else(|_| std::env::var("PRESSMARK_TYPST_BIN"))
+    {
         let p = PathBuf::from(path_str);
         if p.exists() {
             return Some(p);
         }
     }
-
-    let candidates = [
-        "/opt/homebrew/bin/typst",
-        "/usr/local/bin/typst",
-        "/usr/bin/typst",
-        "typst",
-    ];
-
-    for path_str in candidates {
-        if path_str == "typst" {
-            if let Ok(output) = Command::new("which").arg("typst").output() {
-                if output.status.success() {
-                    let p = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    if !p.is_empty() && Path::new(&p).exists() {
-                        return Some(PathBuf::from(p));
-                    }
-                }
-            }
-        } else {
-            let p = PathBuf::from(path_str);
-            if p.exists() {
-                return Some(p);
-            }
-        }
-    }
-
-    None
+    hallman_doc_engine::find_typst_executable()
 }
 
 /// Resolve the disk cache directory from `PRESSMARK_CACHE_DIR` or defaulting to `/tmp/pressmark_cache`.
@@ -282,6 +263,14 @@ pub fn compile_pdf_bytes(typst_markup: &str) -> Result<Vec<u8>, String> {
         return Err(format!("Pressmark vector PDF synthesis notice: {}", stderr));
     }
 
+    if should_inject_signature_acroform(typst_markup) {
+        if let Ok(interactive_bytes) =
+            inject_fillable_signature_acroform(&output.stdout, typst_markup)
+        {
+            return Ok(interactive_bytes);
+        }
+    }
+
     Ok(output.stdout)
 }
 
@@ -372,43 +361,4 @@ pub fn compile_png_bytes(typst_markup: &str, ppi: u32) -> Result<Vec<u8>, String
         .into_iter()
         .next()
         .ok_or_else(|| "Failed to extract page 1 from compiled vector pages.".to_string())
-}
-
-/// Escape special characters in text so Typst doesn't interpret @ as labels, $ as math, or [ ] # \ * _ ` < > ~ = as markup.
-pub fn escape_typst_text(text: &str) -> String {
-    let mut out = String::with_capacity(text.len() + 16);
-    for c in text.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '@' => out.push_str("\\@"),
-            '$' => out.push_str("\\$"),
-            '[' => out.push_str("\\["),
-            ']' => out.push_str("\\]"),
-            '#' => out.push_str("\\#"),
-            '*' => out.push_str("\\*"),
-            '_' => out.push_str("\\_"),
-            '`' => out.push_str("\\`"),
-            '<' => out.push_str("\\<"),
-            '>' => out.push_str("\\>"),
-            '~' => out.push_str("\\~"),
-            '=' => out.push_str("\\="),
-            _ => out.push(c),
-        }
-    }
-    out
-}
-
-/// Escape string literals inside Typst function arguments `"..."`
-pub fn escape_typst_string_literal(text: &str) -> String {
-    let mut out = String::with_capacity(text.len() + 16);
-    for c in text.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '"' => out.push_str("\\\""),
-            '\n' => out.push_str("\\n"),
-            '\r' => {}
-            _ => out.push(c),
-        }
-    }
-    out
 }

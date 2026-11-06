@@ -1,0 +1,10 @@
+[package]
+name = "hallman-doc-engine"
+version = "0.1.0"
+edition = "2021"
+authors = ["Daniel Hallman"]
+description = "Shared Typst vector document compilation, legibility preset, and interactive AcroForm PDF signature engine for Untax and Pressmark"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+lopdf = { version = "0.45", default-features = false }

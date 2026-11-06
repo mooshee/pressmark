@@ -246,3 +246,32 @@ fn compliance_and_property_templates_do_not_attest_to_missing_facts() {
     save_evidence("compliance-note", "pdf", &pdf);
     save_evidence("compliance-note", "png", &png);
 }
+
+#[test]
+fn wet_ink_and_unsigned_documents_embed_interactive_acroform_signature_fields() {
+    let mut req = sample();
+    req.doc_type = DocumentType::Agreement;
+    req.execution_mode = Some("wet_ink".to_string());
+    let (pdf, _) = generate_pdf(&req).expect("wet-ink agreement compiles");
+    let doc = lopdf::Document::load_mem(&pdf).expect("valid PDF structure");
+    let catalog = doc.catalog().expect("PDF catalog present");
+    assert!(
+        catalog.has(b"AcroForm"),
+        "Expected interactive /AcroForm fillable signature and date fields in compiled Pressmark PDF"
+    );
+
+    let high_leg_builder = PressmarkDocumentBuilder::new()
+        .title("ACCESSIBLE SERVICE AGREEMENT")
+        .branding(pressmark::DocumentBrandingConfig::high_legibility("Pressmark Accessible"))
+        .add_jurat(JuratConfig {
+            signature_type: pressmark::ExecutionMode::WetInk,
+            notary_required: true,
+            ..Default::default()
+        });
+    let high_leg_pdf = high_leg_builder.compile_pdf_bytes().expect("high legibility PDF compiles");
+    let hl_doc = lopdf::Document::load_mem(&high_leg_pdf).expect("valid high-legibility PDF");
+    assert!(
+        hl_doc.catalog().unwrap().has(b"AcroForm"),
+        "Expected /AcroForm fields in high-legibility builder PDF"
+    );
+}

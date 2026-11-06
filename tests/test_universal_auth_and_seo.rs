@@ -355,3 +355,51 @@ async fn test_plans_redirect_and_crawler_manifests() {
     assert_eq!(tdm_json["tdm-reservation"], 1);
     assert_eq!(tdm_json["policy"], "https://pressmark.dev/terms");
 }
+
+#[tokio::test]
+async fn test_elements_hub_and_concepts_customizer_routes() {
+    let app = setup_test_app();
+
+    let req_hub = Request::builder()
+        .uri("/elements")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_hub = app.clone().oneshot(req_hub).await.unwrap();
+    assert_eq!(res_hub.status(), StatusCode::OK);
+    let hub_bytes = axum::body::to_bytes(res_hub.into_body(), 2 * 1024 * 1024)
+        .await
+        .unwrap();
+    let hub_html = String::from_utf8_lossy(&hub_bytes);
+    assert!(hub_html.contains("50 Profession Document Concepts"));
+    assert!(hub_html.contains("application/ld+json"));
+    assert!(hub_html.contains("AIA G702/G703 Style Progress Billing &amp; Schedule of Values"));
+
+    let req_detail = Request::builder()
+        .uri("/concepts/aia-g702-g703-progress-billing-draw-schedule")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_detail = app.clone().oneshot(req_detail).await.unwrap();
+    assert_eq!(res_detail.status(), StatusCode::OK);
+    let detail_bytes = axum::body::to_bytes(res_detail.into_body(), 2 * 1024 * 1024)
+        .await
+        .unwrap();
+    let detail_html = String::from_utf8_lossy(&detail_bytes);
+    assert!(detail_html.contains("Open Live Element Customizer"));
+    assert!(detail_html.contains("AIA G702/G703 Style Progress Billing &amp; Schedule of Values"));
+
+    let req_cat = Request::builder()
+        .uri("/api/v1/concepts/catalog.json")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_cat = app.clone().oneshot(req_cat).await.unwrap();
+    assert_eq!(res_cat.status(), StatusCode::OK);
+    let cat_bytes = axum::body::to_bytes(res_cat.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    let cat_json: Value = serde_json::from_slice(&cat_bytes).unwrap();
+    assert_eq!(cat_json.as_array().unwrap().len(), 50);
+}
+

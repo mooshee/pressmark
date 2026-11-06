@@ -19,6 +19,16 @@
     accent_color: '#06b6d4',
     surface_color: '#f8fafc',
     layout_style: 'standard',
+    parties_style: 'standard',
+    from_style: 'standard',
+    to_style: 'standard',
+    fields_style: 'standard',
+    table_style: 'standard',
+    totals_style: 'standard',
+    payment_style: 'standard',
+    notes_style: 'standard',
+    sections_style: 'standard',
+    signature_style: 'standard',
     font_family: 'sans',
     font_scale: 'standard',
     spacing_density: 'standard',
@@ -321,65 +331,175 @@
       universal: true,
       canDelete: true,
       variants: [
-        { id: 'standard', label: 'Standard Identity Card' },
-        { id: 'badged', label: 'Badged Primary Bar' },
+        { id: 'standard', label: 'Accent Left Bar Card' },
+        { id: 'badged', label: 'Top Header Ribbon Card' },
+        { id: 'minimal', label: 'Clean Minimal Hairline' },
+        { id: 'boxed_grid', label: 'Boxed Ledger Card' },
+        { id: 'editorial_split', label: 'Editorial Serif Callout' },
+        { id: 'stacked_banner', label: 'Full-Width Stacked Row' },
       ],
-      current: () => 'standard',
-      apply: () => {}
+      current: () => state.from_style || state.parties_style || 'standard',
+      apply: (variant) => {
+        state.from_style = variant;
+        if (variant === 'stacked_banner') state.parties_style = 'stacked_banner';
+        ['fromStyleSelect', 'designPartiesStyleSelect'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = variant;
+        });
+      }
     },
     to: {
-      name: 'Recipient Party Card',
+      name: 'Billed To / Tenant Party Card',
       universal: true,
       canDelete: true,
       variants: [
-        { id: 'standard', label: 'Standard Recipient Card' },
-        { id: 'badged', label: 'Badged Secondary Bar' },
+        { id: 'standard', label: 'Accent Left Bar Card' },
+        { id: 'badged', label: 'Top Header Ribbon Card' },
+        { id: 'minimal', label: 'Clean Minimal Hairline' },
+        { id: 'boxed_grid', label: 'Boxed Ledger Card' },
+        { id: 'editorial_split', label: 'Editorial Serif Callout' },
+        { id: 'stacked_banner', label: 'Full-Width Stacked Row' },
       ],
-      current: () => 'standard',
-      apply: () => {}
+      current: () => state.to_style || state.parties_style || 'standard',
+      apply: (variant) => {
+        state.to_style = variant;
+        if (variant === 'stacked_banner') state.parties_style = 'stacked_banner';
+        ['toStyleSelect', 'designToStyleSelect'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = variant;
+        });
+      }
     },
     item: {
-      name: 'Line Items Ledger Row',
+      name: 'Line Items & Schedule Table',
       universal: false,
       canDelete: true,
       canDuplicate: true,
+      variants: [
+        { id: 'standard', label: 'Zebra Striped Grid' },
+        { id: 'minimal_lines', label: 'Minimal Horizontal Rules' },
+        { id: 'bordered_ledger', label: 'Full Accounting Ledger' },
+        { id: 'modern_cards', label: 'Solid Accent Header' },
+        { id: 'compact_mono', label: 'Compact Monospace' },
+      ],
+      current: () => state.table_style || 'standard',
+      apply: (variant) => {
+        state.table_style = variant;
+        ['tableStyleSelect', 'designTableStyleSelect'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = variant;
+        });
+      }
     },
     totals: {
       name: 'Financial Summary & Totals',
       universal: false,
       canDelete: true,
       variants: [
-        { id: 'standard', label: 'Standard Balanced Totals' },
-        { id: 'compact', label: 'Compact Totals Bar' },
+        { id: 'standard', label: 'Right-Aligned Summary' },
+        { id: 'card_highlight', label: 'Highlighted Summary Card' },
+        { id: 'banner_bar', label: 'Full-Width Total Banner' },
+        { id: 'compact', label: 'Compact Summary Strip' },
+        { id: 'split_ledger', label: 'Framed Accounting Box' },
       ],
-      current: () => 'standard',
-      apply: () => {}
+      current: () => state.totals_style || 'standard',
+      apply: (variant) => {
+        state.totals_style = variant;
+        ['totalsStyleSelect', 'designTotalsStyleSelect'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = variant;
+        });
+      }
     },
     section: {
       name: 'Custom Clause & Section',
       universal: true,
       canDelete: true,
       canDuplicate: true,
+      variants: [
+        { id: 'standard', label: 'Underlined Heading' },
+        { id: 'callout_card', label: 'Framed Callout Card' },
+        { id: 'left_accent', label: 'Left Accent Bar' },
+        { id: 'numbered_legal', label: 'Indented Legal Clause' },
+      ],
+      current: () => state.sections_style || 'standard',
+      apply: (variant) => {
+        state.sections_style = variant;
+        const el = document.getElementById('sectionsStyleSelect');
+        if (el) el.value = variant;
+      }
     },
     signature: {
       name: 'Signatory Attestation Block',
       universal: true,
       canDelete: true,
+      variants: [
+        { id: 'standard', label: 'Classic Signature Lines' },
+        { id: 'framed_box', label: 'Framed Execution Cards' },
+        { id: 'formal_deed', label: 'Formal Witnessed Block' },
+        { id: 'minimal_compact', label: 'Compact Sign-Off Row' },
+      ],
+      current: () => state.signature_style || 'standard',
+      apply: (variant) => {
+        state.signature_style = variant;
+        ['signatureStyleSelect', 'designSignatureStyleSelect'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = variant;
+        });
+      }
     },
     custom_field: {
-      name: 'Custom Metadata Attribute',
+      name: 'Metadata & Property Fields',
       universal: true,
       canDelete: true,
+      variants: [
+        { id: 'standard', label: 'Two-Column Info Cards' },
+        { id: 'compact_strip', label: 'Horizontal Summary Strip' },
+        { id: 'ledger_table', label: 'Bordered Specification Table' },
+        { id: 'minimal_list', label: 'Clean Key-Value Hairlines' },
+      ],
+      current: () => state.fields_style || 'standard',
+      apply: (variant) => {
+        state.fields_style = variant;
+        ['fieldsStyleSelect', 'designFieldsStyleSelect'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = variant;
+        });
+      }
     },
     notes: {
       name: 'Payment Instructions & Notes',
       universal: true,
       canDelete: true,
+      variants: [
+        { id: 'standard', label: 'Tinted Summary Card' },
+        { id: 'left_accent', label: 'Left Accent Bar' },
+        { id: 'callout_card', label: 'Framed Callout Card' },
+        { id: 'numbered_legal', label: 'Formal Legal Heading' },
+      ],
+      current: () => state.notes_style || 'standard',
+      apply: (variant) => {
+        state.notes_style = variant;
+        const el = document.getElementById('notesStyleSelect');
+        if (el) el.value = variant;
+      }
     },
     terms: {
       name: 'Statutory Terms & Covenants',
       universal: true,
       canDelete: true,
+      variants: [
+        { id: 'standard', label: 'Underlined Heading' },
+        { id: 'callout_card', label: 'Framed Callout Card' },
+        { id: 'left_accent', label: 'Left Accent Bar' },
+        { id: 'numbered_legal', label: 'Indented Legal Clause' },
+      ],
+      current: () => state.sections_style || 'standard',
+      apply: (variant) => {
+        state.sections_style = variant;
+        const el = document.getElementById('sectionsStyleSelect');
+        if (el) el.value = variant;
+      }
     },
   };
 
@@ -393,6 +513,16 @@
       theme: 'modern_slate',
       primary_color: '#4f46e5',
       layout_style: 'standard',
+      parties_style: 'standard',
+      from_style: 'standard',
+      to_style: 'badged',
+      fields_style: 'standard',
+      table_style: 'standard',
+      totals_style: 'card_highlight',
+      payment_style: 'standard',
+      notes_style: 'standard',
+      sections_style: 'standard',
+      signature_style: 'standard',
       background_style: 'white',
       footer_text: 'PROPRIETARY FLIGHT SYSTEMS TELEMETRY · AUDITED RECORD',
       currency: 'USD',
@@ -431,6 +561,14 @@
       theme: 'executive_navy',
       primary_color: '#1e3a8a',
       layout_style: 'framed',
+      parties_style: 'editorial_split',
+      from_style: 'editorial_split',
+      to_style: 'editorial_split',
+      fields_style: 'compact_strip',
+      table_style: 'bordered_ledger',
+      totals_style: 'split_ledger',
+      sections_style: 'numbered_legal',
+      signature_style: 'formal_deed',
       background_style: 'parchment',
       footer_text: 'PRIVILEGED & CONFIDENTIAL · SOLICITOR-CLIENT RETENTION',
       currency: 'GBP',
@@ -474,6 +612,14 @@
       theme: 'warm_sand',
       primary_color: '#b45309',
       layout_style: 'standard',
+      parties_style: 'badged',
+      from_style: 'badged',
+      to_style: 'boxed_grid',
+      fields_style: 'ledger_table',
+      table_style: 'modern_cards',
+      totals_style: 'banner_bar',
+      sections_style: 'callout_card',
+      signature_style: 'framed_box',
       background_style: 'slate_tint',
       footer_text: 'CANYON PEAK BUILDERS · LICENSED & BONDED GENERAL CONTRACTOR',
       currency: 'USD',
@@ -512,6 +658,14 @@
       theme: 'royal_violet',
       primary_color: '#7c3aed',
       layout_style: 'swiss_grid',
+      parties_style: 'minimal',
+      from_style: 'minimal',
+      to_style: 'minimal',
+      fields_style: 'minimal_list',
+      table_style: 'minimal_lines',
+      totals_style: 'compact',
+      sections_style: 'left_accent',
+      signature_style: 'minimal_compact',
       background_style: 'marble_vellum',
       font_family: 'grotesk',
       font_scale: 'standard',
@@ -2566,6 +2720,59 @@
     bind('spacingDensitySelect', 'spacing_density');
     bind('paperSizeSelect', 'paper_size');
     bind('layoutStyleSelect', 'layout_style');
+    bind('paymentStyleSelect', 'payment_style');
+    bind('notesStyleSelect', 'notes_style');
+    bind('sectionsStyleSelect', 'sections_style');
+
+    const bindSyncedStylePair = (ids, stateKey, onExtra) => {
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', (e) => {
+          const val = e.target.value;
+          pushUndo(`Change ${stateKey}`);
+          hasUserCustomizedData = true;
+          state[stateKey] = val;
+          ids.forEach(otherId => {
+            const otherEl = document.getElementById(otherId);
+            if (otherEl && otherEl.value !== val) otherEl.value = val;
+          });
+          if (onExtra) onExtra(val);
+          schedulePreview();
+        });
+      });
+    };
+
+    const partiesSel = document.getElementById('partiesStyleSelect');
+    if (partiesSel) {
+      partiesSel.addEventListener('change', (e) => {
+        const val = e.target.value;
+        pushUndo('Change party blocks style');
+        hasUserCustomizedData = true;
+        state.parties_style = val;
+        state.from_style = val;
+        state.to_style = val;
+        ['fromStyleSelect', 'toStyleSelect', 'designPartiesStyleSelect', 'designToStyleSelect'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = val;
+        });
+        schedulePreview();
+      });
+    }
+
+    bindSyncedStylePair(['fromStyleSelect', 'designPartiesStyleSelect'], 'from_style', (val) => {
+      if (val === 'stacked_banner') state.parties_style = 'stacked_banner';
+      else if (state.parties_style === 'stacked_banner' && state.to_style !== 'stacked_banner') state.parties_style = val;
+    });
+    bindSyncedStylePair(['toStyleSelect', 'designToStyleSelect'], 'to_style', (val) => {
+      if (val === 'stacked_banner') state.parties_style = 'stacked_banner';
+      else if (state.parties_style === 'stacked_banner' && state.from_style !== 'stacked_banner') state.parties_style = val;
+    });
+    bindSyncedStylePair(['tableStyleSelect', 'designTableStyleSelect'], 'table_style');
+    bindSyncedStylePair(['totalsStyleSelect', 'designTotalsStyleSelect'], 'totals_style');
+    bindSyncedStylePair(['fieldsStyleSelect', 'designFieldsStyleSelect'], 'fields_style');
+    bindSyncedStylePair(['signatureStyleSelect', 'designSignatureStyleSelect'], 'signature_style');
+
     bind('notesInput', 'notes');
     bind('termsInput', 'terms');
     bind('taxRateInput', 'tax_rate');
@@ -5105,6 +5312,22 @@
     setVal('dueDate', state.due_date);
     setVal('primaryColorInput', state.primary_color);
     setVal('layoutStyleSelect', state.layout_style || 'standard');
+    setVal('partiesStyleSelect', state.parties_style || 'standard');
+    setVal('fromStyleSelect', state.from_style || state.parties_style || 'standard');
+    setVal('designPartiesStyleSelect', state.from_style || state.parties_style || 'standard');
+    setVal('toStyleSelect', state.to_style || state.parties_style || 'standard');
+    setVal('designToStyleSelect', state.to_style || state.parties_style || 'standard');
+    setVal('tableStyleSelect', state.table_style || 'standard');
+    setVal('designTableStyleSelect', state.table_style || 'standard');
+    setVal('totalsStyleSelect', state.totals_style || 'standard');
+    setVal('designTotalsStyleSelect', state.totals_style || 'standard');
+    setVal('fieldsStyleSelect', state.fields_style || 'standard');
+    setVal('designFieldsStyleSelect', state.fields_style || 'standard');
+    setVal('signatureStyleSelect', state.signature_style || 'standard');
+    setVal('designSignatureStyleSelect', state.signature_style || 'standard');
+    setVal('sectionsStyleSelect', state.sections_style || 'standard');
+    setVal('notesStyleSelect', state.notes_style || 'standard');
+    setVal('paymentStyleSelect', state.payment_style || 'standard');
     setVal('fontFamilySelect', state.font_family || 'sans');
     setVal('fontScaleSelect', state.font_scale || 'standard');
     setVal('spacingDensitySelect', state.spacing_density || 'standard');
@@ -5595,11 +5818,24 @@
       }
     }
 
-    // 3. Differentiated Party Badges & Roles
+    // 3. Differentiated Party Badges, Roles & Contextual Block Style Labels
     if (fromBadge) fromBadge.innerText = tax.fromBadge;
     if (fromRole) fromRole.innerText = tax.fromRole;
     if (toBadge) toBadge.innerText = tax.toBadge;
     if (toRole) toRole.innerText = tax.toRole;
+
+    const cleanFromTitle = tax.fromBadge.replace(/^[●○]\s*/, '');
+    const cleanToTitle = tax.toBadge.replace(/^[●○]\s*/, '');
+    const designFromLbl = document.getElementById('designFromStyleLabel');
+    const designToLbl = document.getElementById('designToStyleLabel');
+    const fromStyleSel = document.getElementById('fromStyleSelect');
+    const toStyleSel = document.getElementById('toStyleSelect');
+    if (designFromLbl) designFromLbl.textContent = `${cleanFromTitle} Style`;
+    if (designToLbl) designToLbl.textContent = `${cleanToTitle} Style`;
+    if (fromStyleSel) fromStyleSel.setAttribute('aria-label', `${cleanFromTitle} block style`);
+    if (toStyleSel) toStyleSel.setAttribute('aria-label', `${cleanToTitle} block style`);
+    if (COMPONENT_SYSTEM.from) COMPONENT_SYSTEM.from.name = `${cleanFromTitle} Card`;
+    if (COMPONENT_SYSTEM.to) COMPONENT_SYSTEM.to.name = `${cleanToTitle} Card`;
 
     // 4. Prescriptive Totals Label
     if (grandTotalLabel) {
@@ -6849,6 +7085,8 @@
         'accent_color', 'surface_color', 'text_color', 'font_family', 'font_scale', 'paper_size', 'logo_data',
         'signature_data', 'signer_name', 'signer_title', 'currency', 'notes', 'terms', 'header_subtitle',
         'footer_text', 'background_style', 'status', 'watermark', 'compliance_mode', 'layout_style',
+        'parties_style', 'from_style', 'to_style', 'fields_style', 'table_style', 'totals_style',
+        'payment_style', 'notes_style', 'sections_style', 'signature_style',
         'spacing_density', 'execution_mode', 'branding_mode', 'audit_hash', 'currency_symbol_mode',
         'currency_placement', 'currency_separators', 'date_format', 'phone_format', 'unit_measure',
         'payment_link', 'payment_status', 'payment_method', 'paid_at', 'transaction_reference',

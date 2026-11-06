@@ -522,9 +522,17 @@
               </div>
             </div>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; margin-bottom: 6px;">
-              <span style="font-size: 11px; font-weight: 700; color: #818cf8;">CUSTOM METADATA FIELDS</span>
-              <button class="btn btn-secondary btn-sm" id="btnAddField">+ Add Field</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; margin-bottom: 6px; flex-wrap: wrap;">
+              <span style="font-size: 11px; font-weight: 700; color: #818cf8;" id="customFieldsHeaderLabel">CUSTOM METADATA FIELDS</span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <select id="fieldsStyleSelect" class="form-select-xs block-style-select" aria-label="Metadata fields style" title="Choose visual style for custom metadata and property fields">
+                  <option value="standard" selected>Style: Two-Column Cards</option>
+                  <option value="compact_strip">Style: Horizontal Strip</option>
+                  <option value="ledger_table">Style: Bordered Table</option>
+                  <option value="minimal_list">Style: Minimal Hairlines</option>
+                </select>
+                <button class="btn btn-secondary btn-sm" id="btnAddField">+ Add Field</button>
+              </div>
             </div>
             <div id="customFieldsContainer">
               <!-- Dynamically populated by studio.js -->
@@ -539,6 +547,18 @@
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
+            <div class="block-style-bar">
+              <label class="form-label" for="partiesStyleSelect" id="partiesStyleLabel" style="margin-bottom: 0;">Party blocks style</label>
+              <select id="partiesStyleSelect" class="form-select-xs block-style-select" title="Choose layout style for both party blocks">
+                <option value="standard" selected>Accent Left Bar Cards</option>
+                <option value="badged">Top Header Ribbon Cards</option>
+                <option value="minimal">Clean Minimal Hairlines</option>
+                <option value="boxed_grid">Boxed Ledger Cards</option>
+                <option value="editorial_split">Editorial Serif Callouts</option>
+                <option value="stacked_banner">Full-Width Stacked Rows</option>
+              </select>
+            </div>
+
             <!-- ISSUER / ORIGINATOR SUB-CARD -->
             <div class="party-subcard party-from-subcard">
               <div class="party-subcard-header">
@@ -547,6 +567,14 @@
                   <span class="party-role-hint" id="fromPartyRoleHint">Primary Authority</span>
                 </div>
                 <div class="party-actions-group">
+                  <select id="fromStyleSelect" class="form-select-xs block-style-select" aria-label="Issuer block style" title="Override visual style for the Issuer / Landlord block">
+                    <option value="standard" selected>Style: Accent Bar</option>
+                    <option value="badged">Style: Header Ribbon</option>
+                    <option value="minimal">Style: Minimal Rule</option>
+                    <option value="boxed_grid">Style: Boxed Ledger</option>
+                    <option value="editorial_split">Style: Editorial</option>
+                    <option value="stacked_banner">Style: Stacked Row</option>
+                  </select>
                   <button type="button" class="btn btn-xs btn-secondary" id="btnSaveIssuerProfile" title="Save this business profile to browser storage so it is remembered on every document">💾 Save Profile</button>
                   <button type="button" class="btn btn-xs btn-secondary" id="btnResetIssuerProfile" title="Reset to default company">🔄 Reset</button>
                 </div>
@@ -591,7 +619,15 @@
                   <span class="party-role-hint" id="toPartyRoleHint">Counterparty</span>
                 </div>
                 <div class="party-actions-group">
-                  <select id="counterpartyQuickSelect" class="form-select-xs" title="Select from saved client directory">
+                  <select id="toStyleSelect" class="form-select-xs block-style-select" aria-label="Recipient or Tenant block style" title="Override visual style for the Billed To / Tenant block">
+                    <option value="standard" selected>Style: Accent Bar</option>
+                    <option value="badged">Style: Header Ribbon</option>
+                    <option value="minimal">Style: Minimal Rule</option>
+                    <option value="boxed_grid">Style: Boxed Ledger</option>
+                    <option value="editorial_split">Style: Editorial</option>
+                    <option value="stacked_banner">Style: Stacked Row</option>
+                  </select>
+                  <select id="counterpartyQuickSelect" class="form-select-xs" aria-label="Saved contacts directory" title="Select from saved client directory">
                     <option value="">👤 Contacts (0)</option>
                   </select>
                   <button type="button" class="btn btn-xs btn-secondary" id="btnSaveCounterparty" title="Save this client to your directory">⭐ Save</button>
@@ -639,7 +675,17 @@
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
-            <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+            <div class="block-style-bar" style="margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <label class="form-label" for="tableStyleSelect" id="tableStyleLabel" style="margin-bottom: 0;">Table style</label>
+                <select id="tableStyleSelect" class="form-select-xs block-style-select" title="Choose visual style for the line items or rent schedule table">
+                  <option value="standard" selected>Zebra Striped Grid</option>
+                  <option value="minimal_lines">Minimal Horizontal Rules</option>
+                  <option value="bordered_ledger">Full Accounting Ledger</option>
+                  <option value="modern_cards">Solid Accent Header</option>
+                  <option value="compact_mono">Compact Monospace</option>
+                </select>
+              </div>
               <button class="btn btn-secondary btn-sm" id="btnAddItem">+ Add Item Row</button>
             </div>
 
@@ -668,6 +714,17 @@
                 <label class="form-label">Discount ($)</label>
                 <input type="number" step="10" id="discountInput" class="form-input" value="250">
               </div>
+            </div>
+
+            <div class="block-style-bar" style="margin-top: 8px; margin-bottom: 4px;">
+              <label class="form-label" for="totalsStyleSelect" id="totalsStyleLabel" style="margin-bottom: 0;">Summary box style</label>
+              <select id="totalsStyleSelect" class="form-select-xs block-style-select" title="Choose visual style for the financial totals summary block">
+                <option value="standard" selected>Right-Aligned Summary</option>
+                <option value="card_highlight">Highlighted Summary Card</option>
+                <option value="banner_bar">Full-Width Total Banner</option>
+                <option value="compact">Compact Summary Strip</option>
+                <option value="split_ledger">Framed Accounting Box</option>
+              </select>
             </div>
 
             <div class="totals-box">
@@ -737,9 +794,19 @@
               </div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Transaction Reference (When Paid)</label>
-              <input type="text" id="transactionRefInput" class="form-input" placeholder="e.g. ch_3Mwj4x2eZvKYlo2C1g9J / STRIPE-REC-9021">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Transaction Reference (When Paid)</label>
+                <input type="text" id="transactionRefInput" class="form-input" placeholder="e.g. ch_3Mwj4x2eZvKYlo2C1g9J / STRIPE-REC-9021">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="paymentStyleSelect">Payment Block Style</label>
+                <select id="paymentStyleSelect" class="form-select">
+                  <option value="standard" selected>Scan-to-Pay Card</option>
+                  <option value="banner">High-Contrast Checkout Banner</option>
+                  <option value="minimal_inline">Compact Remittance Row</option>
+                </select>
+              </div>
             </div>
 
             <div class="feature-toggles-grid" style="margin-top: 10px;">
@@ -992,7 +1059,7 @@
             </div>
 
             <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Visual Layout Style</label>
+              <label class="form-label" for="layoutStyleSelect">Header Layout Style</label>
               <select id="layoutStyleSelect" class="form-select">
                 <option value="standard" selected>Standard Clean Header</option>
                 <option value="modern_banner">Modern Accent Banner</option>
@@ -1004,6 +1071,76 @@
                 <option value="framed">Executive Border Frame</option>
                 <option value="minimal">Minimalist Direct</option>
               </select>
+            </div>
+
+            <div class="block-styles-panel" id="designBlockStylesPanel">
+              <div class="block-styles-panel-title">Content Block Styles</div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="designPartiesStyleSelect" id="designFromStyleLabel">Issuer / Landlord Style</label>
+                  <select id="designPartiesStyleSelect" class="form-select">
+                    <option value="standard" selected>Accent Left Bar Cards</option>
+                    <option value="badged">Top Header Ribbon Cards</option>
+                    <option value="minimal">Clean Minimal Hairlines</option>
+                    <option value="boxed_grid">Boxed Ledger Cards</option>
+                    <option value="editorial_split">Editorial Serif Callouts</option>
+                    <option value="stacked_banner">Full-Width Stacked Rows</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="designToStyleSelect" id="designToStyleLabel">Billed To / Tenant Style</label>
+                  <select id="designToStyleSelect" class="form-select">
+                    <option value="standard" selected>Accent Left Bar Card</option>
+                    <option value="badged">Top Header Ribbon Card</option>
+                    <option value="minimal">Clean Minimal Hairline</option>
+                    <option value="boxed_grid">Boxed Ledger Card</option>
+                    <option value="editorial_split">Editorial Serif Callout</option>
+                    <option value="stacked_banner">Full-Width Stacked Row</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="designTableStyleSelect" id="designTableStyleLabel">Line Items &amp; Schedule Style</label>
+                  <select id="designTableStyleSelect" class="form-select">
+                    <option value="standard" selected>Zebra Striped Grid</option>
+                    <option value="minimal_lines">Minimal Horizontal Rules</option>
+                    <option value="bordered_ledger">Full Accounting Ledger</option>
+                    <option value="modern_cards">Solid Accent Header</option>
+                    <option value="compact_mono">Compact Monospace</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="designTotalsStyleSelect" id="designTotalsStyleLabel">Totals &amp; Summary Style</label>
+                  <select id="designTotalsStyleSelect" class="form-select">
+                    <option value="standard" selected>Right-Aligned Summary</option>
+                    <option value="card_highlight">Highlighted Summary Card</option>
+                    <option value="banner_bar">Full-Width Total Banner</option>
+                    <option value="compact">Compact Summary Strip</option>
+                    <option value="split_ledger">Framed Accounting Box</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="designFieldsStyleSelect" id="designFieldsStyleLabel">Metadata &amp; Property Fields</label>
+                  <select id="designFieldsStyleSelect" class="form-select">
+                    <option value="standard" selected>Two-Column Info Cards</option>
+                    <option value="compact_strip">Horizontal Summary Strip</option>
+                    <option value="ledger_table">Bordered Specification Table</option>
+                    <option value="minimal_list">Clean Key-Value Hairlines</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="designSignatureStyleSelect" id="designSignatureStyleLabel">Signatures &amp; Execution</label>
+                  <select id="designSignatureStyleSelect" class="form-select">
+                    <option value="standard" selected>Classic Signature Lines</option>
+                    <option value="framed_box">Framed Execution Cards</option>
+                    <option value="formal_deed">Formal Witnessed Block</option>
+                    <option value="minimal_compact">Compact Sign-Off Row</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <div class="form-row">
@@ -1187,8 +1324,16 @@
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 11px; color: var(--text-secondary);">Add bespoke contractual clauses or deliverable sections:</span>
+            <div class="block-style-bar" style="margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <label class="form-label" for="sectionsStyleSelect" style="margin-bottom: 0;">Clause style</label>
+                <select id="sectionsStyleSelect" class="form-select-xs block-style-select" title="Choose visual style for custom sections and clauses">
+                  <option value="standard" selected>Underlined Heading</option>
+                  <option value="callout_card">Framed Callout Card</option>
+                  <option value="left_accent">Left Accent Bar</option>
+                  <option value="numbered_legal">Indented Legal Clause</option>
+                </select>
+              </div>
               <button class="btn btn-secondary btn-sm" id="btnAddSection">+ Add Section</button>
             </div>
             <div id="sectionsContainer">
@@ -1204,8 +1349,16 @@
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 11px; color: var(--text-secondary);">Dynamic signatories & individual canvas pads:</span>
+            <div class="block-style-bar" style="margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <label class="form-label" for="signatureStyleSelect" style="margin-bottom: 0;">Signature style</label>
+                <select id="signatureStyleSelect" class="form-select-xs block-style-select" title="Choose visual style for signature blocks">
+                  <option value="standard" selected>Classic Signature Lines</option>
+                  <option value="framed_box">Framed Execution Cards</option>
+                  <option value="formal_deed">Formal Witnessed Block</option>
+                  <option value="minimal_compact">Compact Sign-Off Row</option>
+                </select>
+              </div>
               <button class="btn btn-secondary btn-sm" id="btnAddSignature">+ Add Signatory</button>
             </div>
             <div id="signaturesContainer">
@@ -1221,6 +1374,15 @@
             <span class="card-chevron">▼</span>
           </div>
           <div class="card-body">
+            <div class="block-style-bar" style="margin-bottom: 8px;">
+              <label class="form-label" for="notesStyleSelect" style="margin-bottom: 0;">Notes block style</label>
+              <select id="notesStyleSelect" class="form-select-xs block-style-select" title="Choose visual style for the notes and instructions block">
+                <option value="standard" selected>Tinted Summary Card</option>
+                <option value="left_accent">Left Accent Bar</option>
+                <option value="callout_card">Framed Callout Card</option>
+                <option value="numbered_legal">Formal Legal Heading</option>
+              </select>
+            </div>
             <div class="form-group">
               <label class="form-label">Payment Instructions / Notes</label>
               <textarea id="notesInput" class="form-textarea" rows="2"></textarea>

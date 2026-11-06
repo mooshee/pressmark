@@ -117,6 +117,15 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/templates/", get(handle_index))
         .route("/templates/:slug", get(handle_template_landing))
         .route("/templates/:slug/", get(handle_template_landing_trailing))
+        .route("/elements", get(crate::concepts_showcase::handle_pressmark_elements_hub))
+        .route("/elements/", get(crate::concepts_showcase::handle_pressmark_elements_hub))
+        .route("/concepts", get(crate::concepts_showcase::handle_pressmark_elements_hub))
+        .route("/concepts/", get(crate::concepts_showcase::handle_pressmark_elements_hub))
+        .route("/concepts/:slug", get(crate::concepts_showcase::handle_pressmark_concept_detail))
+        .route("/api/v1/concepts/catalog.json", get(crate::concepts_showcase::handle_pressmark_concepts_catalog_json))
+        .route("/api/v1/concepts/:slug/preview.png", get(crate::concepts_showcase::handle_pressmark_concept_preview_png))
+        .route("/api/v1/concepts/:slug/sample.pdf", get(crate::concepts_showcase::handle_pressmark_concept_sample_pdf))
+        .route("/assets/seals/:filename", get(crate::concepts_showcase::handle_pressmark_seal_asset))
         .route("/favicon.ico", get(handle_favicon))
         .route("/favicon.svg", get(handle_favicon))
         .route("/favicon.png", get(handle_favicon))
@@ -895,6 +904,7 @@ async fn handle_sitemap() -> impl IntoResponse {
     xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
     xml.push_str("  <url><loc>https://pressmark.dev/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n");
+    xml.push_str("  <url><loc>https://pressmark.dev/elements</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>\n");
     xml.push_str("  <url><loc>https://pressmark.dev/pricing</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>\n");
     xml.push_str("  <url><loc>https://pressmark.dev/privacy</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>\n");
     xml.push_str("  <url><loc>https://pressmark.dev/terms</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>\n");
@@ -923,6 +933,13 @@ async fn handle_sitemap() -> impl IntoResponse {
         xml.push_str(&format!(
             "  <url><loc>https://pressmark.dev/templates/{}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n",
             extra_slug
+        ));
+    }
+
+    for concept in hallman_doc_engine::catalog::ARCHETYPE_CONCEPTS_50 {
+        xml.push_str(&format!(
+            "  <url><loc>https://pressmark.dev/concepts/{}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n",
+            concept.slug
         ));
     }
 

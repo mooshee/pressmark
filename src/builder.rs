@@ -475,7 +475,7 @@ impl PressmarkDocumentBuilder {
         };
 
         markup.push_str(&format!(
-            "#show: doc => document-layout(\n  title: \"{}\",\n  subtitle: \"{}\",\n  jurisdiction: \"{}\",\n  docket: {},\n  parcel-id: \"{}\",\n  tax-year: \"{}\",\n  recordable: {},\n  branding: (\n    org-name: \"{}\",\n    header-left: \"{}\",\n    footer-left: \"{}\",\n    footer-center: \"{}\",\n    disclaimer: \"{}\",\n    accent-primary: rgb(\"{}\")\n  ),\n  doc\n)\n\n",
+            "#show: doc => document-layout(\n  title: \"{}\",\n  subtitle: \"{}\",\n  jurisdiction: \"{}\",\n  docket: {},\n  parcel-id: \"{}\",\n  tax-year: \"{}\",\n  recordable: {},\n  branding: (\n    org-name: \"{}\",\n    readability-preset: \"{}\",\n    header-left: \"{}\",\n    footer-left: \"{}\",\n    footer-center: \"{}\",\n    disclaimer: \"{}\",\n    accent-primary: rgb(\"{}\")\n  ),\n  doc\n)\n\n",
             escape_typst_string(&self.title),
             escape_typst_string(&self.subtitle),
             escape_typst_string(&self.jurisdiction),
@@ -484,6 +484,7 @@ impl PressmarkDocumentBuilder {
             escape_typst_string(&self.tax_year),
             self.recordable,
             escape_typst_string(&self.branding.org_name),
+            self.branding.readability_preset.as_typst_id(),
             escape_typst_string(self.branding.header_left.as_deref().unwrap_or("")),
             escape_typst_string(self.branding.footer_left.as_deref().unwrap_or("")),
             escape_typst_string(self.branding.footer_center.as_deref().unwrap_or("")),

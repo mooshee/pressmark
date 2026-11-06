@@ -1,6 +1,7 @@
 // Pressmark Vector Document Engine: Multi-Tenant White-Labeling System
 // Author: Daniel Hallman
 
+pub use hallman_doc_engine::ReadabilityPreset;
 use serde::{Deserialize, Serialize};
 
 /// Operational branding mode for multi-tenant and white-label document rendering
@@ -15,6 +16,10 @@ pub enum BrandingMode {
     LegalCounsel,
     /// High-contrast, minimal government & institutional submission mode
     GovernmentInstitutional,
+    /// Executive Institutional Real Estate / Portfolio Brief
+    ExecutiveBrief,
+    /// High-contrast accessible format (`10.4pt` base, `0.65em` leading, `#000000` ink)
+    HighLegibility,
 }
 
 impl Default for BrandingMode {
@@ -27,6 +32,8 @@ impl Default for BrandingMode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentBrandingConfig {
     pub mode: BrandingMode,
+    #[serde(default)]
+    pub readability_preset: ReadabilityPreset,
     pub org_name: String,
     pub subtitle: Option<String>,
     pub accent_primary: String,
@@ -50,6 +57,7 @@ impl DocumentBrandingConfig {
     pub fn pressmark_default() -> Self {
         Self {
             mode: BrandingMode::PressmarkDefault,
+            readability_preset: ReadabilityPreset::Standard,
             org_name: "PRESSMARK STUDIO".to_string(),
             subtitle: None,
             accent_primary: "#4f46e5".to_string(),
@@ -67,6 +75,7 @@ impl DocumentBrandingConfig {
     pub fn corporate_white_label(org_name: &str, subtitle: Option<&str>) -> Self {
         Self {
             mode: BrandingMode::CorporateWhiteLabel,
+            readability_preset: ReadabilityPreset::Standard,
             org_name: org_name.to_string(),
             subtitle: subtitle.map(|s| s.to_string()),
             accent_primary: "#1e3a8a".to_string(),
@@ -90,6 +99,7 @@ impl DocumentBrandingConfig {
         };
         Self {
             mode: BrandingMode::LegalCounsel,
+            readability_preset: ReadabilityPreset::JudicialFormal,
             org_name: firm_name.to_string(),
             subtitle: Some(sub),
             accent_primary: "#1e3a8a".to_string(),
@@ -107,6 +117,7 @@ impl DocumentBrandingConfig {
     pub fn government_institutional() -> Self {
         Self {
             mode: BrandingMode::GovernmentInstitutional,
+            readability_preset: ReadabilityPreset::Standard,
             org_name: "DOCUMENT".to_string(),
             subtitle: None,
             accent_primary: "#000000".to_string(),
@@ -114,6 +125,42 @@ impl DocumentBrandingConfig {
             primary_ink: Some("#000000".to_string()),
             header_left: None,
             footer_left: None,
+            footer_center: None,
+            disclaimer: None,
+            show_engine_badge: false,
+        }
+    }
+
+    /// Executive Institutional Real Estate / Portfolio Brief persona
+    pub fn executive_brief(org_name: &str) -> Self {
+        Self {
+            mode: BrandingMode::ExecutiveBrief,
+            readability_preset: ReadabilityPreset::ExecutiveCompact,
+            org_name: org_name.to_string(),
+            subtitle: Some("Institutional Asset Management & Underwriting".to_string()),
+            accent_primary: "#0f766e".to_string(),
+            accent_secondary: Some("#334155".to_string()),
+            primary_ink: Some("#09090b".to_string()),
+            header_left: Some(format!("{} · PORTFOLIO BRIEF", org_name.to_uppercase())),
+            footer_left: Some(org_name.to_string()),
+            footer_center: None,
+            disclaimer: None,
+            show_engine_badge: false,
+        }
+    }
+
+    /// High-legibility accessible persona (`10.4pt` base font, `0.65em` leading, `#000000` ink)
+    pub fn high_legibility(org_name: &str) -> Self {
+        Self {
+            mode: BrandingMode::HighLegibility,
+            readability_preset: ReadabilityPreset::HighLegibility,
+            org_name: org_name.to_string(),
+            subtitle: Some("Accessible Large-Print Commercial & Statutory Format".to_string()),
+            accent_primary: "#1e3a8a".to_string(),
+            accent_secondary: Some("#15803d".to_string()),
+            primary_ink: Some("#000000".to_string()),
+            header_left: Some("LARGE-PRINT ACCESSIBLE RECORD".to_string()),
+            footer_left: Some(org_name.to_string()),
             footer_center: None,
             disclaimer: None,
             show_engine_badge: false,

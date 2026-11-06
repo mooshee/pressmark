@@ -14,6 +14,8 @@ keywords = ["mcp", "pdf", "invoice", "real-estate", "typst"]
 categories = ["command-line-utilities", "template-engine", "web-programming::http-server"]
 
 [dependencies]
+hallman-doc-engine = { path = "crates/hallman-doc-engine" }
+lopdf = { version = "0.45", default-features = false }
 tokio = { version = "1.38", features = ["full"] }
 axum = { version = "0.7", features = ["macros", "multipart"] }
 tower = { version = "0.4", features = ["util"] }
@@ -36,3 +38,11 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 dotenvy = "0.15"
 
 [dev-dependencies]
+
+[workspace]
+members = [
+    ".",
+    "crates/hallman-doc-engine",
+]
+exclude = ["tools/pressmark-deploy"]
+resolver = "2"
