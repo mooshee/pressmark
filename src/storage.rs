@@ -634,6 +634,16 @@ impl Storage {
             "offplatform",
             "mcp-dualstack",
             "sitv",
+            "acrux",
+            "mocopo",
+            "popnx",
+            "tothlabs",
+            "alalanet",
+            "apex-catalog",
+            "lookupd",
+            "exepal",
+            "megaone",
+            "stealthstack",
         ];
         BOT_MARKERS.iter().any(|m| lower.contains(m))
     }

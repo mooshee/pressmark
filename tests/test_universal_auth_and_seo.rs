@@ -685,6 +685,16 @@ async fn test_expanded_bot_and_probe_marker_classification() {
     assert!(Storage::is_crawler_bot_ua("OffplatformDiscovery/0.1 (+https://offplatformhub.com)"));
     assert!(Storage::is_crawler_bot_ua("mcp-dualstack-research/1.0"));
     assert!(Storage::is_crawler_bot_ua("Mozilla/5.0 (compatible; search.sitv.app-indexer/1.0)"));
+    assert!(Storage::is_crawler_bot_ua("Acrux/1.0"));
+    assert!(Storage::is_crawler_bot_ua("MoCoPo/1.0"));
+    assert!(Storage::is_crawler_bot_ua("PopNx-MCP/0.2 (+https://mcp.popnx.com)"));
+    assert!(Storage::is_crawler_bot_ua("TothLabs-Public-MCP-Research/1.0"));
+    assert!(Storage::is_crawler_bot_ua("alalanet-prober/1.0 (+https://alalanet.com/prober)"));
+    assert!(Storage::is_crawler_bot_ua("apex-catalog-check"));
+    assert!(Storage::is_crawler_bot_ua("lookupd-probe/0.1.0 (+https://lookupd.com/bots)"));
+    assert!(Storage::is_crawler_bot_ua("ExepalMcpAudit/1.0 (+https://exepal.com/tools/mcp-audit)"));
+    assert!(Storage::is_crawler_bot_ua("MegaOne-MCP-HealthCheck/1.0 (+https://megaoneai.com/mcp-directory/)"));
+    assert!(Storage::is_crawler_bot_ua("Mozilla/5.0 (compatible; StealthStackCrawler/0.1; did:web:stealthstack.ai)"));
 
     // Check newly added internal probe marker
     assert!(Storage::is_internal_probe_ua("Pressmark-Disclosure-QA/1.0"));
