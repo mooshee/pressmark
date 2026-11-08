@@ -184,6 +184,23 @@ pub async fn rate_limit_middleware(
         || path.starts_with("/skills/")
         || path == "/auth.md"
         || path.starts_with("/docs/mcp")
+        || path == "/llm.txt"
+        || path == "/developer-ai.txt"
+        || path == "/faq-ai.txt"
+        || path == "/robots-ai.txt"
+        || path == "/brand.txt"
+        || path == "/ai.json"
+        || path.starts_with("/privacy-policy")
+        || path.starts_with("/legal/privacy")
+        || path.starts_with("/subprocessors")
+        || path.starts_with("/legal/subprocessors")
+        || path.starts_with("/security/subprocessors")
+        || path.starts_with("/trust/subprocessors")
+        || path.starts_with("/terms-of-service")
+        || path.starts_with("/legal/terms")
+        || path.starts_with("/tos")
+        || path.starts_with("/concepts")
+        || path.starts_with("/elements")
     {
         return next.run(req).await;
     }

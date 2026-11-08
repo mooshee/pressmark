@@ -433,6 +433,8 @@ impl Storage {
             "slackbot",
             "discordbot",
             "amazonbot",
+            "averperimeterinspector",
+            "aver.dev",
             "mj12bot",
             "dotbot",
             "crawler",

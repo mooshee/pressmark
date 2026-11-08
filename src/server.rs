@@ -111,11 +111,35 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/templates/", get(handle_index))
         .route("/templates/:slug", get(handle_template_landing))
         .route("/templates/:slug/", get(handle_template_landing_trailing))
+        .route("/elements", get(|| async { Redirect::permanent("/templates") }))
+        .route("/elements/", get(|| async { Redirect::permanent("/templates") }))
+        .route("/concepts", get(|| async { Redirect::permanent("/templates") }))
+        .route("/concepts/", get(|| async { Redirect::permanent("/templates") }))
+        .route("/concepts/:slug", get(handle_concept_landing))
+        .route("/concepts/:slug/", get(handle_concept_landing_trailing))
         .route("/favicon.ico", get(handle_favicon))
         .route("/favicon.svg", get(handle_favicon))
         .route("/favicon.png", get(handle_favicon))
         .route("/privacy", get(handle_privacy))
+        .route("/privacy-policy", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/privacy-policy/", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/legal/privacy", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/legal/privacy/", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/subprocessors", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/subprocessors/", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/legal/subprocessors", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/legal/subprocessors/", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/security/subprocessors", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/security/subprocessors/", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/trust/subprocessors", get(|| async { Redirect::permanent("/privacy") }))
+        .route("/trust/subprocessors/", get(|| async { Redirect::permanent("/privacy") }))
         .route("/terms", get(handle_terms))
+        .route("/terms-of-service", get(|| async { Redirect::permanent("/terms") }))
+        .route("/terms-of-service/", get(|| async { Redirect::permanent("/terms") }))
+        .route("/legal/terms", get(|| async { Redirect::permanent("/terms") }))
+        .route("/legal/terms/", get(|| async { Redirect::permanent("/terms") }))
+        .route("/tos", get(|| async { Redirect::permanent("/terms") }))
+        .route("/tos/", get(|| async { Redirect::permanent("/terms") }))
         .route("/robots.txt", get(handle_robots))
         .route("/sitemap.xml", get(handle_sitemap))
         .route("/llms.txt", get(handle_llms_txt))
@@ -160,6 +184,12 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/plans", get(|| async { Redirect::permanent("/pricing") }))
         .route("/plans/", get(|| async { Redirect::permanent("/pricing") }))
         .route("/ai.txt", get(|| async { Redirect::permanent("/llms.txt") }))
+        .route("/llm.txt", get(|| async { Redirect::permanent("/llms.txt") }))
+        .route("/developer-ai.txt", get(|| async { Redirect::permanent("/llms.txt") }))
+        .route("/faq-ai.txt", get(|| async { Redirect::permanent("/llms.txt") }))
+        .route("/robots-ai.txt", get(|| async { Redirect::permanent("/robots.txt") }))
+        .route("/brand.txt", get(|| async { Redirect::permanent("/llms.txt") }))
+        .route("/ai.json", get(|| async { Redirect::permanent("/api/v1/mcp/agent.json") }))
         .route("/agents.txt", get(|| async { Redirect::permanent("/llms.txt") }))
         .route("/humans.txt", get(handle_humans_txt))
         .route("/.well-known/tdmrep.json", get(handle_tdmrep_json))
@@ -508,6 +538,37 @@ async fn handle_index() -> impl IntoResponse {
             Html(format!("<h1>Error loading index.html: {}</h1>", e)),
         ),
     }
+}
+
+async fn handle_concept_landing_trailing(Path(slug): Path<String>) -> Response {
+    let clean_slug = slug.trim_end_matches([':', ')', ']', '}', '"', '\'', '.', ',', ';', '>', '/']);
+    Redirect::permanent(&format!("/concepts/{}", clean_slug)).into_response()
+}
+
+async fn handle_concept_landing(Path(slug): Path<String>) -> Response {
+    let clean_slug = slug.trim_end_matches([':', ')', ']', '}', '"', '\'', '.', ',', ';', '>', '/']);
+    if let Some(dt) = DocumentType::from_slug(clean_slug) {
+        return Redirect::permanent(&format!("/templates/{}", dt.url_slug())).into_response();
+    }
+    if let Some((sp, dt)) = DocumentType::parse_state_prefixed_slug(clean_slug) {
+        return Redirect::permanent(&format!("/templates/{}-{}", sp.slug, dt.url_slug())).into_response();
+    }
+    let mut best_match: Option<DocumentType> = None;
+    for dt in DocumentType::all() {
+        if clean_slug.contains(dt.url_slug()) {
+            if let Some(ref existing) = best_match {
+                if dt.url_slug().len() > existing.url_slug().len() {
+                    best_match = Some(dt.clone());
+                }
+            } else {
+                best_match = Some(dt.clone());
+            }
+        }
+    }
+    if let Some(dt) = best_match {
+        return Redirect::permanent(&format!("/templates/{}", dt.url_slug())).into_response();
+    }
+    Redirect::permanent("/templates").into_response()
 }
 
 async fn handle_template_landing_trailing(Path(slug): Path<String>) -> Response {

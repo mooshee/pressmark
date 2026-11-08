@@ -660,11 +660,89 @@ async fn test_agent_discovery_and_a2a_routes() {
     assert!(text.contains("## MCP Tools (8 Tools)"));
     assert!(text.contains("submit_feedback"));
     assert!(text.contains("get_feedback_status"));
+    // 20. GET /privacy-policy, /legal/privacy, /subprocessors, etc. -> 308 Permanent Redirect to /privacy
+    for uri in [
+        "/privacy-policy",
+        "/privacy-policy/",
+        "/legal/privacy",
+        "/legal/privacy/",
+        "/subprocessors",
+        "/subprocessors/",
+        "/legal/subprocessors",
+        "/legal/subprocessors/",
+        "/security/subprocessors",
+        "/trust/subprocessors",
+    ] {
+        let req = Request::builder().uri(uri).method("GET").body(Body::empty()).unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT, "Route failed: {}", uri);
+        assert_eq!(res.headers().get("location").unwrap(), "/privacy");
+    }
+
+    // 21. GET /terms-of-service, /legal/terms, /tos -> 308 Permanent Redirect to /terms
+    for uri in [
+        "/terms-of-service",
+        "/terms-of-service/",
+        "/legal/terms",
+        "/legal/terms/",
+        "/tos",
+        "/tos/",
+    ] {
+        let req = Request::builder().uri(uri).method("GET").body(Body::empty()).unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT, "Route failed: {}", uri);
+        assert_eq!(res.headers().get("location").unwrap(), "/terms");
+    }
+
+    // 22. GET /elements, /concepts, /concepts/:slug -> redirects
+    for uri in ["/elements", "/elements/", "/concepts", "/concepts/"] {
+        let req = Request::builder().uri(uri).method("GET").body(Body::empty()).unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT, "Route failed: {}", uri);
+        assert_eq!(res.headers().get("location").unwrap(), "/templates");
+    }
+
+    let req = Request::builder()
+        .uri("/concepts/residential-lease-agreement-state-statutory-addenda")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get("location").unwrap(), "/templates/residential-lease");
+
+    let req = Request::builder()
+        .uri("/concepts/roofing-storm-damage-insurance-supplement-xactimate")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get("location").unwrap(), "/templates");
+
+    // 23. GET /llm.txt, /developer-ai.txt, /faq-ai.txt, /robots-ai.txt, /brand.txt, /ai.json
+    for uri in ["/llm.txt", "/developer-ai.txt", "/faq-ai.txt", "/brand.txt"] {
+        let req = Request::builder().uri(uri).method("GET").body(Body::empty()).unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT, "Route failed: {}", uri);
+        assert_eq!(res.headers().get("location").unwrap(), "/llms.txt");
+    }
+    let req = Request::builder().uri("/robots-ai.txt").method("GET").body(Body::empty()).unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get("location").unwrap(), "/robots.txt");
+
+    let req = Request::builder().uri("/ai.json").method("GET").body(Body::empty()).unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get("location").unwrap(), "/api/v1/mcp/agent.json");
 }
 
 #[tokio::test]
 async fn test_expanded_bot_and_probe_marker_classification() {
     use pressmark::storage::Storage;
+
+    assert!(Storage::is_crawler_bot_ua("AverPerimeterInspector/1.0 (+https://aver.dev/aver; literal public-path audit)"));
 
     // Check newly added bot markers
     assert!(Storage::is_crawler_bot_ua("AgentDrivesAgent/1.0 (+https://agent.agentdrives.com/bot)"));
