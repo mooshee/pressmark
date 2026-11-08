@@ -735,7 +735,11 @@ async fn test_agent_discovery_and_a2a_routes() {
     let req = Request::builder().uri("/ai.json").method("GET").body(Body::empty()).unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
-    assert_eq!(res.headers().get("location").unwrap(), "/api/v1/mcp/agent.json");
+    assert_eq!(res.headers().get("location").unwrap(), "/.well-known/agent.json");
+
+    let req = Request::builder().uri("/api/v1/mcp/agent.json").method("GET").body(Body::empty()).unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 }
 
 #[tokio::test]
