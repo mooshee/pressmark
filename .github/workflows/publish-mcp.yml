@@ -22,8 +22,24 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install MCP publisher
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          set -euo pipefail
+          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+          ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+          ASSET="mcp-publisher_${OS}_${ARCH}.tar.gz"
+          # The github.com/releases/download path for this asset returns
+          # HTTP 504 (seen 2026-11-09, reproduced from two networks);
+          # the API asset route serves the same file reliably.
+          ASSET_ID=$(curl -sS -H "Authorization: Bearer ${GH_TOKEN}" \
+            https://api.github.com/repos/modelcontextprotocol/registry/releases/latest \
+            | python3 -c "import json,sys; print([a['id'] for a in json.load(sys.stdin)['assets'] if a['name'] == '${ASSET}'][0])")
+          curl -sSL -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/octet-stream' \
+            "https://api.github.com/repos/modelcontextprotocol/registry/releases/assets/${ASSET_ID}" \
+            -o "${ASSET}"
+          tar xz -f "${ASSET}" mcp-publisher
 
       - name: Validate metadata
         run: ./mcp-publisher validate server.json
