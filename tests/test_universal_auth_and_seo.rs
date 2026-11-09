@@ -740,6 +740,51 @@ async fn test_agent_discovery_and_a2a_routes() {
     let req = Request::builder().uri("/api/v1/mcp/agent.json").method("GET").body(Body::empty()).unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
+
+    // 24. GET /team and /our-team company redirects
+    for uri in ["/team", "/our-team"] {
+        let req = Request::builder().uri(uri).method("GET").body(Body::empty()).unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT, "Route failed: {}", uri);
+        assert_eq!(res.headers().get("location").unwrap(), "/");
+    }
+
+    // 25. GET and POST /mcp/jsonrpc and /api/v1/mcp/jsonrpc
+    for uri in ["/mcp/jsonrpc", "/api/v1/mcp/jsonrpc", "/jsonrpc"] {
+        let req = Request::builder().uri(uri).method("GET").body(Body::empty()).unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK, "GET failed for {}", uri);
+
+        let ping_body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "ping"
+        });
+        let req = Request::builder()
+            .uri(uri)
+            .method("POST")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&ping_body).unwrap()))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK, "POST failed for {}", uri);
+    }
+
+    // 26. POST /mcp/v1/message:send
+    let msg_body = serde_json::json!({
+        "message": {
+            "role": "user",
+            "parts": [{"text": "Hello"}]
+        }
+    });
+    let req = Request::builder()
+        .uri("/mcp/v1/message:send")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&msg_body).unwrap()))
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 }
 
 #[tokio::test]
@@ -777,6 +822,14 @@ async fn test_expanded_bot_and_probe_marker_classification() {
     assert!(Storage::is_crawler_bot_ua("ExepalMcpAudit/1.0 (+https://exepal.com/tools/mcp-audit)"));
     assert!(Storage::is_crawler_bot_ua("MegaOne-MCP-HealthCheck/1.0 (+https://megaoneai.com/mcp-directory/)"));
     assert!(Storage::is_crawler_bot_ua("Mozilla/5.0 (compatible; StealthStackCrawler/0.1; did:web:stealthstack.ai)"));
+    assert!(Storage::is_crawler_bot_ua("MCPYP-Incremental/1.0 (+https://mcpyp.com)"));
+    assert!(Storage::is_crawler_bot_ua("bots.st-checker/1.0 (+https://bots.st/checks)"));
+    assert!(Storage::is_crawler_bot_ua("StroodleProbe/1.0 (+https://stroodle.ai)"));
+    assert!(Storage::is_crawler_bot_ua("inferrex-mcp-probe/1 (+https://inferrex.com/mcp-probe)"));
+    assert!(Storage::is_crawler_bot_ua("scry-research/0.2"));
+    assert!(Storage::is_crawler_bot_ua("MCPMeasurement/0.1 (+mailto:xuzuyao@mail.nankai.edu.cn)"));
+    assert!(Storage::is_crawler_bot_ua("Mozilla/5.0 (lead-research)"));
+    assert!(Storage::is_crawler_bot_ua("Mozilla/5.0 (research-mcp-probe)"));
 
     // Check newly added internal probe marker
     assert!(Storage::is_internal_probe_ua("Pressmark-Disclosure-QA/1.0"));

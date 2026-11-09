@@ -646,6 +646,14 @@ impl Storage {
             "exepal",
             "megaone",
             "stealthstack",
+            "mcpyp",
+            "bots.st",
+            "stroodle",
+            "inferrex",
+            "scry-research",
+            "mcpmeasurement",
+            "lead-research",
+            "research-mcp-probe",
         ];
         BOT_MARKERS.iter().any(|m| lower.contains(m))
     }

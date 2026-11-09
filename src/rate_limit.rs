@@ -201,6 +201,12 @@ pub async fn rate_limit_middleware(
         || path.starts_with("/tos")
         || path.starts_with("/concepts")
         || path.starts_with("/elements")
+        || path == "/api/v1/mcp/agent.json"
+        || path == "/mcp/agent.json"
+        || path.starts_with("/mcp/server-card")
+        || path.starts_with("/api/v1/mcp/server-card")
+        || path == "/team"
+        || path == "/our-team"
     {
         return next.run(req).await;
     }
