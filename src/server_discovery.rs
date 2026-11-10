@@ -54,6 +54,17 @@ pub async fn handle_glama_json() -> impl IntoResponse {
     )
 }
 
+pub async fn handle_traffic_advice() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "application/trafficadvice+json; charset=utf-8"),
+            (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"),
+        ],
+        r#"[{"user_agent": "prefetch-proxy", "google": {"fraction": 1.0}}]"#,
+    )
+}
+
 pub async fn handle_oauth_protected_resource() -> impl IntoResponse {
     (
         StatusCode::OK,

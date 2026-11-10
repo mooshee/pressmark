@@ -785,6 +785,62 @@ async fn test_agent_discovery_and_a2a_routes() {
         .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
+
+    // 27. GET /.well-known/traffic-advice
+    let req = Request::builder()
+        .uri("/.well-known/traffic-advice")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get("content-type").unwrap(),
+        "application/trafficadvice+json; charset=utf-8"
+    );
+
+    // 28. Contact redirects (/contact-us, /contacts, /customer-support)
+    for uri in ["/contact-us", "/contacts", "/customer-support"] {
+        let req = Request::builder()
+            .uri(uri)
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(res.headers().get("location").unwrap(), "/feedback");
+    }
+
+    // 29. Auth & Login redirects (/login, /signin, /sign-in, /auth)
+    for uri in ["/login", "/signin", "/sign-in"] {
+        let req = Request::builder()
+            .uri(uri)
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+        assert_eq!(res.headers().get("location").unwrap(), "/");
+    }
+    let req = Request::builder()
+        .uri("/auth")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.headers().get("location").unwrap(), "/auth.md");
+
+    // 30. Health & Version aliases
+    for uri in ["/api/v1/health", "/api/health", "/api/v1/version", "/version"] {
+        let req = Request::builder()
+            .uri(uri)
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+    }
 }
 
 #[tokio::test]
@@ -830,6 +886,10 @@ async fn test_expanded_bot_and_probe_marker_classification() {
     assert!(Storage::is_crawler_bot_ua("MCPMeasurement/0.1 (+mailto:xuzuyao@mail.nankai.edu.cn)"));
     assert!(Storage::is_crawler_bot_ua("Mozilla/5.0 (lead-research)"));
     assert!(Storage::is_crawler_bot_ua("Mozilla/5.0 (research-mcp-probe)"));
+    assert!(Storage::is_crawler_bot_ua("Mozilla/5.0 compatible; FastSourceScanner/1.0"));
+    assert!(Storage::is_crawler_bot_ua("Mozilla/5.0 (compatible; SERankingBacklinksBot/1.0; +https://seranking.com/backlinks-crawler)"));
+    assert!(Storage::is_crawler_bot_ua("ProtocolProbe/1.0 (+https://protocolprobe.com; hello@protocolprobe.com)"));
+    assert!(Storage::is_crawler_bot_ua("Chrome Privacy Preserving Prefetch Proxy"));
 
     // Check newly added internal probe marker
     assert!(Storage::is_internal_probe_ua("Pressmark-Disclosure-QA/1.0"));

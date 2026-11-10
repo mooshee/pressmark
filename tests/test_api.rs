@@ -116,6 +116,41 @@ fn test_mcp_tools_list_and_call() {
     let price_res = call_resp.result.unwrap();
     assert_eq!(price_res["currency"], "USD");
     assert!(price_res["content"].is_array());
+
+    // Test call generate_document and preview_document with wrapped {"document": {...}}
+    let wrapped_doc = json!({
+        "document": {
+            "doc_type": "invoice",
+            "from": { "name": "Wrapped Seller" },
+            "to": { "name": "Wrapped Buyer" },
+            "items": [
+                { "description": "Consulting", "quantity": 1.0, "unit_price": 100.0 }
+            ]
+        }
+    });
+    let gen_req = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(json!(4)),
+        method: "tools/call".to_string(),
+        params: Some(json!({
+            "name": "generate_document",
+            "arguments": wrapped_doc
+        })),
+    };
+    let gen_resp = McpHandler::handle_request(gen_req);
+    assert!(gen_resp.result.is_some(), "wrapped generate_document should succeed: {:?}", gen_resp.error);
+
+    let prev_req = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(json!(5)),
+        method: "tools/call".to_string(),
+        params: Some(json!({
+            "name": "preview_document",
+            "arguments": wrapped_doc
+        })),
+    };
+    let prev_resp = McpHandler::handle_request(prev_req);
+    assert!(prev_resp.result.is_some(), "wrapped preview_document should succeed: {:?}", prev_resp.error);
 }
 
 #[test]

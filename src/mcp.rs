@@ -622,7 +622,12 @@ impl McpHandler {
 
                 match tool_name {
                     "generate_document" => {
-                        match serde_json::from_value::<DocumentRequest>(arguments) {
+                        let doc_val = if arguments.get("document").is_some() {
+                            arguments.get("document").cloned().unwrap_or(Value::Null)
+                        } else {
+                            arguments
+                        };
+                        match serde_json::from_value::<DocumentRequest>(doc_val) {
                             Ok(mut doc_req) => {
                                 if let Err(msg) = Self::validate_document_request(&doc_req)
                                     .and_then(|()| doc_req.normalize_and_validate())
@@ -720,7 +725,12 @@ impl McpHandler {
                         }
                     }
                     "preview_document" => {
-                        match serde_json::from_value::<DocumentRequest>(arguments) {
+                        let doc_val = if arguments.get("document").is_some() {
+                            arguments.get("document").cloned().unwrap_or(Value::Null)
+                        } else {
+                            arguments
+                        };
+                        match serde_json::from_value::<DocumentRequest>(doc_val) {
                             Ok(mut doc_req) => {
                                 if let Err(msg) = Self::validate_document_request(&doc_req)
                                     .and_then(|()| doc_req.normalize_and_validate())
@@ -801,7 +811,11 @@ impl McpHandler {
                             .get("credit_reason")
                             .or_else(|| arguments.get("reason"))
                             .and_then(|r| r.as_str());
-                        let doc_val = arguments.get("document").cloned().unwrap_or(Value::Null);
+                        let doc_val = if arguments.get("document").is_some() {
+                            arguments.get("document").cloned().unwrap_or(Value::Null)
+                        } else {
+                            arguments.clone()
+                        };
 
                         match serde_json::from_value::<DocumentRequest>(doc_val) {
                             Ok(mut doc_req) => {
