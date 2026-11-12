@@ -291,6 +291,7 @@ async fn previews_are_exact_png_resources_and_invalid_or_expired_uris_never_retu
     for invalid in [
         "pressmark://documents/unknown.pdf".to_owned(),
         "pressmark://catalog/missing".to_owned(),
+        "pressmark://catalog/pricing".to_owned(),
         "https://example.com/api/v1/downloads/unknown".to_owned(),
         "http://127.0.0.1/private".to_owned(),
         format!("{uri}?other=1"),
@@ -305,7 +306,7 @@ async fn previews_are_exact_png_resources_and_invalid_or_expired_uris_never_retu
     let catalog = read_resource(&router, "pressmark://catalog/archetypes").await;
     assert_eq!(catalog["result"]["contents"][0]["mimeType"], "application/json");
     assert!(catalog["result"]["contents"][0]["blob"].is_null());
-    for name in ["states", "pricing", "themes", "compliance", "execution"] {
+    for name in ["states", "themes", "compliance", "execution"] {
         let resource = read_resource(&router, &format!("pressmark://catalog/{name}")).await;
         assert!(resource["error"].is_null(), "{name}: {resource}");
         let text = resource["result"]["contents"][0]["text"].as_str().unwrap();
