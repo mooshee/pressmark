@@ -127,6 +127,32 @@ fn coincident_timestamps_do_not_reclassify_historical_traffic() {
 }
 
 #[tokio::test]
+async fn empty_binary_mcp_probe_returns_discovery_without_dispatching() {
+    let storage = Arc::new(Storage::new(":memory:").unwrap());
+    let router = create_router(Arc::new(AppState::default().with_storage(storage.clone())));
+    let probe = Request::post("/mcp")
+        .header("content-type", "application/octet-stream")
+        .header("content-length", "0")
+        .body(Body::empty())
+        .unwrap();
+    let response = router.clone().oneshot(probe).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), 16 * 1024).await.unwrap();
+    let discovery: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(discovery["service"], "pressmark");
+    assert_eq!(discovery["transport"], "streamable-http");
+    assert_eq!(storage.analytics_summary()["mcp_measurement"]["attempts"], 0);
+
+    let binary_payload = Request::post("/mcp")
+        .header("content-type", "application/octet-stream")
+        .header("content-length", "1")
+        .body(Body::from("x"))
+        .unwrap();
+    let response = router.oneshot(binary_payload).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+}
+
+#[tokio::test]
 async fn http_tool_results_distinguish_success_failure_and_protocol_discovery() {
     let storage = Arc::new(Storage::new(":memory:").unwrap());
     let router = create_router(Arc::new(AppState::default().with_storage(storage.clone())));

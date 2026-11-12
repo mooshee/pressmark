@@ -3,7 +3,14 @@
   "mcpServers": {
     "pressmark": {
       "type": "streamable-http",
-      "url": "https://pressmark.dev/mcp"
+      "url": "https://pressmark.dev/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "none"
+          }
+        }
+      }
     }
   }
 }

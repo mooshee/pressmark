@@ -10,6 +10,7 @@ use crate::mcp::{JsonRpcRequest, JsonRpcResponse, McpHandler};
 use crate::models::{DocumentRequest, DocumentType, GenerateResponse, PreviewResponse, CopilotRequest, CopilotResponse, VisionRequest, VisionResponse, LineItem, PartyDetails};
 use crate::openapi::{get_ai_plugin_manifest, get_openapi_spec};
 use crate::pricing::get_pricing_catalog;
+use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Redirect, Response};
@@ -1378,7 +1379,7 @@ async fn handle_a2a_post(
     body: axum::body::Bytes,
 ) -> Response {
     if let Ok(req) = serde_json::from_slice::<JsonRpcRequest>(&body) {
-        return handle_mcp(State(state), headers, Json(req)).await;
+        return handle_mcp(State(state), headers, Ok(Json(req))).await;
     }
     (
         StatusCode::OK,
@@ -1468,8 +1469,20 @@ async fn handle_mcp_tools() -> impl IntoResponse {
 async fn handle_mcp(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<JsonRpcRequest>,
+    request: Result<Json<JsonRpcRequest>, JsonRejection>,
 ) -> Response {
+    let req = match request {
+        Ok(Json(req)) => req,
+        // Some clients send an empty binary POST to check guest connectivity.
+        // Return discovery metadata without dispatching a JSON-RPC request.
+        Err(JsonRejection::MissingJsonContentType(_))
+            if headers.get(header::CONTENT_TYPE).is_some_and(|value| value == "application/octet-stream")
+                && headers.get(header::CONTENT_LENGTH).is_some_and(|value| value == "0") =>
+        {
+            return handle_mcp_get().await.into_response();
+        }
+        Err(rejection) => return rejection.into_response(),
+    };
     let is_notif = McpHandler::is_notification(&req);
     let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
     let mcp_method = req.method.clone();
