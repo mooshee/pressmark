@@ -728,6 +728,7 @@ fn test_deliverables_pro_review_fixes_and_lifecycle_enhancements() {
     assert!(text_content.contains("CRD-2026-0819"));
     assert!(text_content.contains("| Description | Qty | Rate | Amount |"));
     assert!(text_content.contains("[Pay online](https://buy.stripe.com/refund_claim)"));
+    assert!(!text_content.contains("https://pressmark.dev/api/v1/checkout"));
     assert!(res_obj["pdf_base64"].is_string());
 
     // Test MCP record_payment with amount_paid
@@ -1973,6 +1974,7 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     let structured = &mcp_res["structuredContent"];
     assert!(structured.get("unlock_checkout_url").is_none());
     assert!(structured.get("pro_checkout_url").is_none());
+    assert!(!mcp_res.to_string().contains("https://pressmark.dev/api/v1/checkout"));
 
     // 5. Verify entitlement upgrade and revocation upon refund
     auth_mgr.upgrade_user_entitlement("refund.test@example.org", ChatGptPlan::SoloPro, Some("cs_123"), 1500);

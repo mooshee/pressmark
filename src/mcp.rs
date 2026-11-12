@@ -1154,6 +1154,5 @@ fn format_document_markdown(doc: &DocumentRequest, action_title: &str, _compile_
             md.push_str("\nThe document includes a QR code for this payment link.\n");
         }
     }
-    md.push_str("\n[Single Document Pass ($2.99 one-time)](https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true) · [Solo Pro ($15/month)](https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true)");
     md
 }
