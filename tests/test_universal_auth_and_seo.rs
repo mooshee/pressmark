@@ -647,7 +647,7 @@ async fn test_agent_discovery_and_a2a_routes() {
     assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
     assert_eq!(res.headers().get("location").unwrap(), "/#pricing");
 
-    // 19. GET /llms-full.txt -> 200 OK with 8 tools documented
+    // 19. GET /llms-full.txt -> 200 OK with seven tools documented
     let req = Request::builder()
         .uri("/llms-full.txt")
         .method("GET")
@@ -657,7 +657,7 @@ async fn test_agent_discovery_and_a2a_routes() {
     assert_eq!(res.status(), StatusCode::OK);
     let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
     let text = String::from_utf8(bytes.to_vec()).unwrap();
-    assert!(text.contains("## MCP Tools (8 Tools)"));
+    assert!(text.contains("## MCP Tools (7 Tools)"));
     assert!(text.contains("submit_feedback"));
     assert!(text.contains("get_feedback_status"));
     // 20. GET /privacy-policy, /legal/privacy, /subprocessors, etc. -> 308 Permanent Redirect to /privacy

@@ -54,7 +54,7 @@ fn test_mcp_tools_list_and_call() {
     let tools = list_resp.result.unwrap()["tools"].as_array().unwrap().clone();
     assert!(tools.iter().any(|t| t["name"] == "generate_document"));
     assert!(tools.iter().any(|t| t["name"] == "preview_document"));
-    assert!(tools.iter().any(|t| t["name"] == "get_pricing"));
+    assert!(!tools.iter().any(|t| t["name"] == "get_pricing"));
     assert!(tools.iter().any(|t| t["name"] == "calculate_totals"));
 
     // File tools can create a fresh temporary file on each HTTP call. Clients
@@ -64,10 +64,8 @@ fn test_mcp_tools_list_and_call() {
         assert_eq!(tool["annotations"]["readOnlyHint"], false, "{name}");
         assert_eq!(tool["annotations"]["idempotentHint"], false, "{name}");
     }
-    for name in ["calculate_totals", "get_pricing"] {
-        let tool = tools.iter().find(|tool| tool["name"] == name).unwrap();
-        assert_eq!(tool["annotations"]["readOnlyHint"], true, "{name}");
-    }
+    let totals_tool = tools.iter().find(|tool| tool["name"] == "calculate_totals").unwrap();
+    assert_eq!(totals_tool["annotations"]["readOnlyHint"], true);
 
     // Test call calculate_totals
     let calc_req = JsonRpcRequest {
@@ -101,7 +99,7 @@ fn test_mcp_tools_list_and_call() {
     assert_eq!(calc_res["balance_due"], 200.0);
     assert_eq!(calc_res["is_paid"], false);
 
-    // Test call get_pricing
+    // Previously advertised commerce capabilities must also be unavailable to stale clients.
     let call_req = JsonRpcRequest {
         jsonrpc: "2.0".to_string(),
         id: Some(json!(3)),
@@ -112,10 +110,23 @@ fn test_mcp_tools_list_and_call() {
         })),
     };
     let call_resp = McpHandler::handle_request(call_req);
-    assert!(call_resp.result.is_some());
-    let price_res = call_resp.result.unwrap();
-    assert_eq!(price_res["currency"], "USD");
-    assert!(price_res["content"].is_array());
+    assert!(call_resp.result.is_none());
+    assert_eq!(call_resp.error.unwrap()["code"], -32601);
+    let resources = McpHandler::handle_request(JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(json!(6)),
+        method: "resources/list".to_string(),
+        params: None,
+    });
+    assert!(!resources.result.unwrap().to_string().contains("pressmark://catalog/pricing"));
+    let pricing_resource = McpHandler::handle_request(JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: Some(json!(7)),
+        method: "resources/read".to_string(),
+        params: Some(json!({"uri": "pressmark://catalog/pricing"})),
+    });
+    assert!(pricing_resource.result.is_none());
+    assert_eq!(pricing_resource.error.unwrap()["code"], -32002);
 
     // Test call generate_document and preview_document with wrapped {"document": {...}}
     let wrapped_doc = json!({
@@ -727,7 +738,8 @@ fn test_deliverables_pro_review_fixes_and_lifecycle_enhancements() {
     assert!(text_content.contains("CREDIT NOTE"));
     assert!(text_content.contains("CRD-2026-0819"));
     assert!(text_content.contains("| Description | Qty | Rate | Amount |"));
-    assert!(text_content.contains("[Pay online](https://buy.stripe.com/refund_claim)"));
+    assert!(text_content.contains("The document includes the payment link you supplied."));
+    assert!(!res_obj.to_string().contains("https://buy.stripe.com/refund_claim"));
     assert!(!text_content.contains("https://pressmark.dev/api/v1/checkout"));
     assert!(res_obj["pdf_base64"].is_string());
 
@@ -739,7 +751,14 @@ fn test_deliverables_pro_review_fixes_and_lifecycle_enhancements() {
         params: Some(json!({
             "name": "record_payment",
             "arguments": {
-                "document": inv,
+                "document": {
+                    "payment_link": "https://example.com/pay/sample",
+                    "doc_type": "invoice",
+                    "doc_number": "INV-2026-0819",
+                    "from": {"name": "Sample Studio"},
+                    "to": {"name": "Sample Client"},
+                    "items": [{"description": "Sample work", "quantity": 1, "unit_price": 3900}]
+                },
                 "payment_method": "Apple Pay",
                 "transaction_reference": "TX_APPLE_98214",
                 "amount_paid": 3900.0
@@ -752,6 +771,7 @@ fn test_deliverables_pro_review_fixes_and_lifecycle_enhancements() {
     let pay_text = pay_obj["content"][0]["text"].as_str().unwrap();
     assert!(pay_text.contains("PAID IN FULL"));
     assert!(pay_text.contains("REC-2026-0819"));
+    assert!(!pay_obj.to_string().contains("https://example.com/pay/sample"));
 
     // 4. Deliverable 5: Studio UI Accessibility & Components
     let html = std::fs::read_to_string("static/index.html").expect("index.html must exist");
@@ -1237,7 +1257,7 @@ async fn test_setup_check_checkout_entitlement_and_discovery_routes() {
     let setup_bytes = axum::body::to_bytes(res_setup.into_body(), 1024 * 1024).await.unwrap();
     let setup_json: serde_json::Value = serde_json::from_slice(&setup_bytes).unwrap();
     assert_eq!(setup_json["checks"]["vector_engine"]["pdf_smoke_test"], true);
-    assert_eq!(setup_json["checks"]["mcp_and_discovery"]["tools_count"], 8);
+    assert_eq!(setup_json["checks"]["mcp_and_discovery"]["tools_count"], 7);
     assert_eq!(setup_json["checks"]["mcp_and_discovery"]["archetypes_count"], 57);
 
     // 2. Verify /api/v1/checkout & /api/v1/pricing checkout_url
@@ -2724,7 +2744,7 @@ async fn test_production_error_audit_regressions() {
         let sha = json["tools_sha256"].as_str().unwrap();
         assert_eq!(sha.len(), 64);
         assert_eq!(etag, format!("\"sha256-{}\"", sha));
-        assert_eq!(json["tools_count"], serde_json::json!(8));
+        assert_eq!(json["tools_count"], serde_json::json!(7));
     }
 
     let req = Request::builder().uri("/documentation").body(Body::empty()).unwrap();

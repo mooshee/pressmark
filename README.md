@@ -40,7 +40,6 @@ Installing a skill alone does not connect the server. After connecting, confirm 
 | `preview_document` | Shows a PNG preview. |
 | `generate_document` | Creates a PDF from the supplied document. |
 | `calculate_totals` | Calculates tax, discounts, totals, and balances. |
-| `get_pricing` | Shows plans, document limits, and checkout links. |
 | `convert_document` | Converts an estimate, invoice, receipt, or credit note. |
 | `record_payment` | Prepares a receipt or updated invoice from payment details. It does not move money. |
 | `submit_feedback` | Sends a requested bug report, feature request, or general feedback to the private support inbox. |
@@ -92,7 +91,7 @@ Integration endpoints:
 | Business Studio | $49 per month | 250 per month | 300-PPI PNG previews, API keys, and priority processing |
 | Agency & API Scale | $149 per month | 2,000 per month | Custom branding, batch generation, and webhooks |
 
-Check [pricing](https://pressmark.dev/pricing) or `get_pricing` for the available plans and checkout links.
+See the [Pressmark website](https://pressmark.dev/pricing) for plan details.
 
 ## Run locally
 

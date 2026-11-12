@@ -33,44 +33,41 @@ The package contains these manifests and connection settings:
 3. Inspect the final ZIP and run the applicable review cases against the saved version. Record the result of each case.
 4. Complete the submission workflow for that existing plugin. An uploaded draft, submission for review, and an approved publication are separate states.
 
-## Reviewer test cases (NOT RUN for this package)
+## Development examples
+
+The submitted cases are in `plugin.json` and `chatgpt-app-submission.json`.
 
 Use a guest session and synthetic sender and recipient details for these checks. Document generation can update customer records and start configured follow-up; it uses the signed-in email before document email fields. The [privacy policy](https://pressmark.dev/privacy) lists the fields shared. These examples describe expected results, not evidence that a payment occurred or a document was legally reviewed.
 
 ### Positive Test Cases (5)
 
-#### Test Case 1: Consulting invoice with a payment link and QR code
+#### Test Case 1: Consulting invoice and preview
 * **User Prompt:**  
-  `"Generate a freelance consulting invoice from Sample Studio (sender@example.com) to Sample Client (recipient@example.com) for 15 hours of Systems Architecture at $250/hr, due in 14 days, with payment link https://example.com/pay/invoice and a mobile QR code."`
+  `"Create and preview a sample invoice from Sample Studio to Sample Client for 15 consulting hours at $250 per hour. Leave out email addresses and payment links."`
 * **Target Skill / Tool:** `invoice-generation` -> `preview_document` / `generate_document`
 * **Expected Arguments:**
   - `doc_type`: `"invoice_freelance"`
-  - `from`: `{"name": "Sample Studio", "email": "sender@example.com"}`
-  - `to`: `{"name": "Sample Client", "email": "recipient@example.com"}`
-  - `items`: `[{"description": "Systems Architecture", "quantity": 15, "unit_price": 250.0}]`
-  - `payment_link`: `"https://example.com/pay/invoice"`
-  - `payment_qr_code`: `true`
+  - `from`: `{"name": "Sample Studio"}`
+  - `to`: `{"name": "Sample Client"}`
+  - `items`: `[{"description": "Consulting", "quantity": 15, "unit_price": 250.0}]`
 * **Expected Result / Assertions:**
   - Returns a PDF of the requested invoice.
   - Grand total calculates to `$3,750.00`.
-  - High-res PNG preview rendered inline in chat.
-  - Embedded vector SVG QR code rendered directly in document footer.
+  - Returns a PNG preview and a temporary PDF download link.
 
 #### Test Case 2: Estimate-to-Invoice Lifecycle Conversion
 * **User Prompt:**  
-  `"Convert my project estimate EST-2026-0042 ($5,000 for Mobile App Design) into an official Tax Invoice due in 30 days with payment link https://example.com/pay/project."`
+  `"Convert this sample estimate to an invoice due in 30 days: EST-2026-0042 from Sample Studio to Sample Client for $5,000 in mobile app design."`
 * **Target Skill / Tool:** `document-lifecycle` -> `convert_document`
 * **Expected Arguments:**
   - `target_type`: `"invoice"`
   - `due_days`: `30`
-  - `payment_link`: `"https://example.com/pay/project"`
-  - `payment_qr_code`: `true`
   - `document`: valid estimate payload
 * **Expected Result / Assertions:**
   - Document prefix re-sequences from `EST-` to `INV-`.
   - Issue date updates to current date; due date calculated to +30 days.
   - Status updates to `pending`.
-  - Returns an updated PDF and summary with the supplied payment link.
+  - Returns an updated PDF and summary.
 
 #### Test Case 3: Commercial NNN Lease Summary with CAM Allocation
 * **User Prompt:**  
@@ -87,11 +84,10 @@ Use a guest session and synthetic sender and recipient details for these checks.
 
 #### Test Case 4: Record a payment and create a receipt
 * **User Prompt:**  
-  `"Record full payment of $3,750 for invoice INV-2026-001 received via Stripe Card on October 7, 2026 (transaction ID: sample-payment-001) and generate an official paid receipt."`
+  `"Create a receipt for sample invoice INV-2026-001 from Sample Studio to Sample Client for 15 consulting hours at $250 per hour. Use a fictional $3,750 payment on October 7, 2026, with reference sample-payment-001."`
 * **Target Skill / Tool:** `document-lifecycle` -> `record_payment`
 * **Expected Arguments:**
   - `amount_paid`: `3750.0`
-  - `payment_method`: `"Stripe Card"`
   - `transaction_reference`: `"sample-payment-001"`
   - `paid_date`: `"2026-10-07"`
 * **Expected Result / Assertions:**
@@ -100,13 +96,12 @@ Use a guest session and synthetic sender and recipient details for these checks.
   - Document stamped with `PAID IN FULL ✅`.
   - Generates a receipt with the supplied transaction reference.
 
-#### Test Case 5: Calculate totals and check pricing
+#### Test Case 5: Calculate totals
 * **User Prompt:**  
-  `"Calculate line-item totals with 9.25% sales tax and a $150 early-payment discount for 3 laptops at $1,200 each, and tell me the subscription tiers and their prices."`
-* **Target Skill / Tool:** `invoice-generation` -> `calculate_totals`, followed by `get_pricing`
+  `"Calculate the total for three laptops at $1,200 each with 9.25% sales tax and a $150 discount."`
+* **Target Skill / Tool:** `invoice-generation` -> `calculate_totals`
 * **Expected Result / Assertions:**
   - Subtotal: `$3,600.00`, Tax (9.25%): `$333.00`, Discount: `$150.00`, Grand Total: `$3,783.00`.
-  - Pricing catalog returned: Solo Pro at `$15/mo` or Single Document Pass at `$2.99`. No Pressmark checkout links are returned by any tool; paid export options are on the [pricing page](https://pressmark.dev/pricing) in the browser.
 
 ---
 
@@ -119,13 +114,12 @@ Every tool declares all four hints explicitly (never null). Artifact-producing t
 | `generate_document` | false | true | false | true |
 | `preview_document` | false | false | false | false |
 | `calculate_totals` | true | false | true | false |
-| `get_pricing` | true | false | true | false |
 | `convert_document` | false | false | false | false |
 | `record_payment` | false | false | false | false |
 | `submit_feedback` | false | false | false | true |
 | `get_feedback_status` | true | false | true | true |
 
-Notes: `generate_document` is destructive when customer sync is enabled — sync can replace existing contact fields, move an opportunity's stage, and enroll follow-up workflows. `submit_feedback` is idempotent `false` as a conservative default; server-side dedup by `request_id` is unverified. No tool returns a Pressmark checkout link: `get_pricing` returns prices only, and the document tools return no `unlock_checkout_url` / `pro_checkout_url`. A payment link or QR code embedded in a document is the user's own checkout link, supplied by them.
+When customer sync is enabled, `generate_document` can replace contact details, update an opportunity's stage, and start follow-up workflows. `submit_feedback` can create a new report. The plugin does not list Pressmark plans or start checkout. A PDF can include a link supplied by the user.
 
 ### Negative Test Cases (3)
 

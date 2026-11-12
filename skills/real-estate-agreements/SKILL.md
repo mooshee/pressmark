@@ -27,7 +27,6 @@ Before generating a PDF, explain that configured customer sync can record contac
 3. Check available state profiles at `GET https://pressmark.dev/api/v1/states`. Lease templates can include federal notices, state-specific terms and disclosures, and supported local additions. Use the applicable returned profile; do not assume a template covers every legal requirement.
 4. Call `preview_document`. Check the parties, property, dates, amounts, disclosure sections, and signature lines in the preview.
 5. Call `generate_document` to create the PDF. Show the returned document and any missing information that still needs review.
-6. If the user asks for an export without attribution, point them to the [pricing page](https://pressmark.dev/pricing) in the browser.
 
 ## Document types
 

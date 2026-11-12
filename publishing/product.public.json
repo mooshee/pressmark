@@ -2,8 +2,8 @@
   "schema_version": 1,
   "name": "Pressmark",
   "slug": "pressmark",
-  "version": "1.2.5",
-  "description": "Create PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and real estate documents. Preview each document and add a payment link or QR code. Built by Moosh Works (https://mooshworks.com).",
+  "version": "1.3.0",
+  "description": "Create and preview PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and real estate documents from the details you provide. Built by Moosh Works (https://mooshworks.com).",
   "publisher": "Daniel Hallman",
   "website": "https://pressmark.dev",
   "privacy_url": "https://pressmark.dev/privacy",
@@ -16,13 +16,12 @@
     "estimates",
     "receipts",
     "contracts",
-    "vector-pdf",
-    "payments"
+    "vector-pdf"
   ],
   "starter_prompts": [
-    "Create a consulting invoice with a payment link and QR code.",
-    "Convert project estimate EST-2026-0042 into an invoice.",
-    "Draft a commercial lease summary with base rent and common area maintenance charges."
+    "Create an invoice for 15 hours of consulting at $250 per hour.",
+    "Convert my $5,000 design estimate to an invoice due in 30 days.",
+    "Create a receipt for a payment I already received."
   ],
   "support_url": "https://github.com/mooshee/pressmark/issues",
   "terms_url": "https://pressmark.dev/terms",

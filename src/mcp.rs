@@ -4,7 +4,6 @@
 
 use crate::engine::{generate_pdf, generate_preview_png};
 use crate::models::{DocumentRequest, DocumentType};
-use crate::pricing::get_pricing_catalog;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
@@ -92,7 +91,7 @@ impl McpHandler {
             "fields_style": { "type": "string", "description": "Metadata and property fields style (standard, compact_strip, ledger_table, minimal_list)." },
             "table_style": { "type": "string", "description": "Line items and rent schedule table style (standard, minimal_lines, bordered_ledger, modern_cards, compact_mono)." },
             "totals_style": { "type": "string", "description": "Financial summary and totals box style (standard, card_highlight, banner_bar, compact, split_ledger)." },
-            "payment_style": { "type": "string", "description": "Payment QR and checkout block style (standard, banner, minimal_inline)." },
+            "payment_style": { "type": "string", "description": "Style for payment details in the document (standard, banner, minimal_inline)." },
             "notes_style": { "type": "string", "description": "Notes and instructions block style (standard, callout_card, left_accent, numbered_legal)." },
             "sections_style": { "type": "string", "description": "Custom sections and clauses style (standard, callout_card, left_accent, numbered_legal)." },
             "signature_style": { "type": "string", "description": "Signature block style (standard, framed_box, formal_deed, minimal_compact)." },
@@ -137,7 +136,7 @@ impl McpHandler {
             },
             "currency": { "type": "string", "default": "USD", "description": "ISO 4217 currency code." },
             "tax_rate": { "type": "number", "description": "Percentage tax rate." },
-            "payment_link": { "type": "string", "description": "HTTPS checkout URL for QR code." },
+            "payment_link": { "type": "string", "description": "HTTPS link supplied by the user to include in the document." },
             "payment_qr_code": { "type": "boolean", "description": "Embed vector SVG QR code." },
             "custom_fields": { "type": "array", "description": "Custom key-value metadata fields." },
             "sections": { "type": "array", "description": "Structured legal clause sections." },
@@ -302,32 +301,6 @@ impl McpHandler {
                 }
             },
             {
-                "name": "get_pricing",
-                "title": "Get Pressmark Pricing Catalog",
-                "description": "Read subscription tiers and single-pass unlock prices. Stateless.",
-                "annotations": {
-                    "title": "Get Pressmark Pricing Catalog",
-                    "readOnlyHint": true,
-                    "destructiveHint": false,
-                    "idempotentHint": true,
-                    "openWorldHint": false
-                },
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {},
-                    "examples": [{}]
-                },
-                "outputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "currency": { "type": "string", "description": "Catalog currency (USD)." },
-                        "plans": { "type": "array", "description": "Subscription tiers." },
-                        "microtransactions": { "type": "array", "description": "Single-pass unlocks." }
-                    },
-                    "required": ["currency", "plans", "microtransactions"]
-                }
-            },
-            {
                 "name": "convert_document",
                 "title": "Convert Document",
                 "description": "Convert document details to an invoice, estimate, receipt, credit note, or refund PDF. HTTP calls can return a temporary download link.",
@@ -344,7 +317,7 @@ impl McpHandler {
                         "document": { "type": "object", "description": "Stateless input document JSON payload to transform." },
                         "target_type": { "type": "string", "enum": ["invoice", "receipt", "estimate", "credit_note", "refund"], "description": "Target type (invoice, receipt, estimate, credit_note, refund)." },
                         "due_days": { "type": "integer", "description": "Days until payment due." },
-                        "payment_link": { "type": "string", "description": "HTTPS checkout URL for QR code." },
+                        "payment_link": { "type": "string", "description": "HTTPS link supplied by the user to include in the document." },
                         "payment_qr_code": { "type": "boolean", "description": "Embed SVG vector QR code." },
                         "credit_reason": { "type": "string", "description": "Credit note or refund reason." }
                     },
@@ -532,12 +505,6 @@ impl McpHandler {
                             "mimeType": "application/json"
                         },
                         {
-                            "uri": "pressmark://catalog/pricing",
-                            "name": "Pricing & Unlock Tiers",
-                            "description": "Subscription plans and document unlock pricing.",
-                            "mimeType": "application/json"
-                        },
-                        {
                             "uri": "pressmark://catalog/themes",
                             "name": "Visual Theme Presets",
                             "description": "Visual appearance presets and document colors.",
@@ -569,12 +536,6 @@ impl McpHandler {
                 let text = match uri {
                     "pressmark://catalog/states" => {
                         serde_json::to_string(&crate::state_laws::all_state_lease_profiles())
-                            .unwrap_or_default()
-                    }
-                    "pressmark://catalog/pricing" => {
-                        // Same rule as the get_pricing tool: prices only, no
-                        // Pressmark checkout links on the MCP surface.
-                        serde_json::to_string(&get_pricing_catalog().without_checkout_urls())
                             .unwrap_or_default()
                     }
                     "pressmark://catalog/themes" => json!({
@@ -780,30 +741,6 @@ impl McpHandler {
                             },
                         }
                     }
-                    "get_pricing" => {
-                        // Agent/plugin surface: prices only, no Pressmark
-                        // checkout links. The web pricing/checkout flow uses
-                        // the full catalog elsewhere.
-                        let catalog = get_pricing_catalog().without_checkout_urls();
-                        let mut val = serde_json::to_value(&catalog).unwrap_or_else(|_| json!({}));
-                        if let Some(obj) = val.as_object_mut() {
-                            obj.insert(
-                                "content".to_string(),
-                                json!([
-                                    {
-                                        "type": "text",
-                                        "text": serde_json::to_string_pretty(&catalog).unwrap_or_default()
-                                    }
-                                ]),
-                            );
-                        }
-                        JsonRpcResponse {
-                            jsonrpc: "2.0",
-                            id: req.id,
-                            result: Some(val),
-                            error: None,
-                        }
-                    }
                     "convert_document" => {
                         let target_type = arguments.get("target_type").and_then(|t| t.as_str()).unwrap_or("");
                         let due_days = arguments.get("due_days").and_then(|d| d.as_u64()).unwrap_or(15) as u32;
@@ -864,6 +801,8 @@ impl McpHandler {
                                 match generate_pdf(&converted) {
                                     Ok((pdf_bytes, ms)) => {
                                         let b64 = BASE64.encode(&pdf_bytes);
+                                        let summary = format_document_markdown(&converted, "Document Converted to", ms);
+                                        converted.payment_link = None;
                                         JsonRpcResponse {
                                             jsonrpc: "2.0",
                                             id: req.id,
@@ -871,7 +810,7 @@ impl McpHandler {
                                                 "content": [
                                                     {
                                                         "type": "text",
-                                                        "text": format_document_markdown(&converted, "Document Converted to", ms)
+                                                        "text": summary
                                                     },
                                                     pdf_resource(&pdf_bytes, &b64)
                                                 ],
@@ -994,7 +933,7 @@ impl McpHandler {
                                     };
                                 }
                                 let grand_total = doc_req.grand_total();
-                                let (payment_doc, action_label) = if let Some(paid) = amount_paid {
+                                let (mut payment_doc, action_label) = if let Some(paid) = amount_paid {
                                     if paid < grand_total - 0.001 {
                                         let mut partial_doc = doc_req.clone();
                                         partial_doc.amount_paid = Some(paid);
@@ -1016,6 +955,8 @@ impl McpHandler {
                                 match generate_pdf(&payment_doc) {
                                     Ok((pdf_bytes, ms)) => {
                                         let b64 = BASE64.encode(&pdf_bytes);
+                                        let summary = format_document_markdown(&payment_doc, action_label, ms);
+                                        payment_doc.payment_link = None;
                                         JsonRpcResponse {
                                             jsonrpc: "2.0",
                                             id: req.id,
@@ -1023,7 +964,7 @@ impl McpHandler {
                                                 "content": [
                                                     {
                                                         "type": "text",
-                                                        "text": format_document_markdown(&payment_doc, action_label, ms)
+                                                        "text": summary
                                                     },
                                                     pdf_resource(&pdf_bytes, &b64)
                                                 ],
@@ -1148,11 +1089,8 @@ fn format_document_markdown(doc: &DocumentRequest, action_title: &str, _compile_
         md.push_str(&format!("- **Balance Due:** {}\n", doc.format_amount(doc.balance_due())));
     }
 
-    if let Some(link) = &doc.payment_link {
-        md.push_str(&format!("\n[Pay online]({})\n", link));
-        if doc.payment_qr_code.unwrap_or(false) {
-            md.push_str("\nThe document includes a QR code for this payment link.\n");
-        }
+    if doc.payment_link.is_some() {
+        md.push_str("\nThe document includes the payment link you supplied.\n");
     }
     md
 }

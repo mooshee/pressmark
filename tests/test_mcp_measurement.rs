@@ -131,7 +131,15 @@ async fn http_tool_results_distinguish_success_failure_and_protocol_discovery() 
     let storage = Arc::new(Storage::new(":memory:").unwrap());
     let router = create_router(Arc::new(AppState::default().with_storage(storage.clone())));
     for (method, params, expected_error) in [
-        ("tools/call", json!({"name": "get_pricing", "arguments": {}}), false),
+        ("tools/call", json!({
+            "name": "calculate_totals",
+            "arguments": {
+                "doc_type": "invoice",
+                "from": {"name": "Seller"},
+                "to": {"name": "Buyer"},
+                "items": [{"description": "Sample item", "quantity": 1, "unit_price": 10}]
+            }
+        }), false),
         ("tools/call", json!({"name": "measurement_unknown_tool", "arguments": {}}), true),
         ("tools/call", json!({"name": "generate_document", "arguments": {}}), true),
         ("tools/list", json!({}), false),
@@ -149,7 +157,7 @@ async fn http_tool_results_distinguish_success_failure_and_protocol_discovery() 
     assert_eq!(summary["mcp_measurement"]["attempts"], 3);
     assert_eq!(summary["mcp_measurement"]["outcomes"], json!({"success": 1, "failure": 2, "pending": 0, "unknown": 0}));
     assert_eq!(summary["mcp_measurement"]["by_actor"]["internal_probe"]["attempts"], 3);
-    assert_eq!(summary["mcp_measurement"]["by_tool"]["get_pricing"]["success"], 1);
+    assert_eq!(summary["mcp_measurement"]["by_tool"]["calculate_totals"]["success"], 1);
     assert_eq!(summary["mcp_measurement"]["by_tool"]["generate_document"]["failure"], 1);
     assert_eq!(summary["mcp_measurement"]["failure_breakdown"], json!({"unknown_tool": 1, "invalid_arguments": 1, "execution_error": 0, "unclassified": 0}));
     assert_eq!(summary["events_by_type"]["mcp_protocol"], 1);

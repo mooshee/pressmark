@@ -41,9 +41,5 @@ Use the type accepted by the connected server. The [document type reference](ref
 
 For leases, property notices, and statutory engine details, see [real-estate-agreements](../real-estate-agreements/SKILL.md).
 
-## Export options
-
-Community exports include Pressmark attribution. See the [pricing page](https://pressmark.dev/pricing) in the browser for the available plans and limits.
-
-When the user wants an export without attribution, point them to the [pricing page](https://pressmark.dev/pricing) in the browser. The [invoice template](https://pressmark.dev/templates/invoice) is also available for browser editing.
+Community exports include Pressmark attribution. The [invoice template](https://pressmark.dev/templates/invoice) is also available for browser editing.
 

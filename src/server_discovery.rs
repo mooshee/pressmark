@@ -273,12 +273,6 @@ pub async fn handle_discovery_resources() -> impl IntoResponse {
                     "name": "Document Archetypes Catalog",
                     "mimeType": "application/json",
                     "description": "Catalog of 57 business and real estate document templates"
-                },
-                {
-                    "uri": "pressmark://pricing/catalog",
-                    "name": "Pricing & Entitlements",
-                    "mimeType": "application/json",
-                    "description": "Pressmark subscription and single-pass export pricing"
                 }
             ]
         })),
@@ -289,7 +283,7 @@ pub fn build_mcp_server_card_json(base: &str) -> serde_json::Value {
     serde_json::json!({
         "name": "io.github.mooshee/pressmark",
         "title": "Pressmark Vector Document Engine",
-        "description": "Vector document engine for 57 invoice, receipt, contract, and real estate PDFs with QR payments.",
+        "description": "Create PDF invoices, receipts, contracts, and real estate documents from supplied details.",
         "version": crate::mcp::MCP_SERVER_VERSION,
         "protocolVersion": "2026-07-28",
         "supportedProtocols": crate::mcp::SUPPORTED_MCP_PROTOCOLS,

@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "Pressmark",
     "subtitle": "PDF Invoices & Contracts",
-    "description": "Create PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and real estate documents. Preview each document and add a payment link or QR code.",
+    "description": "Create and preview PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and real estate documents from the details you provide. Built by Moosh Works (https://mooshworks.com).",
     "category": "PRODUCTIVITY",
     "homepage": "https://pressmark.dev",
     "privacy_policy_url": "https://pressmark.dev/privacy",
@@ -60,17 +60,17 @@
         "open_world_justification": "Does not access external web resources."
       }
     },
-    "get_pricing": {
+    "get_feedback_status": {
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
-        "openWorldHint": false
+        "openWorldHint": true
       },
       "justifications": {
-        "read_only_justification": "Reads static pricing tiers.",
-        "destructive_justification": "Returns pricing without changing a plan or making a purchase.",
-        "open_world_justification": "Does not access external web resources."
+        "read_only_justification": "Reads the review status of one feedback report; changes nothing.",
+        "destructive_justification": "Reads status without changing stored records.",
+        "open_world_justification": "Reads from Pressmark's external feedback service without writing."
       }
     },
     "convert_document": {
@@ -111,88 +111,74 @@
         "destructive_justification": "Sends a report without deleting or overwriting stored records.",
         "open_world_justification": "Sends the report to Pressmark's external feedback inbox."
       }
-    },
-    "get_feedback_status": {
-      "annotations": {
-        "readOnlyHint": true,
-        "destructiveHint": false,
-        "idempotentHint": true,
-        "openWorldHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Reads the review status of one feedback report; changes nothing.",
-        "destructive_justification": "Reads status without changing stored records.",
-        "open_world_justification": "Reads from Pressmark's external feedback service without writing."
-      }
     }
   },
   "positive_test_cases": [
     {
-      "description": "Freelance consulting invoice with Stripe checkout link and mobile QR code",
-      "user_prompt": "Generate a freelance consulting invoice from Sample Studio (sender@example.com) to Sample Client (recipient@example.com) for 15 hours of Systems Architecture at $250/hr, due in 14 days, with payment link https://example.com/pay/invoice and a mobile QR code.",
+      "description": "Create and preview a sample consulting invoice. Use an unauthenticated Pressmark connection and the fictional party names in the prompt. Do not supply email addresses, a customer account, or a payment link. This setup avoids customer-record sync.",
+      "user_prompt": "Create sample invoice INV-DEMO-0043, issued October 29, 2026, from Sample Studio to Sample Client for 15 consulting hours at $250 in USD. Show its preview and PDF download link. Do not include emails or a payment link.",
       "tools_triggered": [
         "generate_document",
         "preview_document"
       ],
-      "expected_output": "A PDF invoice totaling $3,750.00, a PNG preview displayed in chat, and a QR code for the supplied payment link."
+      "expected_output": "Call generate_document and preview_document with doc_type='invoice', doc_number='INV-DEMO-0043', issue_date='2026-10-29', from.name='Sample Studio', to.name='Sample Client', currency='USD', and one item with quantity=15 and unit_price=250. Show the invoice summary and PNG preview with the supplied number, date, and $3,750 total. Show the returned PDF download link and open it before expiry to verify the PDF has those same fields. Explain that the link expires in 15 minutes, may stop working sooner after a service restart, and can be opened by anyone who has it. Do not claim legal certification."
     },
     {
-      "description": "Convert an estimate to an invoice",
-      "user_prompt": "Convert my project estimate EST-2026-0042 ($5,000 for Mobile App Design) into an official Tax Invoice due in 30 days with payment link https://example.com/pay/project.",
+      "description": "Calculate a sample invoice total with tax and a discount.",
+      "user_prompt": "For a sample USD invoice from Sample Studio to Sample Client, calculate three laptops at $1,200 each with 9.25% sales tax and a $150 discount.",
+      "tools_triggered": [
+        "calculate_totals"
+      ],
+      "expected_output": "Call calculate_totals with the named parties, quantity 3, unit price 1200, tax rate 9.25, and discount amount 150. Show a $3,600 subtotal, $333 tax, $150 discount, and $3,783 total and balance due."
+    },
+    {
+      "description": "Convert a complete sample estimate into an invoice. The prompt supplies the document content; the app is not expected to retrieve a stored estimate by number. Use the returned document date for the 30-day due-date check.",
+      "user_prompt": "Convert this sample estimate to an invoice due in 30 days: EST-DEMO-0042, from Sample Studio to Sample Client, USD, one Mobile app design item at $5,000. Do not add emails or a payment link.",
       "tools_triggered": [
         "convert_document"
       ],
-      "expected_output": "Document re-sequenced to INV-2026-0042, issue date updated to today, due date set to +30 days, status marked pending with payment link."
+      "expected_output": "Call convert_document with target_type='invoice', due_days=30, and document containing doc_type='estimate', doc_number='EST-DEMO-0042', the named parties, currency='USD', and one item with quantity=1 and unit_price=5000. Show the returned PDF link and invoice summary with total $5,000, pending payment status, and number INV-DEMO-0042. Conversion sets the issue date to the execution date in UTC and the due date 30 days later. Verify those dates in the returned document or PDF. Do not claim a saved accounting record was updated."
     },
     {
-      "description": "Commercial lease summary with base rent and common area maintenance charges",
-      "user_prompt": "Draft a commercial triple-net (NNN) lease summary for Suite 400 at 100 Innovation Way between Hallman Properties LLC (Landlord) and TechVentures Inc (Tenant), 3,500 sq ft at $38/sqft/yr base rent, plus $8.50/sqft/yr estimated CAM charges, starting November 1, 2026.",
-      "tools_triggered": [
-        "generate_document"
-      ],
-      "expected_output": "A multi-page commercial lease document with monthly base rent of $11,083.33 and common area maintenance charges of $2,479.17, totaling $13,562.50 per month, plus operating expense terms and signature lines."
-    },
-    {
-      "description": "Record a payment and create a receipt",
-      "user_prompt": "Record full payment of $3,750 for invoice INV-2026-001 received via Stripe Card on October 7, 2026 (transaction ID: sample-payment-001) and generate an official paid receipt.",
+      "description": "Show a partial-payment invoice using an explicitly fictional payment. The app calculates from the supplied data; it does not verify a bank or payment-provider transaction or update a stored ledger.",
+      "user_prompt": "Use this sample invoice: INV-DEMO-0043, issued October 28, 2026, from Sample Studio to Sample Client, USD, 15 consulting hours at $250. For a fictional $1,000 payment on October 28, 2026, method Sample payment, reference DEMO-PAYMENT-001, show the remaining balance. Do not charge anyone.",
       "tools_triggered": [
         "record_payment"
       ],
-      "expected_output": "A receipt marked 'PAID IN FULL', a $0.00 balance due, and the supplied transaction reference."
+      "expected_output": "Call record_payment with the complete invoice document, amount_paid=1000, paid_date='2026-10-28', payment_method='Sample payment', and transaction_reference='DEMO-PAYMENT-001'. Show the returned PDF link and partial-payment status, total $3,750, amount paid $1,000, and balance due $2,750. Explain that the result reflects the supplied sample payment. Do not claim money moved, a transaction was verified, or a customer record was saved."
     },
     {
-      "description": "Calculate totals and show pricing",
-      "user_prompt": "Calculate line-item totals with 9.25% sales tax and a $150 early-payment discount for 3 laptops at $1,200 each, and tell me the subscription tiers and their prices.",
+      "description": "Produce a receipt from a complete sample invoice and an explicitly fictional full payment. Run independently of the partial-payment case so the input still has no prior payment.",
+      "user_prompt": "Create a sample receipt for invoice INV-DEMO-0043, issued October 28, 2026, from Sample Studio to Sample Client, USD, 15 consulting hours at $250. The fictional payment is $3,750 on October 28, 2026, method Sample payment, reference DEMO-PAYMENT-002. Do not charge anyone.",
       "tools_triggered": [
-        "calculate_totals",
-        "get_pricing"
+        "record_payment"
       ],
-      "expected_output": "Calculates subtotal $3,600.00, tax $333.00, discount $150.00, grand total $3,783.00, and returns the Solo Pro subscription and single-pass pricing."
+      "expected_output": "Call record_payment with the complete invoice document, amount_paid=3750, paid_date='2026-10-28', payment_method='Sample payment', and transaction_reference='DEMO-PAYMENT-002'. Show the returned PDF link and receipt REC-DEMO-0043 with paid-in-full status, amount paid $3,750, and zero balance. Verify the supplied date and reference in the returned document or PDF. Explain that the receipt reflects user-supplied sample details; do not claim payment-provider verification or ledger persistence."
     }
   ],
   "negative_test_cases": [
     {
-      "description": "Geography and weather questions are outside Pressmark's scope",
-      "user_prompt": "What is the capital of France and what will the weather be like there tomorrow?",
+      "description": "Pressmark does not upgrade accounts or start checkout from chat. Do not invoke a document tool, show a subscription catalog, or return a checkout link.",
+      "user_prompt": "Upgrade my Pressmark account to a paid plan and send me the checkout link.",
       "tools_triggered": [],
-      "expected_output": "Do not invoke Pressmark tools; geography and weather are outside Pressmark's scope."
+      "expected_output": "Pressmark does not upgrade accounts or start checkout from chat. Do not invoke a document tool, show a subscription catalog, or return a checkout link."
     },
     {
-      "description": "Travel reservations are outside Pressmark's scope",
-      "user_prompt": "Book a direct roundtrip flight from New York to London departing next Friday.",
+      "description": "Collecting money or charging a saved card is outside the app's document tools. Do not invoke Pressmark tools. Explain that a payment provider must process the charge and that creating a receipt would not prove payment.",
+      "user_prompt": "Charge my client's saved card $3,750 now and confirm the money reached my bank account.",
       "tools_triggered": [],
-      "expected_output": "Do not invoke Pressmark tools; Pressmark does not book flights or other travel."
+      "expected_output": "Collecting money or charging a saved card is outside the app's document tools. Do not invoke Pressmark tools. Explain that a payment provider must process the charge and that creating a receipt would not prove payment."
     },
     {
-      "description": "Bank transfers are outside Pressmark's scope",
-      "user_prompt": "Transfer $500 from my checking account to my savings account right now.",
+      "description": "The app has no direct email-sending tool. Do not invoke generate_document or other Pressmark tools as a substitute for sending a reminder. Explain the limit and offer to draft reminder wording in the conversation.",
+      "user_prompt": "Use only Pressmark for this request, without Gmail or any other app: email the invoice to my client now and schedule daily payment reminders from my mailbox. Can Pressmark itself do that?",
       "tools_triggered": [],
-      "expected_output": "Do not invoke Pressmark tools; Pressmark creates billing documents and receipts but does not access bank accounts or transfer money."
+      "expected_output": "The app has no direct email-sending tool. Do not invoke generate_document or other Pressmark tools as a substitute for sending a reminder. Explain the limit and offer to draft reminder wording in the conversation."
     }
   ],
   "review_instructions": {
     "test_account_credentials": "Document generation is available without credentials. Use a guest session and synthetic sender and recipient details for review. A configured customer sync can use the signed-in email, otherwise the sender email, then the recipient email.",
-    "video_walkthrough_url": "REQUIRED: Add a public recording that shows the review steps before submission.",
-    "data_safety_attestation": "Pressmark processes document details to render PDFs and previews. It retains account, billing, and usage records. When customer sync is enabled, it sends contact details, document summaries, and activity records to HighLevel and can start follow-up workflows. The document-generation sync does not send the PDF or line-item descriptions. See https://pressmark.dev/privacy."
+    "data_safety_attestation": "Pressmark processes document details to render PDFs and previews. It retains account, billing, and usage records. When customer sync is enabled, it sends contact details, document summaries, and activity records to HighLevel and can start follow-up workflows. The document-generation sync does not send the PDF or line-item descriptions. See https://pressmark.dev/privacy.",
+    "video_walkthrough_url": "https://github.com/mooshee/pressmark/releases/download/v1.2.4/pressmark-chatgpt-review-20261029.mp4"
   }
 }
