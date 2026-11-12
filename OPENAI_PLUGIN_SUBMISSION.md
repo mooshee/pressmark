@@ -102,13 +102,30 @@ Use a guest session and synthetic sender and recipient details for these checks.
 
 #### Test Case 5: Calculate totals and check pricing
 * **User Prompt:**  
-  `"Calculate line-item totals with 9.25% sales tax and a $150 early-payment discount for 3 laptops at $1,200 each, and tell me the subscription cost to remove watermarks on future exports."`
+  `"Calculate line-item totals with 9.25% sales tax and a $150 early-payment discount for 3 laptops at $1,200 each, and tell me the subscription tiers and their prices."`
 * **Target Skill / Tool:** `invoice-generation` -> `calculate_totals`, followed by `get_pricing`
 * **Expected Result / Assertions:**
   - Subtotal: `$3,600.00`, Tax (9.25%): `$333.00`, Discount: `$150.00`, Grand Total: `$3,783.00`.
-  - Pricing catalog returned: Solo Pro at `$15/mo` or Single Document Pass at `$2.99` for watermark removal.
+  - Pricing catalog returned: Solo Pro at `$15/mo` or Single Document Pass at `$2.99`. No Pressmark checkout links are returned by any tool; paid export options are on the [pricing page](https://pressmark.dev/pricing) in the browser.
 
 ---
+
+## Tool annotations (live server, aligned with `chatgpt-app-submission.json`)
+
+Every tool declares all four hints explicitly (never null). Artifact-producing tools are not read-only; pure computation and reads are.
+
+| Tool | readOnly | destructive | idempotent | openWorld |
+|---|---|---|---|---|
+| `generate_document` | false | true | false | true |
+| `preview_document` | false | false | false | false |
+| `calculate_totals` | true | false | true | false |
+| `get_pricing` | true | false | true | false |
+| `convert_document` | false | false | false | false |
+| `record_payment` | false | false | false | false |
+| `submit_feedback` | false | false | false | true |
+| `get_feedback_status` | true | false | true | true |
+
+Notes: `generate_document` is destructive when customer sync is enabled — sync can replace existing contact fields, move an opportunity's stage, and enroll follow-up workflows. `submit_feedback` is idempotent `false` as a conservative default; server-side dedup by `request_id` is unverified. No tool returns a Pressmark checkout link: `get_pricing` returns prices only, and the document tools return no `unlock_checkout_url` / `pro_checkout_url`. A payment link or QR code embedded in a document is the user's own checkout link, supplied by them.
 
 ### Negative Test Cases (3)
 

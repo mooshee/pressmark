@@ -36,12 +36,13 @@
     },
     "preview_document": {
       "annotations": {
-        "readOnlyHint": true,
+        "readOnlyHint": false,
         "destructiveHint": false,
+        "idempotentHint": false,
         "openWorldHint": false
       },
       "justifications": {
-        "read_only_justification": "Returns a PNG preview for display in chat without changing the document.",
+        "read_only_justification": "Renders a PNG preview; each call produces a new preview artifact.",
         "destructive_justification": "Returns a preview without deleting or overwriting documents.",
         "open_world_justification": "Does not access external web resources."
       }
@@ -50,10 +51,11 @@
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
+        "idempotentHint": true,
         "openWorldHint": false
       },
       "justifications": {
-        "read_only_justification": "Calculates subtotals, tax, and discounts from the supplied values.",
+        "read_only_justification": "Computes totals from supplied values; no stored records or external systems involved.",
         "destructive_justification": "Calculates totals without changing stored records.",
         "open_world_justification": "Does not access external web resources."
       }
@@ -62,36 +64,65 @@
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
+        "idempotentHint": true,
         "openWorldHint": false
       },
       "justifications": {
-        "read_only_justification": "Reads static pricing tiers and checkout URLs.",
+        "read_only_justification": "Reads static pricing tiers.",
         "destructive_justification": "Returns pricing without changing a plan or making a purchase.",
         "open_world_justification": "Does not access external web resources."
       }
     },
     "convert_document": {
       "annotations": {
-        "readOnlyHint": true,
+        "readOnlyHint": false,
         "destructiveHint": false,
+        "idempotentHint": false,
         "openWorldHint": false
       },
       "justifications": {
-        "read_only_justification": "Converts the supplied document to another type without changing stored records.",
+        "read_only_justification": "Produces a new PDF artifact from the supplied document; does not modify stored records or external systems.",
         "destructive_justification": "Returns the converted document without deleting or overwriting the original.",
         "open_world_justification": "Does not access external web resources."
       }
     },
     "record_payment": {
       "annotations": {
-        "readOnlyHint": true,
+        "readOnlyHint": false,
         "destructiveHint": false,
+        "idempotentHint": false,
         "openWorldHint": false
       },
       "justifications": {
-        "read_only_justification": "Calculates the remaining balance from the supplied payment details and returns a receipt PDF without changing stored records.",
+        "read_only_justification": "Produces a receipt PDF from supplied payment details; does not charge, verify, or move money and changes no stored records — each call renders a new receipt artifact.",
         "destructive_justification": "Creates a receipt without moving money or changing bank records.",
         "open_world_justification": "Does not access external web resources."
+      }
+    },
+    "submit_feedback": {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Sends a feedback report to Pressmark's private inbox; each submission is a new external write.",
+        "destructive_justification": "Sends a report without deleting or overwriting stored records.",
+        "open_world_justification": "Sends the report to Pressmark's external feedback inbox."
+      }
+    },
+    "get_feedback_status": {
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads the review status of one feedback report; changes nothing.",
+        "destructive_justification": "Reads status without changing stored records.",
+        "open_world_justification": "Reads from Pressmark's external feedback service without writing."
       }
     }
   },
@@ -131,7 +162,7 @@
     },
     {
       "description": "Calculate totals and show pricing",
-      "user_prompt": "Calculate line-item totals with 9.25% sales tax and a $150 early-payment discount for 3 laptops at $1,200 each, and tell me the subscription cost to remove watermarks on future exports.",
+      "user_prompt": "Calculate line-item totals with 9.25% sales tax and a $150 early-payment discount for 3 laptops at $1,200 each, and tell me the subscription tiers and their prices.",
       "tools_triggered": [
         "calculate_totals",
         "get_pricing"

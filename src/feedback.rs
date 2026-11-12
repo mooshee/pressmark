@@ -261,7 +261,7 @@ pub fn tools() -> Vec<Value> {
             "name":"submit_feedback",
             "title":"Send Pressmark feedback",
             "description":"Send a bug report, feature request, or general feedback to the private Pressmark inbox when the user asks. Include only details they choose to share; omit documents, passwords, and tokens.",
-            "annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":true},
+            "annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":false,"openWorldHint":true},
             "inputSchema":{
                 "type":"object",
                 "properties":properties,

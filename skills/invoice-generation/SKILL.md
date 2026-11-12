@@ -43,7 +43,7 @@ For leases, property notices, and statutory engine details, see [real-estate-agr
 
 ## Export options
 
-Community exports include Pressmark attribution. A Single Document Pass costs $2.99; Solo Pro costs $15 per month. Check `get_pricing` or the [pricing page](https://pressmark.dev/pricing) for the available plans and limits before offering a purchase.
+Community exports include Pressmark attribution. See the [pricing page](https://pressmark.dev/pricing) in the browser for the available plans and limits.
 
-When the user wants an export without attribution, show the returned `unlock_checkout_url` or `pro_checkout_url` with the price and payment period. The [invoice template](https://pressmark.dev/templates/invoice) is also available for browser editing.
+When the user wants an export without attribution, point them to the [pricing page](https://pressmark.dev/pricing) in the browser. The [invoice template](https://pressmark.dev/templates/invoice) is also available for browser editing.
 

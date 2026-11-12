@@ -199,7 +199,7 @@ impl McpHandler {
                 "annotations": {
                     "title": "Generate PDF Document",
                     "readOnlyHint": false,
-                    "destructiveHint": false,
+                    "destructiveHint": true,
                     "idempotentHint": false,
                     "openWorldHint": true
                 },
@@ -304,7 +304,7 @@ impl McpHandler {
             {
                 "name": "get_pricing",
                 "title": "Get Pressmark Pricing Catalog",
-                "description": "Read subscription tiers, single-pass unlocks, and checkout links. Stateless.",
+                "description": "Read subscription tiers and single-pass unlock prices. Stateless.",
                 "annotations": {
                     "title": "Get Pressmark Pricing Catalog",
                     "readOnlyHint": true,
@@ -572,7 +572,10 @@ impl McpHandler {
                             .unwrap_or_default()
                     }
                     "pressmark://catalog/pricing" => {
-                        serde_json::to_string(&get_pricing_catalog()).unwrap_or_default()
+                        // Same rule as the get_pricing tool: prices only, no
+                        // Pressmark checkout links on the MCP surface.
+                        serde_json::to_string(&get_pricing_catalog().without_checkout_urls())
+                            .unwrap_or_default()
                     }
                     "pressmark://catalog/themes" => json!({
                         "studio_url": "https://pressmark.dev",
@@ -701,9 +704,7 @@ impl McpHandler {
                                                 "pdf_base64": b64,
                                                 "doc_number": doc_req.effective_doc_number(),
                                                 "grand_total": doc_req.grand_total(),
-                                                "compile_time_ms": ms,
-                                                "unlock_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true",
-                                                "pro_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
+                                                "compile_time_ms": ms
                                             })),
                                             error: None,
                                         }
@@ -758,9 +759,7 @@ impl McpHandler {
                                                     }
                                                 ],
                                                 "image_data_uri": uri,
-                                                "compile_time_ms": ms,
-                                                "unlock_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true",
-                                                "pro_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
+                                                "compile_time_ms": ms
                                             })),
                                             error: None,
                                         }
@@ -782,7 +781,10 @@ impl McpHandler {
                         }
                     }
                     "get_pricing" => {
-                        let catalog = get_pricing_catalog();
+                        // Agent/plugin surface: prices only, no Pressmark
+                        // checkout links. The web pricing/checkout flow uses
+                        // the full catalog elsewhere.
+                        let catalog = get_pricing_catalog().without_checkout_urls();
                         let mut val = serde_json::to_value(&catalog).unwrap_or_else(|_| json!({}));
                         if let Some(obj) = val.as_object_mut() {
                             obj.insert(
@@ -875,9 +877,7 @@ impl McpHandler {
                                                 ],
                                                 "document": converted,
                                                 "pdf_base64": b64,
-                                                "compile_time_ms": ms,
-                                                "unlock_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true",
-                                                "pro_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
+                                                "compile_time_ms": ms
                                             })),
                                             error: None,
                                         }
@@ -1029,9 +1029,7 @@ impl McpHandler {
                                                 ],
                                                 "document": payment_doc,
                                                 "pdf_base64": b64,
-                                                "compile_time_ms": ms,
-                                                "unlock_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true",
-                                                "pro_checkout_url": "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
+                                                "compile_time_ms": ms
                                             })),
                                             error: None,
                                         }

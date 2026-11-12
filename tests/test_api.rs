@@ -1915,7 +1915,8 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     .unwrap();
     assert_eq!(sm_xml.matches("https://pressmark.dev/templates/").count(), 113);
 
-    // 4. Verify REST /api/v1/generate and MCP generate_document include 1-click checkout URLs
+    // 4. Verify REST /api/v1/generate includes 1-click checkout URLs, while
+    // MCP generate_document does not (no Pressmark commerce on the plugin surface)
     let req_gen = Request::builder()
         .uri("/api/v1/generate")
         .method("POST")
@@ -1964,14 +1965,14 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
         })),
     });
     let mcp_res = mcp_resp.result.unwrap();
-    assert_eq!(
-        mcp_res["unlock_checkout_url"],
-        "https://pressmark.dev/api/v1/checkout?plan=pass_single_unlock&redirect=true"
-    );
-    assert_eq!(
-        mcp_res["pro_checkout_url"],
-        "https://pressmark.dev/api/v1/checkout?plan=plan_solo&redirect=true"
-    );
+    // MCP tool results must not offer Pressmark checkout links (ChatGPT
+    // plugin review: no commerce facilitation). The REST endpoint above
+    // still returns them for the web flow; the MCP surface does not.
+    assert!(mcp_res.get("unlock_checkout_url").is_none());
+    assert!(mcp_res.get("pro_checkout_url").is_none());
+    let structured = &mcp_res["structuredContent"];
+    assert!(structured.get("unlock_checkout_url").is_none());
+    assert!(structured.get("pro_checkout_url").is_none());
 
     // 5. Verify entitlement upgrade and revocation upon refund
     auth_mgr.upgrade_user_entitlement("refund.test@example.org", ChatGptPlan::SoloPro, Some("cs_123"), 1500);
@@ -2488,7 +2489,10 @@ async fn test_production_error_audit_regressions() {
     use std::sync::Arc;
     use tower::ServiceExt;
 
-    // 1. Describe generation accurately, non-destructive to satisfy unauthenticated endpoint security
+    // 1. Describe generation accurately: destructive when customer sync is
+    // enabled (sync can replace contact fields, move an opportunity stage,
+    // and enroll follow-up workflows). OpenAI review requires annotations
+    // to match actual behavior, so this must stay true while sync exists.
     let tools = McpHandler::tools_list();
     let gen_tool = tools
         .as_array()
@@ -2498,8 +2502,8 @@ async fn test_production_error_audit_regressions() {
         .expect("generate_document tool must exist");
     assert_eq!(
         gen_tool["annotations"]["destructiveHint"],
-        serde_json::json!(false),
-        "generate_document must be non-destructive to satisfy VerifyMCP authorization check"
+        serde_json::json!(true),
+        "generate_document must be destructive: customer sync can replace contact fields and move opportunity stages"
     );
     let desc = gen_tool["description"].as_str().unwrap();
     assert!(desc.len() < 250, "generate_document description must be < 250 chars");

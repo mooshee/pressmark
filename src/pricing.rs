@@ -28,6 +28,23 @@ pub struct PricingCatalog {
     pub microtransactions: Vec<PricingPlan>,
 }
 
+impl PricingCatalog {
+    /// Copy of the catalog with all Pressmark purchase links removed, for
+    /// agent/plugin surfaces that must not offer a checkout path. The web
+    /// pricing and checkout flow keeps using the full catalog.
+    pub fn without_checkout_urls(&self) -> PricingCatalog {
+        let strip = |p: &PricingPlan| PricingPlan {
+            checkout_url: None,
+            ..p.clone()
+        };
+        PricingCatalog {
+            currency: self.currency,
+            plans: self.plans.iter().map(strip).collect(),
+            microtransactions: self.microtransactions.iter().map(strip).collect(),
+        }
+    }
+}
+
 fn resolve_price_ids(live: bool) -> (String, String, String, String, String) {
     let solo_price_id = if live {
         std::env::var("STRIPE_SOLO_PRICE_ID_LIVE")
