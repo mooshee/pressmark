@@ -65,36 +65,6 @@ pub async fn handle_traffic_advice() -> impl IntoResponse {
     )
 }
 
-pub async fn handle_oauth_protected_resource() -> impl IntoResponse {
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({
-            "resource": "https://pressmark.dev/mcp",
-            "authorization_servers": ["https://pressmark.dev"],
-            "bearer_methods_supported": ["header"],
-            "resource_documentation": "https://pressmark.dev/docs"
-        })),
-    )
-}
-
-pub async fn handle_oauth_authorization_server() -> impl IntoResponse {
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({
-            "issuer": "https://pressmark.dev",
-            "authorization_endpoint": "https://pressmark.dev/api/v1/auth/chatgpt/login",
-            "token_endpoint": "https://pressmark.dev/api/v1/auth/api-key",
-            "userinfo_endpoint": "https://pressmark.dev/api/v1/auth/session",
-            "response_types_supported": ["code", "token"],
-            "grant_types_supported": ["authorization_code", "client_credentials"],
-            "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "private_key_jwt"],
-            "code_challenge_methods_supported": ["S256"],
-            "scopes_supported": ["openid", "profile", "email", "mcp:tools"],
-            "service_documentation": "https://pressmark.dev/docs"
-        })),
-    )
-}
-
 pub async fn handle_x402_discovery() -> impl IntoResponse {
     (
         StatusCode::OK,
@@ -338,10 +308,7 @@ pub async fn handle_auth_md() -> impl IntoResponse {
             "   - Designed for zero-friction invocation by autonomous AI agents, LLM copilots, and web visitors.\n\n",
             "2. **Solo Pro & Subscriptions**:\n",
             "   - Web studio and automated workflows unlock persistent session storage and unlimited watermarked-free PDF rendering via Stripe Checkout passes (`https://pressmark.dev/pricing`).\n\n",
-            "3. **OAuth 2.0 PKCE & Protected Resource Discovery**:\n",
-            "   - OAuth authorization metadata: `https://pressmark.dev/.well-known/oauth-authorization-server/mcp`\n",
-            "   - OAuth protected resource metadata: `https://pressmark.dev/.well-known/oauth-protected-resource/mcp`\n",
-            "   - OpenID configuration: `https://pressmark.dev/.well-known/openid-configuration/mcp`\n\n",
+            "MCP clients can connect without an account. Website sign-in is available in [Pressmark Studio](https://pressmark.dev).\n\n",
             "For inquiries and support, contact `daniel@mooshworks.com`.\n"
         ),
     )

@@ -1191,62 +1191,33 @@ mod tests {
         assert!(agent_json["capabilities"].is_object());
         assert_eq!(agent_json["skills"].as_array().unwrap().len(), 3);
 
-        // 4. GET /.well-known/oauth-protected-resource & /mcp/.well-known/oauth-protected-resource
-        for oauth_uri in [
+        // Guest MCP does not advertise Pressmark as an OAuth authorization server.
+        for uri in [
             "/.well-known/oauth-protected-resource",
+            "/.well-known/oauth-protected-resource/mcp",
+            "/.well-known/oauth-protected-resource/api/v1/mcp",
             "/mcp/.well-known/oauth-protected-resource",
-        ] {
-            let res_oauth = router
-                .clone()
-                .oneshot(
-                    Request::builder()
-                        .uri(oauth_uri)
-                        .method("GET")
-                        .body(Body::empty())
-                        .unwrap(),
-                )
-                .await
-                .unwrap();
-            assert_eq!(res_oauth.status(), StatusCode::OK);
-            let oauth_json: serde_json::Value = serde_json::from_slice(
-                &axum::body::to_bytes(res_oauth.into_body(), usize::MAX)
-                    .await
-                    .unwrap(),
-            )
-            .unwrap();
-            assert_eq!(oauth_json["resource"], "https://pressmark.dev/mcp");
-            assert_eq!(oauth_json["bearer_methods_supported"], serde_json::json!(["header"]));
-            assert_eq!(oauth_json["resource_documentation"], "https://pressmark.dev/docs");
-        }
-
-        // 4b. GET OAuth Authorization Server, OpenID Configuration, x402, OpenAPI, Cursor MCP & A2A discovery routes
-        for auth_srv_uri in [
             "/.well-known/oauth-authorization-server",
             "/.well-known/oauth-authorization-server/mcp",
+            "/.well-known/oauth-authorization-server/api/v1/mcp",
             "/mcp/.well-known/oauth-authorization-server",
             "/.well-known/openid-configuration",
             "/.well-known/openid-configuration/mcp",
+            "/.well-known/openid-configuration/api/v1/mcp",
             "/mcp/.well-known/openid-configuration",
         ] {
-            let res_as = router
+            let response = router
                 .clone()
                 .oneshot(
                     Request::builder()
-                        .uri(auth_srv_uri)
+                        .uri(uri)
                         .method("GET")
                         .body(Body::empty())
                         .unwrap(),
                 )
                 .await
                 .unwrap();
-            assert_eq!(res_as.status(), StatusCode::OK, "Failed route: {}", auth_srv_uri);
-            let as_json: serde_json::Value = serde_json::from_slice(
-                &axum::body::to_bytes(res_as.into_body(), usize::MAX)
-                    .await
-                    .unwrap(),
-            )
-            .unwrap();
-            assert_eq!(as_json["issuer"], "https://pressmark.dev");
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
         }
 
         for extra_disc_uri in [

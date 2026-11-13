@@ -1277,13 +1277,11 @@ async fn test_setup_check_checkout_entitlement_and_discovery_routes() {
         .unwrap()
         .contains("client_reference_id=usr_checkout_99"));
 
-    // 3. Verify /pricing, /demo, /favicon.ico, /.well-known/oauth-protected-resource, /.well-known/mcp/server-card.json
+    // 3. Verify website and MCP discovery routes.
     for route in [
         "/pricing",
         "/demo",
         "/favicon.ico",
-        "/.well-known/oauth-protected-resource",
-        "/.well-known/oauth-protected-resource/mcp",
         "/.well-known/mcp/server-card.json",
         "/.well-known/agent-card.json",
         "/.well-known/agent.json",
@@ -2617,9 +2615,6 @@ async fn test_production_error_audit_regressions() {
         "/.well-known/capabilities.txt",
         "/.well-known/did.json",
         "/.well-known/brick-blue.json",
-        "/.well-known/oauth-protected-resource/api/v1/mcp",
-        "/.well-known/oauth-authorization-server/api/v1/mcp",
-        "/.well-known/openid-configuration/api/v1/mcp",
         "/discovery/resources",
         "/api/v1/mcp/.well-known/agent.json",
         "/api/v1/mcp/.well-known/agent-card.json",
