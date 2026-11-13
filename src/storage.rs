@@ -660,6 +660,71 @@ impl Storage {
             "mcpmeasurement",
             "lead-research",
             "research-mcp-probe",
+            "mcpheartbeat",
+            "mcptrustcheck",
+            "mcp-index",
+            "metano-radar",
+            "metano.ai",
+            "tools.fyi",
+            "agentindexprobe",
+            "aindex.com",
+            "aindx.com",
+            "agentrecord",
+            "llpro.ai",
+            "ainet-probe",
+            "mcpcheckup",
+            "agentregistryprobe",
+            "agent-registry",
+            "minimalwitness",
+            "minimalcult",
+            "agentwebmap",
+            "interfacedelta",
+            "mcp-ad-measurement",
+            "horizontalprobe",
+            "horizontal.one",
+            "reflectionbot",
+            "softwareforestharvester",
+            "agent-first-web-research",
+            "huspace",
+            "mcp-census",
+            "mcp-icon-survey",
+            "mcp-research-probe",
+            "localmarkprotocolcheck",
+            "localmark.ai",
+            "extopsbot",
+            "extops.dev",
+            "syok-directory",
+            "syok-ai",
+            "vouch-census",
+            "vouch.tools",
+            "world2-mcp",
+            "mcp-apps-census",
+            "mcp-auth-survey",
+            "backloopaudit",
+            "trybackloop",
+            "crawlcheck",
+            "stackfits",
+            "allthepossibles",
+            "mcp-directory-check",
+            "registry-probe",
+            "scanner-data-research",
+            "toolwork",
+            "hermes-agent/probe",
+            "roundtable-connectors",
+            "spellwarden",
+            "suvilabs",
+            "ginn-scout",
+            "karlyo-catalog",
+            "mcp-catalog-scan",
+            "qnex-plugin-catalog",
+            "scantor",
+            "mcp-metadata-probe",
+            "noclick-mcp",
+            "stackeo-connectors",
+            "mcp-authscan",
+            "mcp-probe",
+            "toolsgrail",
+            "aitoolatlas",
         ];
         BOT_MARKERS.iter().any(|m| lower.contains(m))
     }
@@ -672,6 +737,7 @@ impl Storage {
             "productdoctor",
             "product-doctor",
             "hallmanlab",
+            "mooshgrowthaudit",
             "seo-audit",
             "seo_audit",
             "pressmark-smoke",
@@ -1141,6 +1207,39 @@ mod tests {
                 .any(|d| d.contains("idx_usage_events_archetype")),
             "expected idx_usage_events_archetype in plan: {:?}",
             arch_plan
+        );
+    }
+
+    #[test]
+    fn test_classify_usage_actor_crawler_and_internal_probes() {
+        for ua in [
+            "MCPHeartbeat/0.2.0 (+https://mcpheartbeat.com; MCPTrustCheck)",
+            "AgentRegistryProbe/1.0 (+mailto:webmaster@agent-registry.invalid)",
+            "LocalMarkProtocolCheck/0.3 (+https://localmark.ai/about)",
+            "metano-radar/0.1 (+https://radar.metano.ai; security-research)",
+            "tools.fyi-probe/0.1 (+https://tools.fyi; read-only: initialize + tools/list)",
+            "AgentIndexProbe/t0-go-2 (+https://aindex.com/probe)",
+            "AgentRecord/1.0 (+https://agentrecord.llpro.ai/llms.txt)",
+            "ainet-probe/0.1",
+            "MCPCheckup-Probe/1.0 (+https://mcpcheckup.com/probe)",
+            "MinimalWitness/1.0 (+https://minimalcult.org/witness)",
+            "ExtOpsBot/1.0 (+https://extops.dev/extensions/methodology#probing)",
+            "Vouch-Census/0.1 (+mailto:probing@vouch.tools)",
+            "Spellwarden/1.11.1 (+https://spellwarden.ai)",
+        ] {
+            assert_eq!(
+                Storage::classify_usage_actor(ua, None),
+                "crawler_bot",
+                "Expected crawler_bot for UA: {ua}"
+            );
+        }
+
+        assert_eq!(
+            Storage::classify_usage_actor(
+                "Mozilla/5.0 (compatible; MooshGrowthAudit/1.0; +https://mooshworks.com)",
+                None
+            ),
+            "internal_probe"
         );
     }
 }
