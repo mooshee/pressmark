@@ -143,6 +143,12 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/tos/", get(|| async { Redirect::permanent("/terms") }))
         .route("/robots.txt", get(handle_robots))
         .route("/sitemap.xml", get(handle_sitemap))
+        .route("/sitemap", get(|| async { Redirect::permanent("/sitemap.xml") }))
+        .route("/sitemap/", get(|| async { Redirect::permanent("/sitemap.xml") }))
+        .route("/site-map", get(|| async { Redirect::permanent("/sitemap.xml") }))
+        .route("/site-map/", get(|| async { Redirect::permanent("/sitemap.xml") }))
+        .route("/sitemap_index.xml", get(|| async { Redirect::permanent("/sitemap.xml") }))
+        .route("/sitemap-index.xml", get(|| async { Redirect::permanent("/sitemap.xml") }))
         .route("/llms.txt", get(handle_llms_txt))
         .route("/llms-full.txt", get(handle_llms_full_txt))
         .route("/health", get(handle_health))
@@ -1464,11 +1470,16 @@ async fn handle_mcp(
 ) -> Response {
     let req = match request {
         Ok(Json(req)) => req,
-        // Some clients send an empty binary POST to check guest connectivity.
+        // Some clients send an empty POST (binary or JSON with Content-Length: 0) to check guest connectivity.
         // Return discovery metadata without dispatching a JSON-RPC request.
         Err(JsonRejection::MissingJsonContentType(_))
             if headers.get(header::CONTENT_TYPE).is_some_and(|value| value == "application/octet-stream")
                 && headers.get(header::CONTENT_LENGTH).is_some_and(|value| value == "0") =>
+        {
+            return handle_mcp_get().await.into_response();
+        }
+        Err(JsonRejection::JsonSyntaxError(_))
+            if headers.get(header::CONTENT_LENGTH).is_some_and(|value| value == "0") =>
         {
             return handle_mcp_get().await.into_response();
         }

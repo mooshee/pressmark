@@ -487,7 +487,8 @@ pub async fn handle_setup_check(State(state): State<Arc<AppState>>) -> impl Into
     (StatusCode::OK, Json(report))
 }
 
-/// Permanently redirects `www.pressmark.dev` requests to the canonical apex host `pressmark.dev`.
+/// Permanently redirects `www.pressmark.dev` GET/HEAD requests to the canonical apex host `pressmark.dev`.
+/// Non-idempotent requests (e.g. `POST /mcp`) pass through directly so MCP clients do not lose POST bodies on 301 redirects.
 pub async fn canonical_host_redirect_middleware(
     req: axum::extract::Request,
     next: axum::middleware::Next,
@@ -498,7 +499,9 @@ pub async fn canonical_host_redirect_middleware(
         .and_then(|value| value.to_str().ok())
         .map(|raw| raw.split(':').next().unwrap_or(raw).trim())
         .unwrap_or("");
-    if host.eq_ignore_ascii_case("www.pressmark.dev") {
+    if host.eq_ignore_ascii_case("www.pressmark.dev")
+        && matches!(*req.method(), axum::http::Method::GET | axum::http::Method::HEAD)
+    {
         let path_and_query = req
             .uri()
             .path_and_query()

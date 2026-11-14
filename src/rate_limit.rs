@@ -170,6 +170,12 @@ pub async fn rate_limit_middleware(
         || path.starts_with("/api/v1/mcp/.well-known/")
         || path == "/robots.txt"
         || path == "/sitemap.xml"
+        || path == "/sitemap"
+        || path == "/sitemap/"
+        || path == "/site-map"
+        || path == "/site-map/"
+        || path == "/sitemap_index.xml"
+        || path == "/sitemap-index.xml"
         || path == "/llms.txt"
         || path == "/llms-full.txt"
         || path == "/ai.txt"

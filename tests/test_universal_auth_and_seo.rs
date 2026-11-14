@@ -953,4 +953,62 @@ async fn test_canonical_www_redirect_and_unconfigured_chatgpt_login_fallback() {
     assert_eq!(safe_res.status(), StatusCode::SEE_OTHER);
     assert_eq!(safe_res.headers().get(header::LOCATION).unwrap(), "/pricing");
     assert!(safe_res.headers().get(header::SET_COOKIE).is_none());
+
+    // 5. POST /mcp on www.pressmark.dev passes through directly without 301 redirect so JSON-RPC POST bodies are preserved
+    let www_mcp_post = Request::builder()
+        .uri("/mcp")
+        .method("POST")
+        .header(header::HOST, "www.pressmark.dev")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "ping"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let www_mcp_res = app.clone().oneshot(www_mcp_post).await.unwrap();
+    assert_eq!(www_mcp_res.status(), StatusCode::OK);
+
+    // 6. Empty JSON POST (Content-Length: 0, Content-Type: application/json) on / and /mcp returns 200 discovery metadata
+    for uri in ["/", "/mcp"] {
+        let empty_json_post = Request::builder()
+            .uri(uri)
+            .method("POST")
+            .header(header::HOST, "pressmark.dev")
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_LENGTH, "0")
+            .body(Body::empty())
+            .unwrap();
+        let empty_res = app.clone().oneshot(empty_json_post).await.unwrap();
+        assert_eq!(empty_res.status(), StatusCode::OK);
+    }
+
+    // 7. Sitemap aliases (/sitemap, /sitemap/, /site-map, /site-map/, /sitemap_index.xml, /sitemap-index.xml) redirect 308 to /sitemap.xml
+    for alias in ["/sitemap", "/sitemap/", "/site-map", "/site-map/", "/sitemap_index.xml", "/sitemap-index.xml"] {
+        let alias_req = Request::builder()
+            .uri(alias)
+            .method("GET")
+            .header(header::HOST, "pressmark.dev")
+            .body(Body::empty())
+            .unwrap();
+        let alias_res = app.clone().oneshot(alias_req).await.unwrap();
+        assert_eq!(alias_res.status(), StatusCode::PERMANENT_REDIRECT);
+        assert_eq!(alias_res.headers().get(header::LOCATION).unwrap(), "/sitemap.xml");
+    }
+
+    // 8. Newly discovered MCP directory crawlers and scanners classify as crawler_bot
+    for ua in [
+        "NestDaddy-MCP-Directory/1.0 (+https://nestdaddy.com/mcp/servers)",
+        "KitScout-LiveCheck/0.1 (+https://kitscout.dev; MCP registry health check)",
+        "OxyServices/1.0 (+https://oxy.so)",
+        "clawex (clawex.chat@gmail.com)",
+        "KeelMCPAuthSurvey/1.0 (+read-only auth discovery survey; no credentials)",
+        "Deno/2.1.4 (variant; SupabaseEdgeRuntime/1.77.8; ref=virupvwhtkpkjsiskckg)",
+        "Mozilla/5.0 (Linux; Android 6.0.1) Chrome/154.0 Mobile Safari/537.36 (compatible; Google-InspectionTool/1.0)",
+    ] {
+        assert!(Storage::is_crawler_bot_ua(ua), "expected crawler_bot for {ua}");
+    }
 }
