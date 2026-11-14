@@ -454,6 +454,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             rate_limit_middleware,
         ))
         .layer(axum::extract::DefaultBodyLimit::max(body_limit_bytes))
+        .layer(axum::middleware::from_fn(
+            crate::server_discovery::canonical_host_redirect_middleware,
+        ))
         .with_state(state)
 }
 

@@ -894,3 +894,63 @@ async fn test_expanded_bot_and_probe_marker_classification() {
     // Check newly added internal probe marker
     assert!(Storage::is_internal_probe_ua("Pressmark-Disclosure-QA/1.0"));
 }
+
+#[tokio::test]
+async fn test_canonical_www_redirect_and_unconfigured_chatgpt_login_fallback() {
+    let app = setup_test_app();
+
+    // 1. www.pressmark.dev redirects 301 permanently to apex with path & query preserved
+    for host_header in ["www.pressmark.dev", "WWW.PRESSMARK.DEV:443"] {
+        let req = Request::builder()
+            .uri("/pricing?plan=solo")
+            .method("GET")
+            .header(header::HOST, host_header)
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::MOVED_PERMANENTLY);
+        assert_eq!(
+            res.headers().get(header::LOCATION).unwrap(),
+            "https://pressmark.dev/pricing?plan=solo"
+        );
+    }
+
+    // 2. Canonical apex host serves normally without redirecting
+    let apex_req = Request::builder()
+        .uri("/pricing?plan=solo")
+        .method("GET")
+        .header(header::HOST, "pressmark.dev")
+        .body(Body::empty())
+        .unwrap();
+    let apex_res = app.clone().oneshot(apex_req).await.unwrap();
+    assert_eq!(apex_res.status(), StatusCode::OK);
+
+    // 3. Without a provisioned OpenAI client ID, ChatGPT login redirects locally (303) instead of 400 at OpenAI
+    for uri in [
+        "/api/v1/auth/chatgpt/login",
+        "/api/v1/auth/chatgpt/login?return_to=https://evil.example/phish",
+    ] {
+        let req = Request::builder()
+            .uri(uri)
+            .method("GET")
+            .header(header::HOST, "pressmark.dev")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::SEE_OTHER);
+        assert_eq!(res.headers().get(header::LOCATION).unwrap(), "/docs");
+        assert!(res.headers().get(header::SET_COOKIE).is_none());
+    }
+
+    // 4. Safe internal return_to is preserved without minting a session cookie
+    let safe_req = Request::builder()
+        .uri("/api/v1/auth/chatgpt/login?return_to=/pricing")
+        .method("GET")
+        .header(header::HOST, "pressmark.dev")
+        .body(Body::empty())
+        .unwrap();
+    let safe_res = app.clone().oneshot(safe_req).await.unwrap();
+    assert_eq!(safe_res.status(), StatusCode::SEE_OTHER);
+    assert_eq!(safe_res.headers().get(header::LOCATION).unwrap(), "/pricing");
+    assert!(safe_res.headers().get(header::SET_COOKIE).is_none());
+}

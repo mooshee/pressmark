@@ -486,3 +486,29 @@ pub async fn handle_setup_check(State(state): State<Arc<AppState>>) -> impl Into
     if !ready { report["status"] = serde_json::json!("degraded"); }
     (StatusCode::OK, Json(report))
 }
+
+/// Permanently redirects `www.pressmark.dev` requests to the canonical apex host `pressmark.dev`.
+pub async fn canonical_host_redirect_middleware(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let host = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .map(|raw| raw.split(':').next().unwrap_or(raw).trim())
+        .unwrap_or("");
+    if host.eq_ignore_ascii_case("www.pressmark.dev") {
+        let path_and_query = req
+            .uri()
+            .path_and_query()
+            .map(|pq| pq.as_str())
+            .unwrap_or("/");
+        let target = format!("https://pressmark.dev{path_and_query}");
+        if let Ok(location) = header::HeaderValue::from_str(&target) {
+            return (StatusCode::MOVED_PERMANENTLY, [(header::LOCATION, location)]).into_response();
+        }
+        return axum::response::Redirect::permanent("https://pressmark.dev/").into_response();
+    }
+    next.run(req).await
+}

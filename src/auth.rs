@@ -729,7 +729,14 @@ pub async fn handle_chatgpt_login(
 
     let redirect_uri = format!("{}://{}/api/v1/auth/chatgpt/callback", scheme, host);
     let client_id = std::env::var("OPENAI_CHATGPT_CLIENT_ID")
-        .unwrap_or_else(|_| "pressmark-app-client".to_string());
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty() && value != "pressmark-app-client");
+
+    let Some(client_id) = client_id else {
+        let fallback = sanitize_return_to(query.return_to.as_deref(), "/docs");
+        return Redirect::to(&fallback).into_response();
+    };
 
     let (auth_url, _state) = auth_mgr.start_auth(&client_id, &redirect_uri, query.return_to);
 
