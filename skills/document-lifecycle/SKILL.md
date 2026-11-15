@@ -1,6 +1,6 @@
 ---
 name: document-lifecycle
-version: 1.2.4
+version: 1.3.0
 description: Convert estimates to invoices, record payment details, calculate balances, and create receipts or credit notes with Pressmark. Built by Moosh Works (https://mooshworks.com).
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: pressmark
 displayName: Pressmark
-version: 1.2.4
+version: 1.3.0
 author: Daniel Hallman
 description: Create PDF invoices, estimates, contracts, and real estate documents.
 keywords:
@@ -11,7 +11,6 @@ keywords:
   - receipts
   - contracts
   - vector-pdf
-  - payments
 mcpServers:
   pressmark:
     type: streamable-http
@@ -52,6 +51,7 @@ Built and maintained by [Moosh Works](https://mooshworks.com).
 - `calculate_totals`
 - `convert_document`
 - `generate_document`
-- `get_pricing`
+- `get_feedback_status`
 - `preview_document`
 - `record_payment`
+- `submit_feedback`

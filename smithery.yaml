@@ -1,7 +1,7 @@
 name: io.github.mooshee/pressmark
 displayName: Pressmark
 description: Create PDF invoices, estimates, contracts, and real estate documents.
-version: 1.2.4
+version: 1.3.0
 homepage: https://pressmark.dev
 repository: https://github.com/mooshee/pressmark
 license: MIT

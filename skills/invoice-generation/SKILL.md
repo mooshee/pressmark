@@ -1,6 +1,6 @@
 ---
 name: invoice-generation
-version: 1.2.4
+version: 1.3.0
 description: Create PDF invoices, estimates, receipts, contracts, and other business documents with PNG previews and optional payment links. Built by Moosh Works (https://mooshworks.com).
 ---
 

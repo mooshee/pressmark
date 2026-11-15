@@ -1,7 +1,7 @@
 # Pressmark
 
 [![Rust](https://img.shields.io/badge/Rust-orange.svg)](https://www.rust-lang.org/)
-[![Pressmark Engine](https://img.shields.io/badge/Pressmark%20Engine-v1.2.4-blue.svg)](https://pressmark.dev)
+[![Pressmark package](https://img.shields.io/badge/Pressmark%20package-v1.3.0-blue.svg)](https://github.com/mooshee/pressmark/releases/tag/v1.3.0)
 [![Pressmark MCP server quality and maintenance on Glama](https://glama.ai/mcp/servers/mooshee/pressmark/badges/score.svg)](https://glama.ai/mcp/servers/mooshee/pressmark)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -18,7 +18,7 @@ Create PDF invoices, estimates, receipts, contracts, and real estate documents. 
 
 When customer sync is enabled, generating a PDF can update Pressmark's customer records and start automated follow-up. It uses the signed-in email when available, otherwise the sender email, then the recipient email. The [privacy policy](https://pressmark.dev/privacy) lists the contact details and document summary fields shared.
 
-Package version **1.2.4**, released October 28, 2026. Read the [release notes](https://github.com/mooshee/pressmark/releases/tag/v1.2.4) for the updated instructions and data-use disclosures. The service version is tracked separately.
+Package version **1.3.0**. Read the [release notes](RELEASE_NOTES.md) for changes and upgrade instructions. Published downloads are listed in [GitHub Releases](https://github.com/mooshee/pressmark/releases). The service version is tracked separately.
 
 ## Use Pressmark with an agent
 

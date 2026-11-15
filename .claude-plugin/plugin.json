@@ -3,7 +3,7 @@
     "name": "Daniel Hallman",
     "url": "https://mooshworks.com"
   },
-  "description": "Create PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and real estate documents. Preview each document and add a payment link or QR code. Built by Moosh Works (https://mooshworks.com).",
+  "description": "Create and preview PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and real estate documents from the details you provide. Built by Moosh Works (https://mooshworks.com).",
   "homepage": "https://pressmark.dev",
   "keywords": [
     "invoicing",
@@ -11,10 +11,9 @@
     "estimates",
     "receipts",
     "contracts",
-    "vector-pdf",
-    "payments"
+    "vector-pdf"
   ],
   "name": "pressmark",
   "repository": "https://github.com/mooshee/pressmark",
-  "version": "1.2.4"
+  "version": "1.3.0"
 }

@@ -128,8 +128,7 @@
     "estimates",
     "receipts",
     "contracts",
-    "vector-pdf",
-    "payments"
+    "vector-pdf"
   ],
   "license": "MIT",
   "mcpServers": "./.mcp.json",
