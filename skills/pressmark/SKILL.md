@@ -1,6 +1,6 @@
 ---
 name: pressmark
-version: 1.3.0
+version: 1.4.0
 description: Create PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and real estate documents with previews and optional payment links. Built by Moosh Works (https://mooshworks.com).
 ---
 

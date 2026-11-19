@@ -1892,13 +1892,15 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
             .to_vec(),
     )
     .unwrap();
-    assert!(html_lease.contains("<title>Residential Lease Agreement Template & PDF Generator · Pressmark Studio</title>"));
     let (lease_title, lease_description) =
         pressmark::models::DocumentType::ResidentialLease.seo_metadata();
+    let escaped_title = pressmark::seo_pages::html_escape(&lease_title);
+    let escaped_desc = pressmark::seo_pages::html_escape(&lease_description);
+    assert!(html_lease.contains(&format!("<title>{}</title>", escaped_title)));
     for expected_tag in [
-        format!("<meta name=\"description\" content=\"{}\">", lease_description),
-        format!("<meta property=\"og:title\" content=\"{}\">", lease_title),
-        format!("<meta property=\"og:description\" content=\"{}\">", lease_description),
+        format!("<meta name=\"description\" content=\"{}\">", escaped_desc),
+        format!("<meta property=\"og:title\" content=\"{}\">", escaped_title),
+        format!("<meta property=\"og:description\" content=\"{}\">", escaped_desc),
     ] {
         assert!(
             html_lease.contains(&expected_tag),
@@ -1907,6 +1909,24 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     }
     assert!(html_lease.contains("<link rel=\"canonical\" href=\"https://pressmark.dev/templates/residential-lease\">"));
     assert!(html_lease.contains("window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"residential_lease\";"));
+
+    // 2b. Verify GET /templates/residential-lease?studio=1 serves the full Studio editor
+    let req_studio_lease = Request::builder()
+        .uri("/templates/residential-lease?studio=1")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let res_studio_lease = router.clone().oneshot(req_studio_lease).await.unwrap();
+    assert_eq!(res_studio_lease.status(), StatusCode::OK);
+    let html_studio_lease = String::from_utf8(
+        axum::body::to_bytes(res_studio_lease.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(html_studio_lease.contains("id=\"paymentLinkInput\""));
+    assert!(html_studio_lease.contains("window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"residential_lease\";"));
 
     // Verify unknown template slug returns 404
     let req_404 = Request::builder()
@@ -1917,7 +1937,7 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
     let res_404 = router.clone().oneshot(req_404).await.unwrap();
     assert_eq!(res_404.status(), StatusCode::NOT_FOUND);
 
-    // 3. Verify sitemap.xml includes all 57 /templates/<slug> routes + 51 state-prefixed residential lease routes + 5 state real estate slugs
+    // 3. Verify sitemap.xml includes all 57 /templates/<slug> routes + 51x4 state-prefixed routes + 5 state real estate slugs (266 total)
     let req_sm = Request::builder()
         .uri("/sitemap.xml")
         .method("GET")
@@ -1932,7 +1952,7 @@ async fn test_seo_template_landings_mcp_conversion_and_refund_revocation() {
             .to_vec(),
     )
     .unwrap();
-    assert_eq!(sm_xml.matches("https://pressmark.dev/templates/").count(), 113);
+    assert_eq!(sm_xml.matches("https://pressmark.dev/templates/").count(), 266);
 
     // 4. Verify REST /api/v1/generate includes 1-click checkout URLs, while
     // MCP generate_document does not (no Pressmark commerce on the plugin surface)

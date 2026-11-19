@@ -10,7 +10,7 @@ use std::{
 };
 
 type Files = BTreeMap<String, Vec<u8>>;
-const VERSION: &str = "1.3.0";
+const VERSION: &str = "1.4.0";
 const MANIFESTS: &[&str] = &[
     "plugin.json",
     ".codex-plugin/plugin.json",

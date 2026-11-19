@@ -175,6 +175,7 @@ pub struct ChatGptAuthManager {
     pending: Arc<RwLock<HashMap<String, PendingAuth>>>,
     sessions: Arc<RwLock<HashMap<String, ChatGptSession>>>,
     storage: Option<Arc<crate::storage::Storage>>,
+    allow_demo_oauth: bool,
 }
 
 impl Default for ChatGptAuthManager {
@@ -188,6 +189,7 @@ impl std::fmt::Debug for ChatGptAuthManager {
         f.debug_struct("ChatGptAuthManager")
             .field("pending_count", &self.pending.read().map(|m| m.len()).unwrap_or(0))
             .field("sessions_count", &self.sessions.read().map(|m| m.len()).unwrap_or(0))
+            .field("allow_demo_oauth", &self.allow_demo_oauth)
             .finish()
     }
 }
@@ -195,10 +197,19 @@ impl std::fmt::Debug for ChatGptAuthManager {
 impl ChatGptAuthManager {
     pub fn new() -> Self {
         let storage = Arc::new(crate::storage::Storage::default_db());
+        let is_live_host = std::env::var("PRESSMARK_BASE_URL")
+            .or_else(|_| std::env::var("BASE_URL"))
+            .map(|u| u.trim().starts_with("https://pressmark.dev"))
+            .unwrap_or(false);
+        let explicit_allow = std::env::var("PRESSMARK_ALLOW_DEMO_AUTH")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        let allow_demo_oauth = !crate::stripe::is_live_mode() && (!is_live_host || explicit_allow);
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
             sessions: Arc::new(RwLock::new(HashMap::new())),
             storage: Some(storage),
+            allow_demo_oauth,
         }
     }
 
@@ -207,11 +218,21 @@ impl ChatGptAuthManager {
         self
     }
 
+    pub fn with_demo_oauth(mut self, allow: bool) -> Self {
+        self.allow_demo_oauth = allow;
+        self
+    }
+
+    pub fn allows_demo_oauth(&self) -> bool {
+        self.allow_demo_oauth
+    }
+
     pub fn in_memory() -> Self {
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
             sessions: Arc::new(RwLock::new(HashMap::new())),
             storage: None,
+            allow_demo_oauth: !crate::stripe::is_live_mode(),
         }
     }
 
@@ -328,7 +349,7 @@ impl ChatGptAuthManager {
             compute_allowance: plan.compute_allowance().to_string(),
             watermark_free: plan.watermark_free(),
             priority_compilation: plan.priority_compilation(),
-            avatar_url: Some("/assets/logo.jpg".to_string()),
+            avatar_url: Some("/assets/icon.svg".to_string()),
             provider: "chatgpt".to_string(),
         };
 
@@ -368,7 +389,7 @@ impl ChatGptAuthManager {
             compute_allowance: "standard_rate_limited".to_string(),
             watermark_free: false,
             priority_compilation: false,
-            avatar_url: Some("/assets/logo.jpg".to_string()),
+            avatar_url: Some("/assets/icon.svg".to_string()),
             provider: "guest".to_string(),
         };
 
@@ -414,7 +435,12 @@ impl ChatGptAuthManager {
             .as_ref()
             .and_then(|s| s.get_customer_entitlement(&clean_email))
             .map(|p| ChatGptPlan::from_str_relaxed(&p))
-            .unwrap_or(ChatGptPlan::SoloPro);
+            .unwrap_or(ChatGptPlan::Free);
+        let export_credits = self
+            .storage
+            .as_ref()
+            .map(|s| s.get_export_credits(&clean_email))
+            .unwrap_or(0);
         let session_id = format!("email_sess_{}", Uuid::new_v4().simple());
         let user = ChatGptUser {
             id: format!("usr_email_{}", Uuid::new_v4().simple()),
@@ -423,11 +449,11 @@ impl ChatGptAuthManager {
             plan,
             plan_display: plan.display_name().to_string(),
             badge_color: plan.badge_color().to_string(),
-            is_subscriber: true,
+            is_subscriber: plan.is_subscriber(),
             compute_allowance: plan.compute_allowance().to_string(),
-            watermark_free: true,
-            priority_compilation: true,
-            avatar_url: Some("/assets/logo.jpg".to_string()),
+            watermark_free: plan.watermark_free() || export_credits > 0,
+            priority_compilation: plan.priority_compilation(),
+            avatar_url: Some("/assets/icon.svg".to_string()),
             provider: "email".to_string(),
         };
 
@@ -453,22 +479,70 @@ impl ChatGptAuthManager {
         session
     }
 
-    /// Authenticate or register a developer API key for autonomous agents
-    pub fn create_api_key_session(&self, api_key: &str) -> ChatGptSession {
+    /// Register a SHA-256 hashed developer API key in persistent storage.
+    pub fn register_api_key(
+        &self,
+        raw_key: &str,
+        email: &str,
+        name: &str,
+        plan: &str,
+    ) -> Result<(), String> {
+        let storage = self
+            .storage
+            .as_ref()
+            .ok_or_else(|| "API key storage unavailable".to_string())?;
+        storage
+            .create_api_key(raw_key, email, name, plan)
+            .map_err(|e| format!("Failed to store API key: {}", e))
+    }
+
+    /// Authenticate a developer API key against SQLite or `PRESSMARK_API_KEYS`.
+    pub fn create_api_key_session(&self, api_key: &str) -> Option<ChatGptSession> {
         let clean_key = api_key.trim();
+        if clean_key.is_empty() {
+            return None;
+        }
+
+        let matched = self
+            .storage
+            .as_ref()
+            .and_then(|s| s.verify_api_key(clean_key))
+            .or_else(|| {
+                let configured = std::env::var("PRESSMARK_API_KEYS").ok()?;
+                for entry in configured.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+                    let mut parts = entry.splitn(2, ':');
+                    let candidate_key = parts.next().unwrap_or("").trim();
+                    let email = parts.next().unwrap_or("developer@pressmark.dev").trim();
+                    if candidate_key == clean_key {
+                        return Some((
+                            email.to_string(),
+                            "Developer API".to_string(),
+                            "developer".to_string(),
+                        ));
+                    }
+                }
+                None
+            });
+
+        let (email, name, plan_str) = matched?;
+        let plan = match ChatGptPlan::from_str_relaxed(&plan_str) {
+            ChatGptPlan::Free => ChatGptPlan::Developer,
+            other => other,
+        };
+
         let session_id = format!("apikey_sess_{}", Uuid::new_v4().simple());
         let user = ChatGptUser {
             id: format!("usr_agent_{}", Uuid::new_v4().simple()),
-            name: "Developer Agent".to_string(),
-            email: "agent@pressmark.local".to_string(),
-            plan: ChatGptPlan::Developer,
-            plan_display: "Developer API".to_string(),
-            badge_color: "#f59e0b".to_string(),
-            is_subscriber: true,
-            compute_allowance: "unlimited_pro_compute".to_string(),
-            watermark_free: true,
-            priority_compilation: true,
-            avatar_url: Some("/assets/logo.jpg".to_string()),
+            name,
+            email,
+            plan,
+            plan_display: plan.display_name().to_string(),
+            badge_color: plan.badge_color().to_string(),
+            is_subscriber: plan.is_subscriber(),
+            compute_allowance: plan.compute_allowance().to_string(),
+            watermark_free: plan.watermark_free(),
+            priority_compilation: plan.priority_compilation(),
+            avatar_url: Some("/assets/icon.svg".to_string()),
             provider: "api_key".to_string(),
         };
 
@@ -491,7 +565,7 @@ impl ChatGptAuthManager {
             let _ = storage.save_session(&session);
         }
 
-        session
+        Some(session)
     }
 
     /// Find an active session by token or session ID
@@ -599,6 +673,95 @@ impl ChatGptAuthManager {
         }
     }
 
+    /// Grant one-time export credits to a customer email and optionally unlock a referenced session.
+    pub fn grant_export_credits(
+        &self,
+        email: Option<&str>,
+        client_reference_id: Option<&str>,
+        credits: i64,
+        stripe_session_id: Option<&str>,
+        amount_cents: u64,
+    ) {
+        if let Some(em) = email.map(str::trim).filter(|e| !e.is_empty()) {
+            if let Some(storage) = &self.storage {
+                let _ = storage.add_export_credits(em, credits, stripe_session_id, amount_cents);
+            }
+        }
+
+        let clean_ref = client_reference_id.map(str::trim).filter(|r| !r.is_empty());
+        let mut updated_sessions = Vec::new();
+        if let Ok(mut sessions) = self.sessions.write() {
+            for sess in sessions.values_mut() {
+                let email_matches = email
+                    .map(|em| sess.user.email.eq_ignore_ascii_case(em.trim()))
+                    .unwrap_or(false);
+                let ref_matches = clean_ref
+                    .map(|r| sess.session_id == r || sess.user.id == r)
+                    .unwrap_or(false);
+                if email_matches || ref_matches {
+                    sess.user.watermark_free = true;
+                    updated_sessions.push(sess.clone());
+                }
+            }
+        }
+
+        if let Some(storage) = &self.storage {
+            for sess in updated_sessions {
+                let _ = storage.save_session(&sess);
+            }
+        }
+    }
+
+    /// Upgrade any active session matching either `email` or `client_reference_id` (e.g. Stripe `client_reference_id`).
+    pub fn upgrade_session_by_reference(
+        &self,
+        client_reference_id: &str,
+        plan: ChatGptPlan,
+    ) {
+        let clean_ref = client_reference_id.trim();
+        if clean_ref.is_empty() {
+            return;
+        }
+        let mut updated_sessions = Vec::new();
+        if let Ok(mut sessions) = self.sessions.write() {
+            for sess in sessions.values_mut() {
+                if sess.session_id == clean_ref || sess.user.id == clean_ref {
+                    sess.user.plan = plan;
+                    sess.user.plan_display = plan.display_name().to_string();
+                    sess.user.badge_color = plan.badge_color().to_string();
+                    sess.user.is_subscriber = plan.is_subscriber();
+                    sess.user.compute_allowance = plan.compute_allowance().to_string();
+                    sess.user.watermark_free = plan.watermark_free();
+                    sess.user.priority_compilation = plan.priority_compilation();
+                    updated_sessions.push(sess.clone());
+                }
+            }
+        }
+        if let Some(storage) = &self.storage {
+            for sess in updated_sessions {
+                let _ = storage.save_session(&sess);
+            }
+        }
+    }
+
+    pub fn consume_session_export_credit(&self, session: &ChatGptSession) -> bool {
+        if session.user.is_subscriber {
+            return false;
+        }
+        self.storage
+            .as_ref()
+            .map(|s| s.consume_export_credit(&session.user.email))
+            .unwrap_or(false)
+    }
+
+    pub fn session_export_credits(&self, session: Option<&ChatGptSession>) -> i64 {
+        let Some(sess) = session else { return 0 };
+        self.storage
+            .as_ref()
+            .map(|s| s.get_export_credits(&sess.user.email))
+            .unwrap_or(0)
+    }
+
     /// Revoke a customer's paid Stripe entitlement upon full refund and downgrade active sessions to Free
     pub fn revoke_user_entitlement(&self, email: &str) {
         let clean_email = email.trim().to_lowercase();
@@ -655,7 +818,16 @@ pub struct SessionResponse {
     pub session_id: Option<String>,
     pub user: Option<ChatGptUser>,
     pub delegated_compute_active: bool,
+    pub chatgpt_oauth_configured: bool,
+    pub export_credits: i64,
     pub status_message: String,
+}
+
+fn is_chatgpt_oauth_configured() -> bool {
+    std::env::var("OPENAI_CHATGPT_CLIENT_ID")
+        .ok()
+        .map(|value| !value.trim().is_empty() && value.trim() != "pressmark-app-client")
+        .unwrap_or(false)
 }
 
 #[derive(Debug, Deserialize)]
@@ -692,9 +864,19 @@ pub async fn handle_chatgpt_login(
     Query(query): Query<LoginQuery>,
     headers: HeaderMap,
 ) -> Response {
-    // If demo requested (e.g. ?demo=plus or ?demo=pro or ?plan=plus)
+    // Demo login is strictly gated behind `allow_demo_oauth` (disabled in live production).
     let demo_plan_str = query.demo.as_deref().or(query.plan.as_deref());
     if let Some(plan_str) = demo_plan_str {
+        if !auth_mgr.allows_demo_oauth() {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({
+                    "error": "demo_auth_disabled",
+                    "message": "Demo login is disabled in live production."
+                })),
+            )
+                .into_response();
+        }
         let plan = ChatGptPlan::from_str_relaxed(plan_str);
         let session = auth_mgr.create_demo_session(plan, None, None);
 
@@ -756,7 +938,30 @@ pub async fn handle_chatgpt_callback(
             .into_response();
     }
 
-    // In local demo or mock callback flow
+    if !auth_mgr.allows_demo_oauth() && !is_chatgpt_oauth_configured() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "chatgpt_oauth_not_configured",
+                "message": "ChatGPT OAuth is not configured on this server."
+            })),
+        )
+            .into_response();
+    }
+
+    // Only allow mock callback sessions in non-live test mode
+    if !auth_mgr.allows_demo_oauth() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "oauth_token_exchange_unimplemented",
+                "message": "Sign in with email or API key instead."
+            })),
+        )
+            .into_response();
+    }
+
+    // Non-live test callback flow
     let plan = query
         .demo
         .as_deref()
@@ -793,9 +998,11 @@ pub async fn handle_chatgpt_session(
     State(auth_mgr): State<ChatGptAuthManager>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
+    let oauth_ok = is_chatgpt_oauth_configured();
     let token = extract_token_from_headers(&headers);
     if let Some(token_str) = token {
         if let Some(session) = auth_mgr.get_session(&token_str) {
+            let credits = auth_mgr.session_export_credits(Some(&session));
             let msg = if session.user.provider == "chatgpt" {
                 format!(
                     "Connected to {} ({}) with compute pass-through active.",
@@ -814,6 +1021,8 @@ pub async fn handle_chatgpt_session(
                     session_id: Some(session.session_id),
                     user: Some(session.user),
                     delegated_compute_active: session.delegated_compute_active,
+                    chatgpt_oauth_configured: oauth_ok,
+                    export_credits: credits,
                     status_message: msg,
                 }),
             );
@@ -827,7 +1036,9 @@ pub async fn handle_chatgpt_session(
             session_id: None,
             user: None,
             delegated_compute_active: false,
-            status_message: "Not authenticated. Continue as Guest, sign in with email, or connect ChatGPT Plus/Pro.".to_string(),
+            chatgpt_oauth_configured: oauth_ok,
+            export_credits: 0,
+            status_message: "Not authenticated. Continue as Guest or sign in with email.".to_string(),
         }),
     )
 }
@@ -835,6 +1046,7 @@ pub async fn handle_chatgpt_session(
 pub async fn handle_guest_login(
     State(auth_mgr): State<ChatGptAuthManager>,
 ) -> impl IntoResponse {
+    let oauth_ok = is_chatgpt_oauth_configured();
     let session = auth_mgr.create_guest_session();
     let cookie_val = format!(
         "pressmark_session={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=7776000",
@@ -851,6 +1063,8 @@ pub async fn handle_guest_login(
             session_id: Some(session.session_id),
             user: Some(session.user),
             delegated_compute_active: false,
+            chatgpt_oauth_configured: oauth_ok,
+            export_credits: 0,
             status_message: "Guest workspace active on this device.".to_string(),
         }),
     )
@@ -860,6 +1074,7 @@ pub async fn handle_email_login(
     State(auth_mgr): State<ChatGptAuthManager>,
     Json(payload): Json<EmailLoginRequest>,
 ) -> impl IntoResponse {
+    let oauth_ok = is_chatgpt_oauth_configured();
     if payload.email.trim().is_empty() || !payload.email.contains('@') {
         return (
             StatusCode::BAD_REQUEST,
@@ -870,12 +1085,10 @@ pub async fn handle_email_login(
     }
 
     let session = auth_mgr.create_email_session(&payload.email, payload.name.as_deref());
+    let credits = auth_mgr.session_export_credits(Some(&session));
     if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
         let clean_email = payload.email.trim().to_lowercase();
-        if clean_email.contains('@')
-            && !clean_email.ends_with("@pressmark.local")
-            && !clean_email.ends_with("@example.com")
-        {
+        if !crate::ghl::is_sample_or_fixture_email(&clean_email) {
             let name_cl = payload.name.clone();
             tokio::spawn(async move {
                 let ghl = crate::ghl::GhlDispatcher::from_env();
@@ -902,6 +1115,8 @@ pub async fn handle_email_login(
             session_id: Some(session.session_id),
             user: Some(session.user),
             delegated_compute_active: false,
+            chatgpt_oauth_configured: oauth_ok,
+            export_credits: credits,
             status_message: "Signed in via email successfully.".to_string(),
         }),
     )
@@ -912,6 +1127,7 @@ pub async fn handle_api_key_login(
     State(auth_mgr): State<ChatGptAuthManager>,
     Json(payload): Json<ApiKeyLoginRequest>,
 ) -> impl IntoResponse {
+    let oauth_ok = is_chatgpt_oauth_configured();
     let key = payload.api_key.trim();
     if key.is_empty() {
         return (
@@ -922,7 +1138,19 @@ pub async fn handle_api_key_login(
             .into_response();
     }
 
-    let session = auth_mgr.create_api_key_session(key);
+    let Some(session) = auth_mgr.create_api_key_session(key) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            HeaderMap::new(),
+            Json(serde_json::json!({
+                "authenticated": false,
+                "error": "invalid_api_key",
+                "message": "Unrecognized or revoked API key."
+            })),
+        )
+            .into_response();
+    };
+    let credits = auth_mgr.session_export_credits(Some(&session));
     let cookie_val = format!(
         "pressmark_session={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000",
         session.session_id
@@ -938,6 +1166,8 @@ pub async fn handle_api_key_login(
             session_id: Some(session.session_id),
             user: Some(session.user),
             delegated_compute_active: false,
+            chatgpt_oauth_configured: oauth_ok,
+            export_credits: credits,
             status_message: "Developer API token verified.".to_string(),
         }),
     )

@@ -1,3 +1,20 @@
+# Pressmark 1.4.0
+
+Author: Daniel Hallman
+
+November 19, 2026
+
+Pressmark 1.4.0 adds public template, pricing, documentation, and calculator pages, shareable recipient links, and account and webhook validation:
+
+- **Public catalog, pricing, docs, and calculators:** Added server-rendered pages for `/templates`, `/templates/:slug` (57 archetypes and 51 jurisdictions), `/pricing`, `/docs`, `/calculators`, and 4 statutory calculators (`/calculators/security-deposit-return`, `/calculators/rent-increase-notice`, `/calculators/commercial-nnn-lease`, `/calculators/late-fee-invoice`) with direct PDF export and sitemap indexing (`266` template URLs).
+- **Shareable recipient links:** Added 30-day expiring share links (`/v/:token`, `/v/:token/pdf`, `/v/:token/preview.png`, `/v/:token/sign`) so senders can send a preview and capture a recipient signature without manual PDF attachments.
+- **Auth, credit, and webhook hardening:** Added SHA-256 `api_keys` validation, one-time `$2.99` (1 credit) and `$9.99` (5 credits) export-credit fulfillment, unentitled free-tier email defaults, production OAuth demo gating, fail-closed Stripe customer identity checks, and `503`/`422` errors when OCR or copilot parsing is unavailable or unmatched.
+- **Mobile Studio, CRM hygiene, and faster page load:** Replaced the `649 KB` header JPEG with `948 B` `icon.svg`, cleared default placeholder payment links and Studio sample-email CRM syncs, and added mobile preview/edit switching controls.
+
+[Open Pressmark](https://pressmark.dev) · [Template catalog](https://pressmark.dev/templates) · [Installation instructions](https://github.com/mooshee/pressmark#use-pressmark-with-an-agent)
+
+---
+
 # Pressmark 1.3.0
 
 Author: Daniel Hallman

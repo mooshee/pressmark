@@ -607,20 +607,11 @@ impl McpHandler {
                                     Ok((pdf_bytes, ms)) => {
                                         if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
                                             let candidate_email = session_email
-                                                .filter(|e| {
-                                                    !e.ends_with("@pressmark.local")
-                                                        && !e.ends_with("@example.com")
-                                                        && !e.ends_with("@example.org")
-                                                })
+                                                .filter(|e| !crate::ghl::is_sample_or_fixture_email(e))
                                                 .or_else(|| doc_req.from.email.as_deref())
                                                 .or_else(|| doc_req.to.email.as_deref())
                                                 .map(str::trim)
-                                                .filter(|e| {
-                                                    e.contains('@')
-                                                        && !e.ends_with("@pressmark.local")
-                                                        && !e.ends_with("@example.com")
-                                                        && !e.ends_with("@example.org")
-                                                })
+                                                .filter(|e| !crate::ghl::is_sample_or_fixture_email(e))
                                                 .map(str::to_string);
                                             if let Some(email_cl) = candidate_email {
                                                 let is_paid = is_paid_session

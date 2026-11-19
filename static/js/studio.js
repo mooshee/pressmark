@@ -1,6 +1,6 @@
-// Pressmark Studio - High-Performance Interactive Controller
+// Pressmark Studio - Interactive Controller
 // Author: Daniel Hallman
-// Sub-Millisecond Native Document Engine & Real-Time Studio
+// Vector PDF Document Engine & Live Studio
 
 (function() {
   'use strict';
@@ -94,7 +94,7 @@
       }
     ],
     is_paid: false,
-    payment_link: 'https://buy.stripe.com/4gM3cu8jk4Psd095197wA04',
+    payment_link: '',
     payment_qr_code: true,
     payment_status: 'unpaid',
     payment_method: 'Stripe / Card / Apple Pay',
@@ -131,6 +131,15 @@
   let currentPageIndex = 0;
   let currentTotalPages = 1;
   let pageViewMode = 'stack'; // 'stack' | 'single'
+  let firstPreviewTracked = false;
+
+  function trackStudioEvent(eventName, params) {
+    try {
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', eventName, Object.assign({ doc_type: state.doc_type }, params || {}));
+      }
+    } catch (_) {}
+  }
 
   // Persistent Storage Keys
   const STORAGE_KEY_ISSUER = 'pressmark_issuer_profile';
@@ -1915,11 +1924,20 @@
   // ===========================================================================
   let currentChatGptSession = null;
 
+  function updateChatGptOAuthVisibility(configured) {
+    const show = Boolean(configured);
+    const modalCard = document.querySelector('.auth-card-chatgpt');
+    if (modalCard) modalCard.style.display = show ? '' : 'none';
+    const bannerBtn = document.getElementById('btnBannerConnect');
+    if (bannerBtn && !currentChatGptSession) bannerBtn.style.display = show ? '' : 'none';
+  }
+
   async function checkChatGptSession() {
     try {
       const res = await fetch('/api/v1/auth/session');
       if (res.ok) {
         const data = await res.json();
+        updateChatGptOAuthVisibility(data.chatgpt_oauth_configured);
         if (data.authenticated && data.user) {
           currentChatGptSession = data;
           renderLoggedInChatGptUI(data);
@@ -1952,7 +1970,11 @@
     if (userName) userName.innerText = user.name;
     if (planStatus) planStatus.innerText = `${user.plan_display} (Active)`;
     if (watermarkStatus) {
-      watermarkStatus.innerText = user.watermark_free ? 'None (Unlocked)' : 'Standard Watermark';
+      watermarkStatus.innerText = user.watermark_free ? 'None (Unlocked)' : 'Pressmark Attribution Footer';
+    }
+    const removeFooterBtn = document.getElementById('btnExportRemoveFooter');
+    if (removeFooterBtn) {
+      removeFooterBtn.style.display = user.watermark_free ? 'none' : '';
     }
 
     // Update AI Copilot sidebar banner
@@ -1969,9 +1991,9 @@
     if (title) title.innerText = `⚡ ${user.plan_display}`;
     if (desc) {
       if (user.provider === 'chatgpt') {
-        desc.innerText = `Connected as ${user.email}. All Copilot actions, layout changes, and OCR extractions run directly on your personal ${user.plan_display} compute quota with zero API bills.`;
+        desc.innerText = `Connected as ${user.email}. Your ${user.plan_display} workspace is active.`;
       } else {
-        desc.innerText = `Active workspace for ${user.email}. Previews compile in sub-15ms with full state persistence.`;
+        desc.innerText = `Active workspace for ${user.email} with persistent document state.`;
       }
     }
     if (actionContainer) {
@@ -2093,7 +2115,10 @@
             currentChatGptSession = data;
             renderLoggedInChatGptUI(data);
             if (modalAuth) modalAuth.classList.remove('active');
-            showAiToast(`✉️ Signed in as ${email}. Full studio access unlocked.`);
+            const label = data.user && data.user.watermark_free ? 'Unlocked tier active.' : 'Free workspace active.';
+            showAiToast(`✉️ Signed in as ${email}. ${label}`);
+          } else {
+            showAiToast('Could not sign in with that email. Check the address and try again.');
           }
         } catch (err) {
           console.error(err);
@@ -2124,6 +2149,9 @@
             renderLoggedInChatGptUI(data);
             if (modalAuth) modalAuth.classList.remove('active');
             showAiToast('🔑 Developer API key authenticated. Watermark-free exports active.');
+          } else {
+            const err = await res.json().catch(() => ({}));
+            showAiToast(err.message || 'Unrecognized or revoked API key.');
           }
         } catch (err) {
           console.error(err);
@@ -2552,7 +2580,7 @@
         );
         state.sections.push({
           title: 'SERVICE LEVEL AGREEMENT & ESCALATION MATRIX',
-          content: 'Pressmark guarantees 99.999% uptime with sub-15ms vector synthesis latency across all distributed compilation nodes.'
+          content: 'Pressmark targets 99.9% service availability using stateless Rust and Typst compilation.'
         });
         state.signatures.push({
           signer_name: 'Marcus Sterling, Esq.',
@@ -2956,6 +2984,14 @@
     // Top action buttons
     document.getElementById('btnDownloadPdf').addEventListener('click', downloadPdf);
     document.getElementById('btnPrintDoc').addEventListener('click', printDocument);
+    const btnShareLink = document.getElementById('btnExportShareLink');
+    if (btnShareLink) btnShareLink.addEventListener('click', shareDocumentLink);
+    const btnRemoveFooter = document.getElementById('btnExportRemoveFooter');
+    if (btnRemoveFooter) btnRemoveFooter.addEventListener('click', () => trackStudioEvent('checkout_started', { plan: 'pass_single_unlock' }));
+    const btnMobileQuickPreview = document.getElementById('btnMobileQuickPreview');
+    if (btnMobileQuickPreview) btnMobileQuickPreview.addEventListener('click', () => setViewMode('preview'));
+    const btnMobileBackToEdit = document.getElementById('btnMobileBackToEdit');
+    if (btnMobileBackToEdit) btnMobileBackToEdit.addEventListener('click', () => setViewMode('editor'));
     document.getElementById('btnRandomize').addEventListener('click', randomizeScene);
     document.getElementById('btnClone').addEventListener('click', cloneDocument);
     document.getElementById('btnAddItem').addEventListener('click', () => {
@@ -3083,6 +3119,7 @@
         pill.classList.add('active');
         const type = pill.dataset.type;
         state.doc_type = type;
+        trackStudioEvent('template_selected', { template: type });
         applyDocumentTypeDefaults(type);
         syncFormFromState();
         renderLineItemsTable();
@@ -3469,7 +3506,7 @@
       'tenant_rent_ledger'
     ].includes(type);
     state.payment_qr_code = isPayableArchetype;
-    state.payment_link = isPayableArchetype ? 'https://buy.stripe.com/4gM3cu8jk4Psd095197wA04' : '';
+    state.payment_link = '';
     state.recordable = (type === 'property_deed');
     state.notary_required = ['property_deed', 'mechanics_lien_waiver', 'tenant_estoppel'].includes(type);
     state.include_clerk_stamp = false;
@@ -4268,7 +4305,7 @@
       ];
       state.items = [];
       state.sections = [
-        { title: 'Citation of Achievement', content: 'In recognition of pioneering contributions to vector-grade typesetting architectures, sub-millisecond document compilation engines, and enterprise document design systems.' }
+        { title: 'Citation of Achievement', content: 'In recognition of contributions to vector-grade typography systems, fast PDF synthesis tools, and open document standards.' }
       ];
       state.signatures = [
         { signer_name: 'Prof. Henrik Lindqvist', signer_title: 'Dean of Faculty, International Standards Board', date: '2026-10-01' },
@@ -4872,6 +4909,9 @@
       const collections = ['items', 'sections', 'signatures', 'custom_fields'];
       if (collections.some(key => doc[key] !== undefined && !Array.isArray(doc[key]))) return false;
       const restored = { ...doc, doc_type: doc.doc_type || 'invoice', from: doc.from || {}, to: doc.to || {} };
+      if (restored.payment_link === 'https://buy.stripe.com/4gM3cu8jk4Psd095197wA04') {
+        restored.payment_link = '';
+      }
       collections.forEach(key => { restored[key] = doc[key] || []; });
       restoreDocumentSnapshot(restored);
       // A saved draft is user-owned regardless of which fields were edited
@@ -5233,6 +5273,9 @@
         schedulePreview();
         showAiToast(data.ai_message || "Done!");
         showUndoToast(`✨ Copilot updated document · [↩ Undo]`);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showAiToast((errData && (errData.ai_message || errData.message)) || 'No matching document fields found in that prompt.');
       }
     } catch (err) {
       console.error(err);
@@ -6893,6 +6936,10 @@
 
         compileTelemetry.classList.remove('pulse');
         compileTelemetry.textContent = `${currentTotalPages} ${currentTotalPages === 1 ? 'page' : 'pages'} · Up to date`;
+        if (!firstPreviewTracked) {
+          firstPreviewTracked = true;
+          trackStudioEvent('preview_rendered', { pages: currentTotalPages });
+        }
         document.getElementById('btnExportPng').disabled = false;
         document.getElementById('btnPrintDoc').disabled = false;
         updateReviewSummary();
@@ -6960,6 +7007,7 @@
         a.remove();
         btn.classList.add('export-celebration');
         setTimeout(() => btn.classList.remove('export-celebration'), 800);
+        trackStudioEvent('pdf_downloaded', { is_subscriber: isSubscriber });
       } else {
         alert('Failed to generate PDF document');
       }
@@ -6969,6 +7017,34 @@
     } finally {
       btn.innerHTML = originalText;
       btn.disabled = false;
+    }
+  }
+
+  async function shareDocumentLink() {
+    const btn = document.getElementById('btnExportShareLink');
+    if (btn) btn.disabled = true;
+    try {
+      const resp = await fetch('/api/v1/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state)
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.share_url) {
+        showAiToast(data.error || 'Could not create shareable link.');
+        return;
+      }
+      trackStudioEvent('share_link_created', { doc_type: state.doc_type });
+      try {
+        await navigator.clipboard.writeText(data.share_url);
+        showAiToast(`🔗 Share link copied: ${data.share_url}`);
+      } catch (_) {
+        showAiToast(`🔗 Share link ready: ${data.share_url}`);
+      }
+    } catch (_) {
+      showAiToast('Could not reach Pressmark server to create share link.');
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
 
@@ -7262,7 +7338,12 @@
             filename: file ? file.name : undefined
           })
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data || !data.success) {
+          resetDropzone();
+          showAiToast((data && data.message) || 'Receipt image extraction is not enabled on this server.');
+          return;
+        }
         pushUndo('Photo Scan Extraction');
         if (data && data.extracted_from) {
           state.from = Object.assign({}, state.from, data.extracted_from);

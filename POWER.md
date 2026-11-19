@@ -1,7 +1,7 @@
 ---
 name: pressmark
 displayName: Pressmark
-version: 1.3.0
+version: 1.4.0
 author: Daniel Hallman
 description: Create PDF invoices, estimates, contracts, and real estate documents.
 keywords:

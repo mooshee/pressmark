@@ -13,7 +13,7 @@ use serde_json::Value;
 use std::sync::Arc;
 use tower::ServiceExt;
 
-fn setup_test_app() -> axum::Router {
+fn setup_test_app_with_storage() -> (axum::Router, Arc<Storage>) {
     let storage = Arc::new(Storage::new(":memory:").expect("In-memory storage failed"));
     let auth_mgr = ChatGptAuthManager::in_memory().with_storage(Arc::clone(&storage));
     let rate_limiter = RateLimiter::new(1000, 60);
@@ -26,10 +26,14 @@ fn setup_test_app() -> axum::Router {
         auth_mgr,
         rate_limiter,
         stripe_idempotency,
-        storage,
+        storage: Arc::clone(&storage),
     });
 
-    create_router(state)
+    (create_router(state), storage)
+}
+
+fn setup_test_app() -> axum::Router {
+    setup_test_app_with_storage().0
 }
 
 #[tokio::test]
@@ -192,9 +196,9 @@ async fn test_universal_auth_guest_workspace() {
 
 #[tokio::test]
 async fn test_universal_auth_email_and_api_key_flows() {
-    let app = setup_test_app();
+    let (app, storage) = setup_test_app_with_storage();
 
-    // 1. Email Login
+    // 1. Unentitled Email Login defaults cleanly to Free tier
     let email_payload = serde_json::json!({
         "email": "sarah.architect@studio.design",
         "name": "Sarah Architect"
@@ -215,15 +219,48 @@ async fn test_universal_auth_email_and_api_key_flows() {
     assert_eq!(json["authenticated"], true);
     assert_eq!(json["user"]["email"], "sarah.architect@studio.design");
     assert_eq!(json["user"]["name"], "Sarah Architect");
-    assert_eq!(json["user"]["plan"], "solo_pro");
-    assert_eq!(json["user"]["watermark_free"], true);
+    assert_eq!(json["user"]["plan"], "free");
+    assert_eq!(json["user"]["watermark_free"], false);
 
     let email_session_id = json["session_id"].as_str().unwrap().to_string();
 
-    // 2. Developer API Key Login
+    // 1b. Entitled Email Login unlocks Solo Pro tier from storage
+    storage
+        .record_customer_entitlement("pro@studio.design", "solo_pro", Some("cs_test_1"), 1500)
+        .unwrap();
+    let req_pro = Request::builder()
+        .uri("/api/v1/auth/email/login")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({ "email": "pro@studio.design", "name": "Pro Owner" }).to_string(),
+        ))
+        .unwrap();
+    let res_pro = app.clone().oneshot(req_pro).await.unwrap();
+    assert_eq!(res_pro.status(), StatusCode::OK);
+    let pro_bytes = axum::body::to_bytes(res_pro.into_body(), 1024 * 1024).await.unwrap();
+    let pro_json: Value = serde_json::from_slice(&pro_bytes).unwrap();
+    assert_eq!(pro_json["authenticated"], true);
+    assert_eq!(pro_json["user"]["plan"], "solo_pro");
+    assert_eq!(pro_json["user"]["watermark_free"], true);
+
+    // 2. Unregistered API Key is rejected with 401 Unauthorized
     let key_payload = serde_json::json!({
         "api_key": "prsm_live_9a8f7e6d5c4b3a21"
     });
+    let req_unreg_key = Request::builder()
+        .uri("/api/v1/auth/api-key")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(key_payload.to_string()))
+        .unwrap();
+    let res_unreg_key = app.clone().oneshot(req_unreg_key).await.unwrap();
+    assert_eq!(res_unreg_key.status(), StatusCode::UNAUTHORIZED);
+
+    // 2b. Registered Developer API Key succeeds with Developer plan
+    storage
+        .create_api_key("prsm_live_9a8f7e6d5c4b3a21", "dev@studio.design", "Studio Key", "developer")
+        .unwrap();
 
     let req_key = Request::builder()
         .uri("/api/v1/auth/api-key")

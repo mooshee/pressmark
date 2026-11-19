@@ -222,6 +222,8 @@ pub struct StripeEventData {
 pub enum FulfillmentAction {
     PaymentUnlocked {
         customer_email: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_reference_id: Option<String>,
         amount_cents: u64,
         currency: String,
         document_number: Option<String>,
@@ -230,6 +232,8 @@ pub enum FulfillmentAction {
     },
     CheckoutCompleted {
         customer_email: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_reference_id: Option<String>,
         session_id: String,
         amount_total_cents: u64,
         document_number: Option<String>,
@@ -241,9 +245,19 @@ pub enum FulfillmentAction {
         original_document_number: Option<String>,
         reason: Option<String>,
     },
+    MissingCustomerIdentity {
+        event_type: String,
+    },
     Ignored {
         event_type: String,
     },
+}
+
+fn non_empty_str(val: &Value) -> Option<String> {
+    val.as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
 }
 
 /// Process a verified Stripe event and trigger business fulfillment
@@ -253,11 +267,21 @@ pub fn process_stripe_event(event: StripeEvent) -> Result<FulfillmentAction, Str
             let obj = &event.data.object;
             let amount_cents = obj["amount"].as_u64().unwrap_or(0);
             let currency = obj["currency"].as_str().unwrap_or("usd").to_uppercase();
-            let customer_email = obj["receipt_email"]
-                .as_str()
-                .or_else(|| obj["charges"]["data"][0]["billing_details"]["email"].as_str())
-                .unwrap_or("customer@pressmark.dev")
-                .to_string();
+            let customer_email = non_empty_str(&obj["receipt_email"])
+                .or_else(|| non_empty_str(&obj["charges"]["data"][0]["billing_details"]["email"]))
+                .or_else(|| non_empty_str(&obj["metadata"]["email"]));
+            let client_reference_id = non_empty_str(&obj["metadata"]["client_reference_id"]);
+
+            if customer_email.is_none() && client_reference_id.is_none() {
+                tracing::warn!(
+                    "Stripe payment_intent.succeeded {} lacked customer email and client_reference_id; refusing fabricated fallback identity",
+                    event.id
+                );
+                return Ok(FulfillmentAction::MissingCustomerIdentity {
+                    event_type: event.r#type,
+                });
+            }
+            let customer_email = customer_email.unwrap_or_default();
 
             let doc_num = obj["metadata"]["document_number"]
                 .as_str()
@@ -271,16 +295,18 @@ pub fn process_stripe_event(event: StripeEvent) -> Result<FulfillmentAction, Str
             };
 
             tracing::info!(
-                "Stripe payment_intent.succeeded: ${:.2} {} from {} (Doc: {:?}, Receipt: {})",
+                "Stripe payment_intent.succeeded: ${:.2} {} from {} (ref: {:?}, Doc: {:?}, Receipt: {})",
                 (amount_cents as f64) / 100.0,
                 currency,
-                customer_email,
+                if customer_email.is_empty() { "<session_ref>" } else { &customer_email },
+                client_reference_id,
                 doc_num,
                 receipt_number
             );
 
             Ok(FulfillmentAction::PaymentUnlocked {
                 customer_email,
+                client_reference_id,
                 amount_cents,
                 currency,
                 document_number: doc_num,
@@ -297,24 +323,36 @@ pub fn process_stripe_event(event: StripeEvent) -> Result<FulfillmentAction, Str
             }
             let session_id = obj["id"].as_str().unwrap_or(&event.id).to_string();
             let amount_total_cents = obj["amount_total"].as_u64().unwrap_or(0);
-            let customer_email = obj["customer_details"]["email"]
-                .as_str()
-                .or_else(|| obj["customer_email"].as_str())
-                .unwrap_or("customer@pressmark.dev")
-                .to_string();
+            let customer_email = non_empty_str(&obj["customer_details"]["email"])
+                .or_else(|| non_empty_str(&obj["customer_email"]))
+                .or_else(|| non_empty_str(&obj["metadata"]["email"]));
+            let client_reference_id = non_empty_str(&obj["client_reference_id"]);
+
+            if customer_email.is_none() && client_reference_id.is_none() {
+                tracing::warn!(
+                    "Stripe checkout session {} lacked customer email and client_reference_id; refusing fabricated fallback identity",
+                    session_id
+                );
+                return Ok(FulfillmentAction::MissingCustomerIdentity {
+                    event_type: event.r#type,
+                });
+            }
+            let customer_email = customer_email.unwrap_or_default();
 
             let doc_num = obj["metadata"]["document_number"]
                 .as_str()
                 .map(|s| s.to_string());
 
             tracing::info!(
-                "Stripe checkout.session.completed: session {} for {}",
+                "Stripe checkout.session.completed: session {} for {} (ref: {:?})",
                 session_id,
-                customer_email
+                if customer_email.is_empty() { "<session_ref>" } else { &customer_email },
+                client_reference_id
             );
 
             Ok(FulfillmentAction::CheckoutCompleted {
                 customer_email,
+                client_reference_id,
                 session_id,
                 amount_total_cents,
                 document_number: doc_num,
@@ -323,10 +361,17 @@ pub fn process_stripe_event(event: StripeEvent) -> Result<FulfillmentAction, Str
         "charge.refunded" => {
             let obj = &event.data.object;
             let refund_cents = obj["amount_refunded"].as_u64().unwrap_or(0);
-            let customer_email = obj["billing_details"]["email"]
-                .as_str()
-                .unwrap_or("customer@pressmark.dev")
-                .to_string();
+            let Some(customer_email) = non_empty_str(&obj["billing_details"]["email"])
+                .or_else(|| non_empty_str(&obj["receipt_email"]))
+                .or_else(|| non_empty_str(&obj["metadata"]["email"])) else {
+                tracing::warn!(
+                    "Stripe charge.refunded {} lacked billing/receipt email; refusing fabricated fallback identity",
+                    event.id
+                );
+                return Ok(FulfillmentAction::MissingCustomerIdentity {
+                    event_type: event.r#type,
+                });
+            };
 
             let original_doc = obj["metadata"]["document_number"]
                 .as_str()

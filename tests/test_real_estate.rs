@@ -853,7 +853,7 @@ async fn test_programmatic_state_seo_landing_routes_and_states_api() {
 
     // 2. Verify programmatic state-prefixed SEO landing routes
     let seo_routes = [
-        ("/templates/tennessee-residential-lease", "Tennessee", "T.C.A. § 66-28-101", "residential_lease", "TN"),
+        ("/templates/tennessee-residential-lease", "Tennessee", "Tenn. Code Ann. § 66-28-101", "residential_lease", "TN"),
         ("/templates/california-residential-lease", "California", "Cal. Civ. Code § 1940", "residential_lease", "CA"),
         ("/templates/florida-eviction-notice", "Florida", "Fla. Stat. § 83.40", "notice_to_vacate", "FL"),
         ("/templates/texas-quitclaim-deed", "Texas", "Tex. Prop. Code Ch. 92", "property_deed", "TX"),

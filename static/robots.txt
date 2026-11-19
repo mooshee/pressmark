@@ -3,6 +3,10 @@
 
 User-agent: *
 Allow: /
+Allow: /templates
+Allow: /calculators
+Allow: /pricing
+Allow: /docs
 Allow: /privacy
 Allow: /terms
 Allow: /.well-known/ai-plugin.json
@@ -10,5 +14,6 @@ Allow: /api/v1/openapi.json
 Disallow: /api/v1/auth/
 Disallow: /api/v1/webhooks/
 Disallow: /api/v1/downloads/
+Disallow: /v/
 
 Sitemap: https://pressmark.dev/sitemap.xml

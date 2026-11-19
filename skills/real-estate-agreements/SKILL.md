@@ -1,6 +1,6 @@
 ---
 name: real-estate-agreements
-version: 1.3.0
+version: 1.4.0
 description: Create and preview leases, property notices, rent rolls, purchase agreements, and other real estate documents with Pressmark. Built by Moosh Works (https://mooshworks.com).
 ---
 

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "Pressmark",
   "slug": "pressmark",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Create and preview PDF invoices, estimates, receipts, contracts, non-disclosure agreements, and real estate documents from the details you provide. Built by Moosh Works (https://mooshworks.com).",
   "publisher": "Daniel Hallman",
   "website": "https://pressmark.dev",

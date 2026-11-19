@@ -7,7 +7,7 @@ use crate::auth::{
 };
 use crate::engine::{compile_pdf_bytes, compile_png_bytes, generate_pdf, generate_preview_png, generate_all_preview_pngs};
 use crate::mcp::{JsonRpcRequest, JsonRpcResponse, McpHandler};
-use crate::models::{DocumentRequest, DocumentType, GenerateResponse, PreviewResponse, CopilotRequest, CopilotResponse, VisionRequest, VisionResponse, LineItem, PartyDetails};
+use crate::models::{DocumentRequest, DocumentType, GenerateResponse, PreviewResponse, CopilotRequest, CopilotResponse, VisionRequest, LineItem};
 use crate::openapi::{get_ai_plugin_manifest, get_openapi_spec};
 use crate::pricing::get_pricing_catalog;
 use axum::extract::rejection::JsonRejection;
@@ -103,15 +103,28 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             .unwrap_or(5) * 1024 * 1024;
 
         Router::new()
-        // Interactive Dashboard, Legal & SEO
-        .route("/", get(handle_index).post(handle_mcp))
-        .route("/pricing", get(handle_index))
-        .route("/demo", get(handle_index))
-        .route("/docs", get(handle_index))
-        .route("/templates", get(handle_index))
-        .route("/templates/", get(handle_index))
-        .route("/templates/:slug", get(handle_template_landing))
-        .route("/templates/:slug/", get(handle_template_landing_trailing))
+        // Interactive Dashboard, Legal, SEO, Calculators & Shareable Recipient Views
+        .route("/", get(crate::seo_pages::handle_index).post(handle_mcp))
+        .route("/pricing", get(crate::seo_pages::handle_pricing_page))
+        .route("/demo", get(crate::seo_pages::handle_index))
+        .route("/docs", get(crate::seo_pages::handle_docs_page))
+        .route("/templates", get(crate::seo_pages::handle_templates_page))
+        .route("/templates/", get(crate::seo_pages::handle_templates_page))
+        .route("/templates/:slug", get(crate::seo_pages::handle_template_landing))
+        .route("/templates/:slug/", get(crate::seo_pages::handle_template_landing_trailing))
+        .route("/calculators", get(crate::calculators::handle_calculators_hub))
+        .route("/calculators/", get(|| async { Redirect::permanent("/calculators") }))
+        .route("/calculators/:slug", get(crate::calculators::handle_calculator_page))
+        .route("/calculators/:slug/", get(crate::calculators::handle_calculator_trailing))
+        .route("/css/studio.css", get(crate::seo_pages::handle_studio_css))
+        .route("/js/studio.js", get(crate::seo_pages::handle_studio_js))
+        .route("/assets/icon.svg", get(crate::seo_pages::handle_icon_svg))
+        .route("/assets/icon-512.png", get(crate::seo_pages::handle_icon_512_png))
+        .route("/icon-512.png", get(crate::seo_pages::handle_icon_512_png))
+        .route("/v/:token", get(crate::shared_docs::handle_view_shared))
+        .route("/v/:token/pdf", get(crate::shared_docs::handle_shared_pdf))
+        .route("/v/:token/preview.png", get(crate::shared_docs::handle_shared_preview_png))
+        .route("/v/:token/sign", post(crate::shared_docs::handle_sign_shared))
         .route("/elements", get(|| async { Redirect::permanent("/templates") }))
         .route("/elements/", get(|| async { Redirect::permanent("/templates") }))
         .route("/concepts", get(|| async { Redirect::permanent("/templates") }))
@@ -121,7 +134,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/favicon.ico", get(handle_favicon))
         .route("/favicon.svg", get(handle_favicon))
         .route("/favicon.png", get(handle_favicon))
-        .route("/privacy", get(handle_privacy))
+        .route("/privacy", get(crate::seo_pages::handle_privacy))
         .route("/privacy-policy", get(|| async { Redirect::permanent("/privacy") }))
         .route("/privacy-policy/", get(|| async { Redirect::permanent("/privacy") }))
         .route("/legal/privacy", get(|| async { Redirect::permanent("/privacy") }))
@@ -134,23 +147,23 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/security/subprocessors/", get(|| async { Redirect::permanent("/privacy") }))
         .route("/trust/subprocessors", get(|| async { Redirect::permanent("/privacy") }))
         .route("/trust/subprocessors/", get(|| async { Redirect::permanent("/privacy") }))
-        .route("/terms", get(handle_terms))
+        .route("/terms", get(crate::seo_pages::handle_terms))
         .route("/terms-of-service", get(|| async { Redirect::permanent("/terms") }))
         .route("/terms-of-service/", get(|| async { Redirect::permanent("/terms") }))
         .route("/legal/terms", get(|| async { Redirect::permanent("/terms") }))
         .route("/legal/terms/", get(|| async { Redirect::permanent("/terms") }))
         .route("/tos", get(|| async { Redirect::permanent("/terms") }))
         .route("/tos/", get(|| async { Redirect::permanent("/terms") }))
-        .route("/robots.txt", get(handle_robots))
-        .route("/sitemap.xml", get(handle_sitemap))
+        .route("/robots.txt", get(crate::seo_pages::handle_robots))
+        .route("/sitemap.xml", get(crate::seo_pages::handle_sitemap))
         .route("/sitemap", get(|| async { Redirect::permanent("/sitemap.xml") }))
         .route("/sitemap/", get(|| async { Redirect::permanent("/sitemap.xml") }))
         .route("/site-map", get(|| async { Redirect::permanent("/sitemap.xml") }))
         .route("/site-map/", get(|| async { Redirect::permanent("/sitemap.xml") }))
         .route("/sitemap_index.xml", get(|| async { Redirect::permanent("/sitemap.xml") }))
         .route("/sitemap-index.xml", get(|| async { Redirect::permanent("/sitemap.xml") }))
-        .route("/llms.txt", get(handle_llms_txt))
-        .route("/llms-full.txt", get(handle_llms_full_txt))
+        .route("/llms.txt", get(crate::seo_pages::handle_llms_txt))
+        .route("/llms-full.txt", get(crate::seo_pages::handle_llms_full_txt))
         .route("/health", get(handle_health))
         .route("/healthz", get(handle_health))
         .route("/api/health", get(handle_health))
@@ -224,6 +237,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/CLAUDE.md", get(|| async { Redirect::permanent("/llms.txt") }))
         // API v1
         .route("/api/v1/generate", post(handle_generate))
+        .route("/api/v1/share", post(crate::shared_docs::handle_create_share))
         .route("/api/v1/downloads/:token", get(handle_document_download))
         .route("/api/v1/preview", post(handle_preview))
         .route("/api/v1/render-raw", post(handle_render_raw))
@@ -471,9 +485,10 @@ async fn handle_fallback(uri: axum::http::Uri) -> impl IntoResponse {
     let trimmed = path.trim_end_matches(['.', ',', ':', ';', '"', '\'', '`', ')', ']', '}', '>', '\\']);
     if trimmed != path {
         match trimmed {
-            "/mcp" | "/privacy" | "/terms" | "/pricing" | "/docs" | "/openapi.json"
-            | "/api/v1/mcp" | "/api/v1/openapi.json" | "/api/v1/pricing" | "/api/v1/states"
-            | "/api/v1/templates" | "/mcp/tools.json" | "/api/v1/mcp/tools.json" => {
+            "/mcp" | "/privacy" | "/terms" | "/pricing" | "/docs" | "/templates" | "/calculators"
+            | "/openapi.json" | "/api/v1/mcp" | "/api/v1/openapi.json" | "/api/v1/pricing"
+            | "/api/v1/states" | "/api/v1/templates" | "/mcp/tools.json"
+            | "/api/v1/mcp/tools.json" => {
                 let redirect_to = if let Some(query) = uri.query() {
                     format!("{}?{}", trimmed, query)
                 } else {
@@ -482,7 +497,7 @@ async fn handle_fallback(uri: axum::http::Uri) -> impl IntoResponse {
                 return Redirect::permanent(&redirect_to).into_response();
             }
             _ => {
-                if trimmed.starts_with("/templates/") {
+                if trimmed.starts_with("/templates/") || trimmed.starts_with("/calculators/") {
                     let redirect_to = if let Some(query) = uri.query() {
                         format!("{}?{}", trimmed, query)
                     } else {
@@ -561,16 +576,6 @@ async fn handle_ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     )
 }
 
-async fn handle_index() -> impl IntoResponse {
-    match tokio::fs::read_to_string("static/index.html").await {
-        Ok(html) => (StatusCode::OK, Html(html.replace("<div class=\"studio-help\">", "<div class=\"studio-help\"><a href=\"/feedback\">Give feedback</a>"))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Html(format!("<h1>Error loading index.html: {}</h1>", e)),
-        ),
-    }
-}
-
 async fn handle_concept_landing_trailing(Path(slug): Path<String>) -> Response {
     let clean_slug = slug.trim_end_matches([':', ')', ']', '}', '"', '\'', '.', ',', ';', '>', '/']);
     Redirect::permanent(&format!("/concepts/{}", clean_slug)).into_response()
@@ -600,122 +605,6 @@ async fn handle_concept_landing(Path(slug): Path<String>) -> Response {
         return Redirect::permanent(&format!("/templates/{}", dt.url_slug())).into_response();
     }
     Redirect::permanent("/templates").into_response()
-}
-
-async fn handle_template_landing_trailing(Path(slug): Path<String>) -> Response {
-    let clean_slug = slug.trim_end_matches([':', ')', ']', '}', '"', '\'', '.', ',', ';', '>', '/']);
-    Redirect::permanent(&format!("/templates/{}", clean_slug)).into_response()
-}
-
-async fn handle_template_landing(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Path(slug): Path<String>,
-) -> Response {
-    let clean_slug = slug.trim_end_matches([':', ')', ']', '}', '"', '\'', '.', ',', ';', '>']);
-    if clean_slug != slug {
-        if DocumentType::from_slug(clean_slug).is_some() || DocumentType::parse_state_prefixed_slug(clean_slug).is_some() {
-            return Redirect::permanent(&format!("/templates/{}", clean_slug)).into_response();
-        }
-    }
-    let (doc_type, maybe_state_profile) = if let Some(dt) = DocumentType::from_slug(&slug) {
-        (dt, None)
-    } else if let Some((sp, dt)) = DocumentType::parse_state_prefixed_slug(&slug) {
-        (dt, Some(sp))
-    } else {
-        return (
-            StatusCode::NOT_FOUND,
-            Html("<h1>404 · Template Not Found</h1><p><a href=\"/templates\">Browse all 57 document templates</a></p>".to_string()),
-        )
-            .into_response();
-    };
-
-    let archetype_key = doc_type.as_str();
-    let (canonical_slug, seo_title, seo_desc) = if let Some(sp) = maybe_state_profile {
-        let (st_title, st_desc) = doc_type.state_seo_metadata(sp);
-        (
-            format!("{}-{}", sp.slug, doc_type.url_slug()),
-            st_title,
-            st_desc,
-        )
-    } else {
-        let (base_title, base_desc) = doc_type.seo_metadata();
-        (
-            doc_type.url_slug().to_string(),
-            base_title.to_string(),
-            base_desc.to_string(),
-        )
-    };
-    let canonical_url = format!("https://pressmark.dev/templates/{}", canonical_slug);
-    let user_agent = headers
-        .get(header::USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    let landing_channel = if crate::storage::Storage::is_crawler_bot_ua(user_agent) {
-        "web_seo_bot"
-    } else if crate::storage::Storage::is_internal_probe_ua(user_agent) {
-        "web_seo_probe"
-    } else {
-        "web_seo"
-    };
-
-    state.storage.record_usage_event(
-        "template_landing_view",
-        Some(archetype_key),
-        landing_channel,
-        Some(&canonical_slug),
-        None,
-    );
-
-    match tokio::fs::read_to_string("static/index.html").await {
-        Ok(raw_html) => {
-            let mut html = raw_html
-                .replace(
-                    "<title>Pressmark · Invoices, agreements and documents</title>",
-                    &format!("<title>{}</title>", seo_title),
-                )
-                .replace(
-                    "<meta name=\"description\" content=\"Create invoices, agreements and business documents. Add your details, choose a design, and review your document with a live preview before exporting.\">",
-                    &format!("<meta name=\"description\" content=\"{}\">", seo_desc),
-                )
-                .replace(
-                    "<link rel=\"canonical\" href=\"https://pressmark.dev/\">",
-                    &format!("<link rel=\"canonical\" href=\"{}\">", canonical_url),
-                )
-                .replace(
-                    "<meta property=\"og:url\" content=\"https://pressmark.dev/\">",
-                    &format!("<meta property=\"og:url\" content=\"{}\">", canonical_url),
-                )
-                .replace(
-                    "<meta property=\"og:title\" content=\"Pressmark · Invoices, agreements and documents\">",
-                    &format!("<meta property=\"og:title\" content=\"{}\">", seo_title),
-                )
-                .replace(
-                    "<meta property=\"og:description\" content=\"Create your document, add your details, and review every page before exporting.\">",
-                    &format!("<meta property=\"og:description\" content=\"{}\">", seo_desc),
-                );
-
-            let boot_script = if let Some(sp) = maybe_state_profile {
-                format!(
-                    "  <script>window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"{}\"; window.__PRESSMARK_INITIAL_STATE__ = \"{}\";</script>\n</head>",
-                    archetype_key, sp.code
-                )
-            } else {
-                format!(
-                    "  <script>window.__PRESSMARK_INITIAL_ARCHETYPE__ = \"{}\";</script>\n</head>",
-                    archetype_key
-                )
-            };
-            html = html.replacen("</head>", &boot_script, 1);
-
-            (StatusCode::OK, Html(html)).into_response()
-        }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Html(format!("<h1>Error loading index.html: {}</h1>", e)),
-        )
-            .into_response(),
-    }
 }
 
 async fn handle_templates_catalog() -> impl IntoResponse {
@@ -760,156 +649,6 @@ async fn handle_states_catalog() -> impl IntoResponse {
     )
 }
 
-async fn handle_privacy() -> impl IntoResponse {
-    match tokio::fs::read_to_string("static/privacy.html").await {
-        Ok(html) => (StatusCode::OK, Html(html)),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Html(format!("<h1>Error loading privacy.html: {}</h1>", e)),
-        ),
-    }
-}
-
-async fn handle_terms() -> impl IntoResponse {
-    match tokio::fs::read_to_string("static/terms.html").await {
-        Ok(html) => (StatusCode::OK, Html(html)),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Html(format!("<h1>Error loading terms.html: {}</h1>", e)),
-        ),
-    }
-}
-
-async fn handle_robots() -> impl IntoResponse {
-    match tokio::fs::read_to_string("static/robots.txt").await {
-        Ok(body) => (
-            StatusCode::OK,
-            [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-            body,
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Error loading robots.txt: {}", e),
-        )
-            .into_response(),
-    }
-}
-
-async fn handle_sitemap() -> impl IntoResponse {
-    let mut xml = String::with_capacity(16384);
-    xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
-    xml.push_str("  <url><loc>https://pressmark.dev/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n");
-    xml.push_str("  <url><loc>https://pressmark.dev/pricing</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>\n");
-    xml.push_str("  <url><loc>https://pressmark.dev/privacy</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>\n");
-    xml.push_str("  <url><loc>https://pressmark.dev/terms</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>\n");
-
-    for item in crate::models::DocumentType::all() {
-        xml.push_str(&format!(
-            "  <url><loc>https://pressmark.dev/templates/{}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n",
-            item.url_slug()
-        ));
-    }
-
-    for sp in crate::state_laws::all_state_lease_profiles() {
-        xml.push_str(&format!(
-            "  <url><loc>https://pressmark.dev/templates/{}-residential-lease</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n",
-            sp.slug
-        ));
-    }
-
-    for extra_slug in &[
-        "florida-eviction-notice",
-        "texas-quitclaim-deed",
-        "new-york-room-rental-lease",
-        "california-eviction-notice",
-        "tennessee-property-deed",
-    ] {
-        xml.push_str(&format!(
-            "  <url><loc>https://pressmark.dev/templates/{}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n",
-            extra_slug
-        ));
-    }
-
-    xml.push_str("</urlset>\n");
-    (
-        StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "application/xml; charset=utf-8")],
-        xml,
-    )
-        .into_response()
-}
-
-async fn handle_llms_txt() -> impl IntoResponse {
-    let mut lines = vec![
-        "# Pressmark Studio · Sub-Millisecond Vector Document Engine".to_string(),
-        "".to_string(),
-        "> High-performance Rust vector PDF document synthesis engine, interactive browser studio, and Model Context Protocol (MCP) server at https://pressmark.dev/mcp.".to_string(),
-        "".to_string(),
-        "## Core Endpoints & Agent Integration".to_string(),
-        "- [Interactive Studio](https://pressmark.dev/): Design, preview, and export 57 business, billing, legal, and real estate document archetypes in sub-25ms.".to_string(),
-        "- [Remote MCP Endpoint](https://pressmark.dev/mcp): Streamable HTTP MCP server (`io.github.mooshee/pressmark`) with seven tools: `generate_document`, `preview_document`, `calculate_totals`, `convert_document`, `record_payment`, `submit_feedback`, and `get_feedback_status`.".to_string(),
-        "- [OpenAPI 3.1 Specification](https://pressmark.dev/api/v1/openapi.json): REST API schema for `/api/v1/generate`, `/api/v1/preview`, `/api/v1/templates`, `/api/v1/states`, and `/api/v1/pricing`.".to_string(),
-        "- [Pricing & Single Unlock Passes](https://pressmark.dev/pricing): Free community tier, $2.99 Single Document Pass, and $15/mo Solo Pro unlimited exports.".to_string(),
-        "- [Full LLM Corpus](https://pressmark.dev/llms-full.txt): Complete 57-archetype catalog and MCP tool documentation.".to_string(),
-        "".to_string(),
-        "## Interactive Document Templates (57 Archetypes)".to_string(),
-    ];
-    for dt in DocumentType::all() {
-        let (_, desc) = dt.seo_metadata();
-        lines.push(format!(
-            "- [{}](https://pressmark.dev/templates/{}) — {}",
-            dt.display_title(),
-            dt.url_slug(),
-            desc
-        ));
-    }
-    (
-        StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        lines.join("\n"),
-    )
-}
-
-async fn handle_llms_full_txt() -> impl IntoResponse {
-    let mut lines = vec![
-        "# Pressmark Studio — Full AI & LLM Reference Corpus".to_string(),
-        "".to_string(),
-        "Website: https://pressmark.dev".to_string(),
-        "MCP Server (Streamable HTTP): https://pressmark.dev/mcp".to_string(),
-        "MCP Registry ID: io.github.mooshee/pressmark".to_string(),
-        "OpenAPI Spec: https://pressmark.dev/api/v1/openapi.json".to_string(),
-        "".to_string(),
-        "## MCP Tools (7 Tools)".to_string(),
-        "1. `generate_document`: Creates a vector PDF from supplied details. HTTP calls can return a temporary download link.".to_string(),
-        "2. `preview_document`: Renders a 144-PPI PNG preview as a Base64 Data URI for immediate visual inspection in chat.".to_string(),
-        "3. `calculate_totals`: Computes line-item subtotals, tax rates, discounts, and currency-specific grand totals.".to_string(),
-        "4. `convert_document`: Converts an estimate, invoice, or receipt into another billing document.".to_string(),
-        "5. `record_payment`: Uses supplied payment details to calculate the balance and create an updated invoice or receipt.".to_string(),
-        "6. `submit_feedback`: Sends a private bug report, feature request, or general feedback to the Pressmark inbox.".to_string(),
-        "7. `get_feedback_status`: Checks report status by report ID and access key without exposing private report text.".to_string(),
-        "".to_string(),
-        "## All 57 Document Archetypes".to_string(),
-    ];
-    for dt in DocumentType::all() {
-        let (title, desc) = dt.seo_metadata();
-        lines.push(format!(
-            "### {} (`{}`)\n- URL: https://pressmark.dev/templates/{}\n- SEO Title: {}\n- Summary: {}\n",
-            dt.display_title(),
-            dt.as_str(),
-            dt.url_slug(),
-            title,
-            desc
-        ));
-    }
-    (
-        StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        lines.join("\n"),
-    )
-}
-
 async fn handle_generate(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -929,21 +668,46 @@ async fn handle_generate(
 
     let maybe_token = auth::extract_token_from_headers(&headers);
     let session = maybe_token.as_deref().and_then(|t| state.auth_mgr.get_session(t));
-    let is_chatgpt_subscriber = session.as_ref().map(|s| s.user.is_subscriber).unwrap_or(false);
+    let is_binary_pdf = matches!(query.format.as_deref(), Some("binary") | Some("pdf"));
+    let is_subscriber = session.as_ref().map(|s| s.user.is_subscriber).unwrap_or(false);
+    let has_credit = session
+        .as_ref()
+        .is_some_and(|s| {
+            if is_binary_pdf {
+                state.auth_mgr.consume_session_export_credit(s)
+            } else {
+                state.auth_mgr.session_export_credits(Some(s)) > 0
+            }
+        });
+    let is_chatgpt_subscriber = is_subscriber || has_credit;
 
     if is_chatgpt_subscriber {
-        // Strip any default watermark for verified ChatGPT subscribers
+        // Strip any default watermark for verified paid/credited sessions
         if let Some(w) = &doc_req.watermark {
             if w.contains("DEMO") || w.contains("UNPAID") || w.is_empty() {
                 doc_req.watermark = None;
             }
         }
-    } else if doc_req.watermark.is_none()
-        && std::env::var("PRESSMARK_ENFORCE_FREE_WATERMARK")
-            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-            .unwrap_or(false)
-    {
-        doc_req.watermark = Some("PRESSMARK PREVIEW".to_string());
+    } else {
+        let should_add_footer = match doc_req.footer_text.as_deref().map(str::trim) {
+            None | Some("") => true,
+            Some(existing)
+                if existing == "CONFIDENTIAL & PROPRIETARY · PREPARED FOR VANCE DYNAMICS" =>
+            {
+                true
+            }
+            _ => false,
+        };
+        if should_add_footer {
+            doc_req.footer_text = Some("Prepared with Pressmark · pressmark.dev".to_string());
+        }
+        if doc_req.watermark.is_none()
+            && std::env::var("PRESSMARK_ENFORCE_FREE_WATERMARK")
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false)
+        {
+            doc_req.watermark = Some("PRESSMARK PREVIEW".to_string());
+        }
     }
 
     let doc_num = doc_req.effective_doc_number();
@@ -965,20 +729,11 @@ async fn handle_generate(
                 let candidate_email = session
                     .as_ref()
                     .map(|s| s.user.email.as_str())
-                    .filter(|e| {
-                        !e.ends_with("@pressmark.local")
-                            && !e.ends_with("@example.com")
-                            && !e.ends_with("@example.org")
-                    })
+                    .filter(|e| !crate::ghl::is_sample_or_fixture_email(e))
                     .or_else(|| doc_req.from.email.as_deref())
                     .or_else(|| doc_req.to.email.as_deref())
                     .map(str::trim)
-                    .filter(|e| {
-                        e.contains('@')
-                            && !e.ends_with("@pressmark.local")
-                            && !e.ends_with("@example.com")
-                            && !e.ends_with("@example.org")
-                    })
+                    .filter(|e| !crate::ghl::is_sample_or_fixture_email(e))
                     .map(|s| s.to_string());
                 if let Some(email_cl) = candidate_email {
                     let mut doc_cl = doc_req.clone();
@@ -1192,11 +947,7 @@ fn dispatch_checkout_to_ghl_if_configured(
         })
         .or(session_email.as_deref())
         .map(str::trim)
-        .filter(|e| {
-            e.contains('@')
-                && !e.ends_with("@pressmark.local")
-                && !e.ends_with("@example.com")
-        })
+        .filter(|e| !crate::ghl::is_sample_or_fixture_email(e))
         .map(str::to_lowercase);
 
     if let Some(email_cl) = candidate_email {
@@ -1267,8 +1018,22 @@ fn resolve_checkout_response(req: &CheckoutRequest) -> serde_json::Value {
 }
 
 async fn handle_checkout_get(
-    Query(req): Query<CheckoutRequest>,
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(mut req): Query<CheckoutRequest>,
 ) -> Response {
+    if req
+        .client_reference_id
+        .as_deref()
+        .map(str::trim)
+        .is_none_or(str::is_empty)
+    {
+        if let Some(tok) = auth::extract_token_from_headers(&headers) {
+            if let Some(sess) = state.auth_mgr.get_session(&tok) {
+                req.client_reference_id = Some(sess.session_id);
+            }
+        }
+    }
     let payload = resolve_checkout_response(&req);
     // Link previews, crawlers and browser prefetches must not start a checkout or notify CRM.
     let mut response = if req.redirect.unwrap_or(false) {

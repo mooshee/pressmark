@@ -35,7 +35,7 @@
       "privacyPolicy": "https://pressmark.dev/privacy",
       "publication": {
         "countries": [],
-        "release_notes": "Pressmark 1.3.0 removes Pressmark pricing and checkout from chat. Create and preview documents, calculate totals, and prepare receipts from payment details you provide."
+        "release_notes": "Pressmark 1.4.0 adds server-rendered template, pricing, documentation, and statutory calculator pages, shareable recipient preview and e-sign links (/v/:token), real API key and export credit verification, and mobile studio layout fixes."
       },
       "review": {
         "test_cases": {
@@ -131,5 +131,5 @@
   ],
   "name": "pressmark",
   "repository": "https://github.com/mooshee/pressmark",
-  "version": "1.3.0"
+  "version": "1.4.0"
 }

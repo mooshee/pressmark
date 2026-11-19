@@ -1,4 +1,4 @@
-# Pressmark (`pressmark.io`) — Agent Working Instructions
+# Pressmark (`pressmark.dev`) — Agent Working Instructions
 
 Author and Maintainer: Daniel Hallman
 

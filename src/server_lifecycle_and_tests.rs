@@ -576,6 +576,19 @@ pub(crate) async fn handle_copilot(
         }
     }
 
+    if changes.is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "unrecognized_instructions",
+                "modified_state": modified,
+                "ai_message": "No matching document fields were found in that request. Specify a document type (e.g. 'California residential lease' or 'credit note'), party names ('for client Acme'), line items ('10 hours of audit at $200/hr'), tax rate ('tax 8.25%'), or state."
+            })),
+        )
+            .into_response();
+    }
+
     state.storage.record_usage_event(
         "copilot_prompt",
         Some(modified.doc_type.as_str()),
@@ -584,12 +597,7 @@ pub(crate) async fn handle_copilot(
         None,
     );
 
-    let message = if changes.is_empty() {
-        "Updated document settings from your prompt.".to_string()
-    } else {
-        format!("Updated document: {}.", changes.join(", "))
-    };
-
+    let message = format!("Updated document: {}.", changes.join(", "));
     let resp = CopilotResponse {
         success: true,
         modified_state: modified,
@@ -601,76 +609,26 @@ pub(crate) async fn handle_copilot(
 pub(crate) async fn handle_vision_extract(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<VisionRequest>,
+    Json(_req): Json<VisionRequest>,
 ) -> impl IntoResponse {
     let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok());
-    let maybe_token = auth::extract_token_from_headers(&headers);
-    let session = maybe_token.as_deref().and_then(|t| state.auth_mgr.get_session(t));
-
-    let clean_name = req
-        .filename
-        .as_deref()
-        .and_then(|f| f.split('.').next())
-        .map(|s| s.replace(['-', '_'], " ").trim().to_string())
-        .filter(|s| !s.is_empty());
-
-    let mut party = PartyDetails::default();
-    if let Some(ref base) = clean_name {
-        let mut chars = base.chars();
-        let titled = match chars.next() {
-            Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
-            None => "Scanned Vendor LLC".to_string(),
-        };
-        party.name = titled;
-    } else {
-        party.name = "Scanned Vendor LLC".to_string();
-    }
-    party.email = Some("billing@scanned-vendor.com".to_string());
-
-    let items = vec![
-        LineItem {
-            description: clean_name
-                .as_ref()
-                .map(|n| format!("{} — Line Item", n))
-                .unwrap_or_else(|| "Extracted Line Item 1".to_string()),
-            quantity: 1.0,
-            unit_price: 499.0,
-            tax_rate: None,
-            discount: None,
-        },
-        LineItem {
-            description: "Processing & Handling".to_string(),
-            quantity: 1.0,
-            unit_price: 25.0,
-            tax_rate: None,
-            discount: None,
-        },
-    ];
-
     state.storage.record_usage_event(
-        "vision_extract",
+        "vision_extract_unavailable",
         Some("receipt"),
         "studio",
-        req.filename.as_deref().or(user_agent),
+        user_agent,
         None,
     );
 
-    let ai_message = if let Some(sess) = session {
-        format!(
-            "Extracted vendor and 2 line items ({}).",
-            sess.user.plan_display
-        )
-    } else {
-        "Extracted vendor details and 2 line items from uploaded image.".to_string()
-    };
-
-    let resp = VisionResponse {
-        success: true,
-        extracted_items: items,
-        extracted_from: Some(party),
-        ai_message,
-    };
-    (StatusCode::OK, Json(resp)).into_response()
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(serde_json::json!({
+            "success": false,
+            "error": "vision_not_configured",
+            "message": "Receipt image extraction is not enabled on this server. Enter line items directly or import JSON/MCP document input."
+        })),
+    )
+        .into_response()
 }
 
 // ChatGPT OAuth Handlers
@@ -935,34 +893,63 @@ pub(crate) async fn handle_stripe_webhook(
             match &action {
                 crate::stripe::FulfillmentAction::CheckoutCompleted {
                     customer_email,
+                    client_reference_id,
                     session_id,
                     amount_total_cents,
                     document_number,
                 } => {
-                    let plan = if *amount_total_cents >= 14900 {
-                        crate::auth::ChatGptPlan::Agency
-                    } else if *amount_total_cents >= 4900 {
-                        crate::auth::ChatGptPlan::Business
+                    let is_credit_pack = *amount_total_cents > 0 && *amount_total_cents <= 1100;
+                    let tier_slug = if *amount_total_cents > 0 && *amount_total_cents <= 350 {
+                        state.auth_mgr.grant_export_credits(
+                            (!customer_email.is_empty()).then_some(customer_email.as_str()),
+                            client_reference_id.as_deref(),
+                            1,
+                            Some(session_id),
+                            *amount_total_cents,
+                        );
+                        "single_pass"
+                    } else if is_credit_pack {
+                        state.auth_mgr.grant_export_credits(
+                            (!customer_email.is_empty()).then_some(customer_email.as_str()),
+                            client_reference_id.as_deref(),
+                            5,
+                            Some(session_id),
+                            *amount_total_cents,
+                        );
+                        "starter_pack_5"
                     } else {
-                        crate::auth::ChatGptPlan::SoloPro
+                        let plan = if *amount_total_cents >= 14900 {
+                            crate::auth::ChatGptPlan::Agency
+                        } else if *amount_total_cents >= 4900 {
+                            crate::auth::ChatGptPlan::Business
+                        } else {
+                            crate::auth::ChatGptPlan::SoloPro
+                        };
+                        if !customer_email.is_empty() {
+                            state.auth_mgr.upgrade_user_entitlement(
+                                customer_email,
+                                plan,
+                                Some(session_id),
+                                *amount_total_cents,
+                            );
+                        }
+                        if let Some(ref_id) = client_reference_id {
+                            state.auth_mgr.upgrade_session_by_reference(ref_id, plan);
+                        }
+                        match plan {
+                            crate::auth::ChatGptPlan::Agency => "sub_agency",
+                            crate::auth::ChatGptPlan::Business => "sub_business",
+                            _ => "sub_solo_pro",
+                        }
                     };
-                    state.auth_mgr.upgrade_user_entitlement(
-                        customer_email,
-                        plan,
-                        Some(session_id),
-                        *amount_total_cents,
-                    );
 
-                    if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
+                    if crate::ghl::GhlDispatcher::has_env_or_pit_file()
+                        && !crate::ghl::is_sample_or_fixture_email(customer_email)
+                    {
                         let email_cl = customer_email.clone();
                         let doc_cl = document_number
                             .clone()
                             .unwrap_or_else(|| session_id.clone());
-                        let tier_slug = match plan {
-                            crate::auth::ChatGptPlan::Agency => "sub_agency",
-                            crate::auth::ChatGptPlan::Business => "sub_business",
-                            _ => "sub_solo_pro",
-                        };
                         let cents = *amount_total_cents as u32;
                         tokio::spawn(async move {
                             let ghl = crate::ghl::GhlDispatcher::from_env();
@@ -974,32 +961,52 @@ pub(crate) async fn handle_stripe_webhook(
                 }
                 crate::stripe::FulfillmentAction::PaymentUnlocked {
                     customer_email,
+                    client_reference_id,
                     amount_cents,
                     document_number,
                     receipt_number,
                     unlocked_tier,
                     ..
                 } => {
-                    let plan = unlocked_tier
-                        .as_deref()
-                        .map(crate::auth::ChatGptPlan::from_str_relaxed)
-                        .unwrap_or_else(|| {
-                            if *amount_cents >= 14900 {
-                                crate::auth::ChatGptPlan::Agency
-                            } else if *amount_cents >= 4900 {
-                                crate::auth::ChatGptPlan::Business
-                            } else {
-                                crate::auth::ChatGptPlan::SoloPro
-                            }
-                        });
-                    state.auth_mgr.upgrade_user_entitlement(
-                        customer_email,
-                        plan,
-                        Some(receipt_number),
-                        *amount_cents,
-                    );
+                    let is_credit_pack = unlocked_tier.is_none() && *amount_cents > 0 && *amount_cents <= 1100;
+                    if is_credit_pack {
+                        let credits = if *amount_cents <= 350 { 1 } else { 5 };
+                        state.auth_mgr.grant_export_credits(
+                            (!customer_email.is_empty()).then_some(customer_email.as_str()),
+                            client_reference_id.as_deref(),
+                            credits,
+                            Some(receipt_number),
+                            *amount_cents,
+                        );
+                    } else {
+                        let plan = unlocked_tier
+                            .as_deref()
+                            .map(crate::auth::ChatGptPlan::from_str_relaxed)
+                            .unwrap_or_else(|| {
+                                if *amount_cents >= 14900 {
+                                    crate::auth::ChatGptPlan::Agency
+                                } else if *amount_cents >= 4900 {
+                                    crate::auth::ChatGptPlan::Business
+                                } else {
+                                    crate::auth::ChatGptPlan::SoloPro
+                                }
+                            });
+                        if !customer_email.is_empty() {
+                            state.auth_mgr.upgrade_user_entitlement(
+                                customer_email,
+                                plan,
+                                Some(receipt_number),
+                                *amount_cents,
+                            );
+                        }
+                        if let Some(ref_id) = client_reference_id {
+                            state.auth_mgr.upgrade_session_by_reference(ref_id, plan);
+                        }
+                    }
 
-                    if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
+                    if crate::ghl::GhlDispatcher::has_env_or_pit_file()
+                        && !crate::ghl::is_sample_or_fixture_email(customer_email)
+                    {
                         let email_cl = customer_email.clone();
                         let doc_cl = document_number
                             .clone()
@@ -1030,7 +1037,9 @@ pub(crate) async fn handle_stripe_webhook(
                         Some(credit_note_number),
                         Some(*refund_amount_cents),
                     );
-                    if crate::ghl::GhlDispatcher::has_env_or_pit_file() {
+                    if crate::ghl::GhlDispatcher::has_env_or_pit_file()
+                        && !crate::ghl::is_sample_or_fixture_email(customer_email)
+                    {
                         let email_cl = customer_email.clone();
                         let cn_cl = credit_note_number.clone();
                         let cents = *refund_amount_cents;
@@ -1039,6 +1048,9 @@ pub(crate) async fn handle_stripe_webhook(
                             let _ = ghl.dispatch_charge_refunded(&email_cl, &cn_cl, cents).await;
                         });
                     }
+                }
+                crate::stripe::FulfillmentAction::MissingCustomerIdentity { event_type } => {
+                    tracing::warn!("Stripe event {} missing verified customer identity; skipped fulfillment", event_type);
                 }
                 _ => {}
             }

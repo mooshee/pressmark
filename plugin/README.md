@@ -15,6 +15,6 @@ When customer sync is enabled, generating a PDF can record contact details and a
 
 Pressmark does not show its plans or start checkout in chat. For plan details, open the [pricing page](https://pressmark.dev/pricing) in a browser. Recording a payment prepares a document from the supplied details; it does not move money or verify a transaction.
 
-Version **1.3.0**. See the [release notes](https://github.com/mooshee/pressmark/releases/tag/v1.3.0) and [installation instructions](https://github.com/mooshee/pressmark#use-pressmark-with-an-agent). Update or reinstall the package, then refresh the connection's tool list. The server address is unchanged.
+Version **1.4.0**, November 19, 2026. See the [release notes](https://github.com/mooshee/pressmark/releases/tag/v1.4.0) and [installation instructions](https://github.com/mooshee/pressmark#use-pressmark-with-an-agent). Update or reinstall the package, then refresh the connection's tool list. The server address is unchanged.
 
 Built by [Moosh Works](https://mooshworks.com).

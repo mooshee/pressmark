@@ -3867,7 +3867,8 @@ a { color: var(--accent-indigo); }
 #documentTypePicker .control-card { border: 0; background: transparent; overflow: visible; }
 #documentTypePicker .card-body { border: 0; padding: 0; }
 .example-notice { font-size: 12px; color: var(--text-muted); line-height: 1.55; }
-.studio-help { display: flex; justify-content: center; gap: 20px; padding: 12px 0 0; font-size: 11px; }
+.studio-help { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 16px; padding: 12px 0 0; font-size: 11px; }
+.mobile-only-preview-btn, .mobile-only-edit-btn { display: none; }
 .studio-help a { color: var(--text-muted); text-decoration: none; }
 .studio-help a:hover { text-decoration: underline; }
 .document-summary { padding: 20px; }
@@ -4044,6 +4045,10 @@ input:checked + .slider::before { transform: translateX(14px); }
   .main-container.view-mode-split { flex-direction: row; }
   .main-container.view-mode-split .controls-pane { height: 100%; max-height: none; border-right: 0; }
   .main-container.view-mode-split .preview-pane { display: none; }
+  .main-container.view-mode-preview .controls-pane { display: none; }
+  .main-container.view-mode-preview .preview-pane { display: flex; width: 100%; height: 100%; }
+  .mobile-only-preview-btn, .mobile-only-edit-btn { display: inline-flex; align-items: center; min-height: 40px; }
+  .workflow-footer { flex-wrap: wrap; gap: 8px; }
   .main-container.view-mode-editor .controls-pane { max-width: 760px; }
   #viewBtnSplit { display: none; }
   .nav-brand { min-width: 0; }

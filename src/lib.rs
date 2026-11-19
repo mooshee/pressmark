@@ -7,6 +7,7 @@
 pub mod auth;
 pub mod branding;
 pub mod builder;
+pub mod calculators;
 pub mod downloads;
 pub mod feedback;
 pub mod engine;
@@ -16,8 +17,10 @@ pub mod models;
 pub mod openapi;
 pub mod pricing;
 pub mod rate_limit;
+pub mod seo_pages;
 pub mod server;
 pub mod server_discovery;
+pub mod shared_docs;
 pub mod state_laws;
 pub mod storage;
 pub mod stripe;

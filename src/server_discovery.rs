@@ -116,7 +116,7 @@ pub async fn handle_agent_card() -> impl IntoResponse {
             "skills": [
                 {
                     "name": "Vector PDF Synthesis",
-                    "description": "Generate publication-grade PDFs with sub-25ms compilation and 1-scan QR code mobile payments.",
+                    "description": "Compile print-ready vector PDFs via Typst with 1-scan QR code mobile payments.",
                     "tags": ["pdf", "typst", "invoice", "receipt", "vector"]
                 },
                 {

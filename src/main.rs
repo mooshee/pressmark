@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| format!("http://{}", addr));
 
     println!("============================================================");
-    println!("  PRESSMARK · Sub-Millisecond Vector Document Engine        ");
+    println!("  PRESSMARK · Vector Typst Document Engine                  ");
     println!("  Author: Daniel Hallman                                    ");
     println!("============================================================");
     println!("  Vector Engine    : {:?}", typst_path);

@@ -12,6 +12,52 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
+use std::sync::OnceLock;
+use std::time::Duration;
+
+static SHARED_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+/// Connection-pooled `reqwest::Client` reused across all GHL CRM API requests.
+pub fn shared_http_client() -> &'static reqwest::Client {
+    SHARED_HTTP_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .pool_max_idle_per_host(8)
+            .user_agent(concat!("pressmark/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    })
+}
+
+/// Returns `true` for placeholder, sample Studio defaults, or RFC 2606 fixture addresses
+/// that should never be synced into live CRM contacts.
+pub fn is_sample_or_fixture_email(email: &str) -> bool {
+    let clean = email.trim().to_ascii_lowercase();
+    if clean.is_empty() || !clean.contains('@') {
+        return true;
+    }
+    if matches!(
+        clean.as_str(),
+        "billing@pressmark.dev"
+            | "customer@pressmark.dev"
+            | "support@pressmark.dev"
+            | "guest@pressmark.local"
+            | "agent@pressmark.local"
+            | "finance@vancedynamics.com"
+            | "accounts@vancedynamics.com"
+            | "billing@scanned-vendor.com"
+            | "leasing@pacificaholdings.com"
+    ) {
+        return true;
+    }
+    clean.ends_with("@pressmark.local")
+        || clean.ends_with("@example.com")
+        || clean.ends_with("@example.org")
+        || clean.ends_with("@example.invalid")
+        || clean.ends_with("@vancedynamics.com")
+        || clean.ends_with("@scanned-vendor.com")
+        || clean.ends_with(".invalid")
+}
 
 pub const PRESSMARK_LOCATION_ID: &str = "TnDcaRLbCxm7LnOUF173";
 
@@ -91,7 +137,7 @@ impl GhlDispatcher {
         Self {
             location_id,
             token,
-            client: reqwest::Client::new(),
+            client: shared_http_client().clone(),
         }
     }
 
@@ -99,7 +145,7 @@ impl GhlDispatcher {
         Self {
             location_id,
             token,
-            client: reqwest::Client::new(),
+            client: shared_http_client().clone(),
         }
     }
 
@@ -855,5 +901,13 @@ mod tests {
             refund_res.workflows_enrolled,
             vec![WF5_REFUND_CHURN_ID.to_string()]
         );
+
+        assert!(is_sample_or_fixture_email("billing@pressmark.dev"));
+        assert!(is_sample_or_fixture_email("finance@vancedynamics.com"));
+        assert!(is_sample_or_fixture_email("qa@example.invalid"));
+        assert!(is_sample_or_fixture_email("user@scanned-vendor.com"));
+        assert!(!is_sample_or_fixture_email("integration-test@pressmark.dev"));
+        assert!(!is_sample_or_fixture_email("founder@acme.io"));
+        assert!(std::ptr::eq(shared_http_client(), shared_http_client()));
     }
 }

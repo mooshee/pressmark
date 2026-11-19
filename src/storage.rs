@@ -23,6 +23,25 @@ pub struct Storage {
     mcp_outcome_write_failures: Arc<AtomicU64>,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SharedDocumentRecord {
+    pub token: String,
+    pub doc_json: String,
+    pub doc_type: String,
+    pub doc_title: String,
+    pub doc_number: String,
+    pub from_name: String,
+    pub to_name: String,
+    pub total_formatted: String,
+    pub payment_link: Option<String>,
+    pub sha256_hex: String,
+    pub recipient_signed_name: Option<String>,
+    pub recipient_signed_at: Option<i64>,
+    pub created_at: i64,
+    pub expires_at: i64,
+    pub view_count: i64,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum CheckoutStart {
     Created,
@@ -132,8 +151,39 @@ impl Storage {
                 plan TEXT NOT NULL,
                 stripe_session_id TEXT,
                 amount_cents INTEGER NOT NULL DEFAULT 0,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                export_credits INTEGER NOT NULL DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS api_keys (
+                key_sha256 TEXT PRIMARY KEY,
+                key_prefix TEXT NOT NULL,
+                email TEXT NOT NULL,
+                name TEXT NOT NULL,
+                plan TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                revoked INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_api_keys_email ON api_keys(email);
+
+            CREATE TABLE IF NOT EXISTS shared_documents (
+                token TEXT PRIMARY KEY,
+                doc_json TEXT NOT NULL,
+                doc_type TEXT NOT NULL,
+                doc_title TEXT NOT NULL,
+                doc_number TEXT NOT NULL,
+                from_name TEXT NOT NULL,
+                to_name TEXT NOT NULL,
+                total_formatted TEXT NOT NULL,
+                payment_link TEXT,
+                sha256_hex TEXT NOT NULL,
+                recipient_signed_name TEXT,
+                recipient_signed_at INTEGER,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                view_count INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_shared_documents_expires ON shared_documents(expires_at);
 
             CREATE TABLE IF NOT EXISTS usage_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,6 +209,11 @@ impl Storage {
             if !columns.iter().any(|column| column == name) {
                 lock.execute_batch(&format!("ALTER TABLE usage_events ADD COLUMN {name} {kind};"))?;
             }
+        }
+        let ent_columns: Vec<String> = lock.prepare_cached("PRAGMA table_info(customer_entitlements)")?
+            .query_map([], |row| row.get(1))?.collect::<Result<_>>()?;
+        if !ent_columns.iter().any(|column| column == "export_credits") {
+            lock.execute_batch("ALTER TABLE customer_entitlements ADD COLUMN export_credits INTEGER NOT NULL DEFAULT 0;")?;
         }
         lock.execute_batch("CREATE TABLE IF NOT EXISTS usage_measurement_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);")?;
         lock.prepare_cached(
@@ -388,6 +443,201 @@ impl Storage {
         let rows = lock
             .prepare_cached("DELETE FROM customer_entitlements WHERE email = ?1;")?
             .execute(params![clean_email])?;
+        Ok(rows > 0)
+    }
+
+    pub fn add_export_credits(
+        &self,
+        email: &str,
+        delta: i64,
+        stripe_session_id: Option<&str>,
+        amount_cents: u64,
+    ) -> Result<()> {
+        let clean_email = email.trim().to_lowercase();
+        let lock = self.conn.lock().unwrap();
+        let now = Utc::now().to_rfc3339();
+        lock.prepare_cached(
+            "INSERT INTO customer_entitlements (email, plan, stripe_session_id, amount_cents, updated_at, export_credits)
+             VALUES (?1, 'free', ?2, ?3, ?4, ?5)
+             ON CONFLICT(email) DO UPDATE SET
+                stripe_session_id = COALESCE(excluded.stripe_session_id, customer_entitlements.stripe_session_id),
+                amount_cents = MAX(customer_entitlements.amount_cents, excluded.amount_cents),
+                updated_at = excluded.updated_at,
+                export_credits = MAX(0, customer_entitlements.export_credits + ?5);",
+        )?
+        .execute(params![
+            clean_email,
+            stripe_session_id,
+            amount_cents as i64,
+            now,
+            delta
+        ])?;
+        Ok(())
+    }
+
+    pub fn get_export_credits(&self, email: &str) -> i64 {
+        let clean_email = email.trim().to_lowercase();
+        let lock = self.conn.lock().unwrap();
+        lock.prepare_cached("SELECT export_credits FROM customer_entitlements WHERE email = ?1 LIMIT 1;")
+            .and_then(|mut s| s.query_row(params![clean_email], |r| r.get(0)))
+            .unwrap_or(0)
+    }
+
+    pub fn consume_export_credit(&self, email: &str) -> bool {
+        let clean_email = email.trim().to_lowercase();
+        let lock = self.conn.lock().unwrap();
+        let now = Utc::now().to_rfc3339();
+        lock.prepare_cached(
+            "UPDATE customer_entitlements
+             SET export_credits = export_credits - 1, updated_at = ?2
+             WHERE email = ?1 AND export_credits > 0;",
+        )
+        .and_then(|mut s| s.execute(params![clean_email, now]))
+        .map(|n| n > 0)
+        .unwrap_or(false)
+    }
+
+    fn hash_api_key(raw_key: &str) -> String {
+        use sha2::{Digest, Sha256};
+        hex::encode(Sha256::digest(raw_key.trim().as_bytes()))
+    }
+
+    pub fn create_api_key(&self, raw_key: &str, email: &str, name: &str, plan: &str) -> Result<()> {
+        let key_hash = Self::hash_api_key(raw_key);
+        let trimmed = raw_key.trim();
+        let prefix: String = trimmed.chars().take(12).collect();
+        let clean_email = email.trim().to_ascii_lowercase();
+        let now = Utc::now().timestamp();
+        let lock = self.conn.lock().unwrap();
+        lock.prepare_cached(
+            "INSERT INTO api_keys (key_sha256, key_prefix, email, name, plan, created_at, revoked)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)
+             ON CONFLICT(key_sha256) DO UPDATE SET
+                email = excluded.email,
+                name = excluded.name,
+                plan = excluded.plan,
+                revoked = 0;",
+        )?
+        .execute(params![key_hash, prefix, clean_email, name.trim(), plan.trim(), now])?;
+        Ok(())
+    }
+
+    pub fn verify_api_key(&self, raw_key: &str) -> Option<(String, String, String)> {
+        let trimmed = raw_key.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        let key_hash = Self::hash_api_key(trimmed);
+        let lock = self.conn.lock().unwrap();
+        let mut stmt = lock
+            .prepare_cached(
+                "SELECT email, name, plan FROM api_keys WHERE key_sha256 = ?1 AND revoked = 0 LIMIT 1;",
+            )
+            .ok()?;
+        let row_res = stmt
+            .query_row(params![key_hash], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            })
+            .ok();
+        row_res
+    }
+
+    pub fn save_shared_document(&self, record: &SharedDocumentRecord) -> Result<()> {
+        let lock = self.conn.lock().unwrap();
+        lock.prepare_cached(
+            "INSERT INTO shared_documents (
+                token, doc_json, doc_type, doc_title, doc_number,
+                from_name, to_name, total_formatted, payment_link, sha256_hex,
+                recipient_signed_name, recipient_signed_at, created_at, expires_at, view_count
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+             ON CONFLICT(token) DO UPDATE SET
+                doc_json = excluded.doc_json,
+                recipient_signed_name = excluded.recipient_signed_name,
+                recipient_signed_at = excluded.recipient_signed_at,
+                sha256_hex = excluded.sha256_hex;",
+        )?
+        .execute(params![
+            record.token,
+            record.doc_json,
+            record.doc_type,
+            record.doc_title,
+            record.doc_number,
+            record.from_name,
+            record.to_name,
+            record.total_formatted,
+            record.payment_link,
+            record.sha256_hex,
+            record.recipient_signed_name,
+            record.recipient_signed_at,
+            record.created_at,
+            record.expires_at,
+            record.view_count,
+        ])?;
+        Ok(())
+    }
+
+    pub fn get_shared_document(&self, token: &str) -> Option<SharedDocumentRecord> {
+        let now = Utc::now().timestamp();
+        let lock = self.conn.lock().unwrap();
+        let mut stmt = lock
+            .prepare_cached(
+                "SELECT token, doc_json, doc_type, doc_title, doc_number,
+                        from_name, to_name, total_formatted, payment_link, sha256_hex,
+                        recipient_signed_name, recipient_signed_at, created_at, expires_at, view_count
+                 FROM shared_documents
+                 WHERE token = ?1 AND expires_at > ?2
+                 LIMIT 1;",
+            )
+            .ok()?;
+        let record_res = stmt
+            .query_row(params![token.trim(), now], |row| {
+                Ok(SharedDocumentRecord {
+                    token: row.get(0)?,
+                    doc_json: row.get(1)?,
+                    doc_type: row.get(2)?,
+                    doc_title: row.get(3)?,
+                    doc_number: row.get(4)?,
+                    from_name: row.get(5)?,
+                    to_name: row.get(6)?,
+                    total_formatted: row.get(7)?,
+                    payment_link: row.get(8)?,
+                    sha256_hex: row.get(9)?,
+                    recipient_signed_name: row.get(10)?,
+                    recipient_signed_at: row.get(11)?,
+                    created_at: row.get(12)?,
+                    expires_at: row.get(13)?,
+                    view_count: row.get(14)?,
+                })
+            })
+            .ok();
+        record_res
+    }
+
+    pub fn increment_shared_view(&self, token: &str) {
+        if let Ok(lock) = self.conn.lock() {
+            let _ = lock
+                .prepare_cached("UPDATE shared_documents SET view_count = view_count + 1 WHERE token = ?1;")
+                .and_then(|mut s| s.execute(params![token.trim()]));
+        }
+    }
+
+    pub fn sign_shared_document(
+        &self,
+        token: &str,
+        updated_doc_json: &str,
+        new_sha256_hex: &str,
+        signer_name: &str,
+        signed_at: i64,
+    ) -> Result<bool> {
+        let now = Utc::now().timestamp();
+        let lock = self.conn.lock().unwrap();
+        let rows = lock
+            .prepare_cached(
+                "UPDATE shared_documents
+                 SET doc_json = ?2, sha256_hex = ?3, recipient_signed_name = ?4, recipient_signed_at = ?5
+                 WHERE token = ?1 AND expires_at > ?6;",
+            )?
+            .execute(params![token.trim(), updated_doc_json, new_sha256_hex, signer_name.trim(), signed_at, now])?;
         Ok(rows > 0)
     }
 
@@ -743,6 +993,12 @@ impl Storage {
             "google-inspectiontool",
             "meta-webindexer",
             "headlesschrome",
+            "sentineloracle",
+            "custom-asynchttpclient",
+            "coda-agent-runtime",
+            "glama-bot",
+            "smithery-bot",
+            "pulsemcp-probe",
         ];
         BOT_MARKERS.iter().any(|m| lower.contains(m))
     }
@@ -1139,11 +1395,17 @@ impl Storage {
             .prepare_cached("DELETE FROM usage_events WHERE created_at < ?1;")?
             .execute(params![usage_cutoff])?;
 
-        let total = expired_sessions + stale_auths + old_events + old_usage;
+        let now_ts = now.timestamp();
+        let expired_shares = lock
+            .prepare_cached("DELETE FROM shared_documents WHERE expires_at < ?1;")?
+            .execute(params![now_ts])?;
+
+        let total = expired_sessions + stale_auths + old_events + old_usage + expired_shares;
         if total > 0 {
+            let _ = lock.execute_batch("PRAGMA wal_checkpoint(PASSIVE); PRAGMA optimize;");
             tracing::info!(
-                "Pruned stale DB records: {} sessions, {} auths, {} stripe events, {} usage events",
-                expired_sessions, stale_auths, old_events, old_usage
+                "Pruned stale DB records: {} sessions, {} auths, {} stripe events, {} usage events, {} shared docs",
+                expired_sessions, stale_auths, old_events, old_usage, expired_shares
             );
         }
         Ok(total)
