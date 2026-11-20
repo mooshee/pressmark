@@ -390,7 +390,7 @@ fn render_nnn_calculator() -> String {
             from: { name: 'Commercial Property Holdings LLC' },
             to: { name: document.getElementById('nnnTenant').value || 'Tenant Corp' },
             items: [
-              { description: 'Monthly Base Rent (' + v.sqft + ' SqFt @ $' + v.base.toFixed(2) + '/SqFt/yr)', quantity: 1, unit_price: Math.round(v.moBase * 100)/100 },
+              { description: 'Monthly Base Rent (' + v.sqft + ' SqFt @ $' + v.base.toFixed(2) + ' per SqFt/yr)', quantity: 1, unit_price: Math.round(v.moBase * 100)/100 },
               { description: 'Estimated CAM, Property Tax & Insurance (NNN Pass-Through)', quantity: 1, unit_price: Math.round(v.moNnn * 100)/100 }
             ]
           };
@@ -549,4 +549,19 @@ pub async fn handle_calculator_page(
         &body,
     ))
     .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_nnn_calculator_has_no_leading_slash_sqft_js_literal() {
+        let html = render_nnn_calculator();
+        assert!(html.contains(" per SqFt/yr)"));
+        assert!(
+            !html.contains("'/SqFt/yr)'"),
+            "Must not contain slash-prefixed JS string literal that Googlebot misinterprets as a relative URL"
+        );
+    }
 }
